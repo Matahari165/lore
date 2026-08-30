@@ -1,5 +1,6 @@
 import Foundation
 import ReadiumShared
+import UIKit
 
 /// Boundary implemented by the local data layer. Locator data is kept opaque so
 /// the persistence model does not depend on Readium's internal fields.
@@ -18,6 +19,34 @@ enum ReaderLifecycleState: Sendable {
     case active
     case inactive
     case background
+}
+
+@MainActor
+protocol ReaderLocationProviding: AnyObject {
+    var currentLocation: Locator? { get }
+    var viewController: UIViewController { get }
+}
+
+@MainActor
+protocol ReadingPositionManaging: AnyObject {
+    func record(_ locator: Locator)
+    func flush(currentLocator: Locator?) async throws
+}
+
+struct RestoredReaderLocation {
+    let locator: Locator?
+    let requiresRewrite: Bool
+}
+
+enum ReaderLocationRestorer {
+    @MainActor
+    static func restore(bookID: UUID, from store: any ReaderProgressStore) throws -> RestoredReaderLocation {
+        guard let stored = try store.storedLocator(for: bookID) else {
+            return RestoredReaderLocation(locator: nil, requiresRewrite: false)
+        }
+        let decoded = try LocatorPersistenceCodec.decode(stored)
+        return RestoredReaderLocation(locator: decoded.locator, requiresRewrite: decoded.requiresRewrite)
+    }
 }
 
 enum LocatorPersistenceCodec {

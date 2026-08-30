@@ -1,15 +1,17 @@
 import Foundation
 import ReadiumNavigator
 import ReadiumShared
+import UIKit
 
 @MainActor
 final class ReaderSessionController {
-    let publication: Publication
-    let navigator: EPUBNavigatorViewController
+    let contentViewController: UIViewController
 
-    private let positionController: ReadingPositionController
-    private let navigatorDelegate: ReaderNavigatorDelegate
-    private let directionalNavigationAdapter: DirectionalNavigationAdapter
+    private let publication: Publication?
+    private let locationProvider: any ReaderLocationProviding
+    private let positionController: any ReadingPositionManaging
+    private let navigatorDelegate: ReaderNavigatorDelegate?
+    private let directionalNavigationAdapter: DirectionalNavigationAdapter?
     private let onError: @MainActor (Error) -> Void
 
     static func make(
@@ -21,29 +23,16 @@ final class ReaderSessionController {
     ) async throws -> ReaderSessionController {
         let opened = try await publicationService.openEPUB(at: fileURL)
 
-        let initialLocation: Locator?
-        var requiresLocatorRewrite = false
-        do {
-            if let stored = try progressStore.storedLocator(for: bookID) {
-                let decoded = try LocatorPersistenceCodec.decode(stored)
-                initialLocation = decoded.locator
-                requiresLocatorRewrite = decoded.requiresRewrite
-            } else {
-                initialLocation = nil
-            }
-        } catch {
-            initialLocation = nil
-            onError(error)
-        }
+        let restoration = restoreInitialLocation(bookID: bookID, store: progressStore, onError: onError)
 
         let session = try ReaderSessionController(
             bookID: bookID,
             publication: opened.publication,
-            initialLocation: initialLocation,
+            initialLocation: restoration.locator,
             progressStore: progressStore,
             onError: onError
         )
-        if requiresLocatorRewrite, let initialLocation {
+        if restoration.requiresRewrite, let initialLocation = restoration.locator {
             session.positionController.record(initialLocation)
         }
         return session
@@ -70,7 +59,8 @@ final class ReaderSessionController {
             publication: publication,
             initialLocation: initialLocation
         )
-        self.navigator = navigator
+        locationProvider = navigator
+        contentViewController = navigator
 
         let delegate = ReaderNavigatorDelegate(
             positionController: positionController,
@@ -84,13 +74,45 @@ final class ReaderSessionController {
         directionalNavigationAdapter.bind(to: navigator)
     }
 
+    init(
+        locationProvider: any ReaderLocationProviding,
+        positionController: any ReadingPositionManaging,
+        onError: @escaping @MainActor (Error) -> Void = { _ in }
+    ) {
+        publication = nil
+        self.locationProvider = locationProvider
+        self.positionController = positionController
+        contentViewController = locationProvider.viewController
+        navigatorDelegate = nil
+        directionalNavigationAdapter = nil
+        self.onError = onError
+    }
+
+    static func restoreInitialLocation(
+        bookID: UUID,
+        store: any ReaderProgressStore,
+        onError: @escaping @MainActor (Error) -> Void
+    ) -> RestoredReaderLocation {
+        do {
+            return try ReaderLocationRestorer.restore(bookID: bookID, from: store)
+        } catch {
+            onError(error)
+            return RestoredReaderLocation(locator: nil, requiresRewrite: false)
+        }
+    }
+
     func handleLifecycle(_ state: ReaderLifecycleState) async throws {
         switch state {
         case .active:
-            break
+            do {
+                try await positionController.flush(currentLocator: nil)
+            } catch {
+                onError(error)
+                throw error
+            }
         case .inactive, .background:
             do {
-                try await positionController.flush(currentLocator: navigator.currentLocation)
+                try await positionController.flush(currentLocator: locationProvider.currentLocation)
             } catch {
                 onError(error)
                 throw error
@@ -100,12 +122,16 @@ final class ReaderSessionController {
 
     func close() async throws {
         do {
-            try await positionController.flush(currentLocator: navigator.currentLocation)
+            try await positionController.flush(currentLocator: locationProvider.currentLocation)
         } catch {
             onError(error)
             throw error
         }
     }
+}
+
+extension EPUBNavigatorViewController: ReaderLocationProviding {
+    var viewController: UIViewController { self }
 }
 
 @MainActor

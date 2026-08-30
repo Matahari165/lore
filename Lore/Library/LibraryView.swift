@@ -73,7 +73,7 @@ struct LibraryView: View {
         }
         .fullScreenCover(item: $model.readerPresentation) { presentation in
             ReaderScreen(presentation: presentation) {
-                model.readerDidClose()
+                await model.closeReader()
             }
         }
     }

@@ -61,14 +61,16 @@ final class BookImportService {
             try fileStore.stageEPUB(from: sourceURL)
         }.value
         if let existing = try repository.book(contentSHA256: staged.contentSHA256) {
-            do {
-                if existing.importState != .ready { try recoverImport(existing) }
+            if existing.importState == .ready,
+               (try? fileStore.finalFile(bookID: existing.id, expectedSHA256: staged.contentSHA256)) != nil {
                 fileStore.discard(staged)
                 return .alreadyImported(existing)
-            } catch {
-                fileStore.discard(staged)
-                throw error
             }
+            if existing.importState != .ready, (try? recoverImport(existing)) != nil {
+                fileStore.discard(staged)
+                return .alreadyImported(existing)
+            }
+            return try await repair(existing, using: staged)
         }
 
         do {
@@ -140,11 +142,27 @@ final class BookImportService {
             )
         } else if let token = book.stagingToken {
             let staged = try fileStore.stagedFile(token: token, expectedSHA256: digest)
+            _ = try fileStore.quarantineFinalDirectory(bookID: book.id)
             let path = try fileStore.promote(staged, to: book.id)
             try repository.confirmImport(bookID: book.id, relativeFilePath: path)
         } else {
             try repository.markRecoveryRequired(bookID: book.id)
             throw BookFileStoreError.storedFileMissing
+        }
+    }
+
+    private func repair(_ book: BookRecord, using staged: StagedBookFile) async throws -> BookImportResult {
+        do {
+            let metadata = try await validator.validateEPUBForImport(at: staged.fileURL)
+            try repository.prepareRepair(bookID: book.id, stagingToken: staged.token, metadata: metadata)
+            _ = try fileStore.quarantineFinalDirectory(bookID: book.id)
+            let path = try fileStore.promote(staged, to: book.id)
+            try repository.confirmImport(bookID: book.id, relativeFilePath: path)
+            return .alreadyImported(book)
+        } catch {
+            let referencesNewStaging = (try? repository.book(id: book.id)?.stagingToken) == staged.token
+            if !referencesNewStaging { fileStore.discard(staged) }
+            throw error
         }
     }
 }

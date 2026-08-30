@@ -20,6 +20,7 @@ final class LibraryViewModel {
     var openingBookID: UUID?
     var errorMessage: String?
     var readerPresentation: ReaderPresentation?
+    private(set) var lastReconciliationReport: ImportReconciliationReport?
 
     init(
         repository: BookRepository,
@@ -35,7 +36,13 @@ final class LibraryViewModel {
             publicationService: publicationService
         )
         do {
-            _ = try importService.reconcileImports()
+            let report = try importService.reconcileImports()
+            lastReconciliationReport = report
+            if !report.recoveryRequiredBookIDs.isEmpty || !report.files.missingBookIDs.isEmpty {
+                errorMessage = "Certains livres nécessitent une nouvelle importation. Leurs données ont été conservées."
+            } else if !report.files.quarantinedBookIDs.isEmpty || !report.files.orphanBookIDs.isEmpty {
+                errorMessage = "Lore a isolé ou signalé des fichiers sans entrée de bibliothèque, sans les supprimer."
+            }
         } catch {
             present(error)
         }
@@ -82,9 +89,15 @@ final class LibraryViewModel {
         }
     }
 
-    func readerDidClose() {
-        readerPresentation = nil
-        reload()
+    func closeReader() async {
+        guard let presentation = readerPresentation else { return }
+        do {
+            try await presentation.session.close()
+            readerPresentation = nil
+            reload()
+        } catch {
+            present(error)
+        }
     }
 
     func reload() {

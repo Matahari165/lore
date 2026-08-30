@@ -127,7 +127,8 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Premier parcours local isolé d’iCloud : import atomique d’un EPUB sans DRM, bibliothèque au lancement, lecture et reprise par Locator complet.
 - L’identité d’un EPUB local est le SHA-256 de ses octets ; un second import identique retourne le livre existant.
 - Les imports sont sérialisés et Readium valide la copie privée en staging avant sa promotion atomique.
-- Les imports interrompus sont réconciliés au lancement ; un dossier final orphelin ou un livre dont le fichier manque n’est jamais supprimé automatiquement.
+- Les imports interrompus sont réconciliés au lancement ; un livre dont le fichier manque n’est jamais supprimé automatiquement.
+- Un dossier final orphelin est conservé pendant 7 jours puis déplacé dans une quarantaine persistante, qui n’est jamais supprimée automatiquement.
 - Le format persistant du Locator est versionné et migré par un codec centralisé.
 - Direction visuelle du premier parcours : blanc cassé froid, bleu encre, couvertures comme couleur principale, lecteur immersif et commandes natives sobres.
 - L’écran de lancement est la bibliothèque ; l’action « Reprendre » y reste visible lorsqu’une position de lecture existe.
