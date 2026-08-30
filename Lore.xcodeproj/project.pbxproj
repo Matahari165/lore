@@ -1,0 +1,190 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA0000010000000000000001 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000020000000000000001 /* ReadiumShared */; };
+		AA0000010000000000000002 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000020000000000000002 /* ReadiumStreamer */; };
+		AA0000010000000000000003 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000020000000000000003 /* ReadiumNavigator */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0000030000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000100000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000200000000000000001;
+			remoteInfo = Lore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AA0000040000000000000001 /* Lore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000040000000000000002 /* LoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA0000050000000000000001 /* Lore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Lore;
+			sourceTree = "<group>";
+		};
+		AA0000050000000000000002 /* LoreTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LoreTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA0000060000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000010000000000000001 /* ReadiumShared in Frameworks */,
+				AA0000010000000000000002 /* ReadiumStreamer in Frameworks */,
+				AA0000010000000000000003 /* ReadiumNavigator in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000060000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA0000070000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				AA0000050000000000000001 /* Lore */,
+				AA0000050000000000000002 /* LoreTests */,
+				AA0000070000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA0000070000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000040000000000000001 /* Lore.app */,
+				AA0000040000000000000002 /* LoreTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA0000200000000000000001 /* Lore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000300000000000000001 /* Build configuration list for PBXNativeTarget "Lore" */;
+			buildPhases = (
+				AA0000080000000000000001 /* Sources */,
+				AA0000060000000000000001 /* Frameworks */,
+				AA0000090000000000000001 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (AA0000050000000000000001 /* Lore */);
+			name = Lore;
+			packageProductDependencies = (
+				AA0000020000000000000001 /* ReadiumShared */,
+				AA0000020000000000000002 /* ReadiumStreamer */,
+				AA0000020000000000000003 /* ReadiumNavigator */,
+			);
+			productName = Lore;
+			productReference = AA0000040000000000000001 /* Lore.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AA0000200000000000000002 /* LoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000300000000000000002 /* Build configuration list for PBXNativeTarget "LoreTests" */;
+			buildPhases = (
+				AA0000080000000000000002 /* Sources */,
+				AA0000060000000000000002 /* Frameworks */,
+				AA0000090000000000000002 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (AA00000A0000000000000001 /* PBXTargetDependency */);
+			fileSystemSynchronizedGroups = (AA0000050000000000000002 /* LoreTests */);
+			name = LoreTests;
+			packageProductDependencies = ();
+			productName = LoreTests;
+			productReference = AA0000040000000000000002 /* LoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA0000100000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					AA0000200000000000000001 = {CreatedOnToolsVersion = 26.6;};
+					AA0000200000000000000002 = {CreatedOnToolsVersion = 26.6; TestTargetID = AA0000200000000000000001;};
+				};
+			};
+			buildConfigurationList = AA0000300000000000000003 /* Build configuration list for PBXProject "Lore" */;
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (fr, en, Base);
+			mainGroup = AA0000070000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (AA00000B0000000000000001 /* XCRemoteSwiftPackageReference "swift-toolkit" */);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AA0000070000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (AA0000200000000000000001 /* Lore */, AA0000200000000000000002 /* LoreTests */);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA0000090000000000000001 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+		AA0000090000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA0000080000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+		AA0000080000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA00000A0000000000000001 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = AA0000200000000000000001 /* Lore */; targetProxy = AA0000030000000000000001 /* PBXContainerItemProxy */;};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA0000400000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Lore; INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = NO; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.jeremydelloume.Lore; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1;}; name = Debug;};
+		AA0000400000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Lore; INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = NO; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.jeremydelloume.Lore; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1;}; name = Release;};
+		AA0000400000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.jeremydelloume.LoreTests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lore.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lore";}; name = Debug;};
+		AA0000400000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.jeremydelloume.LoreTests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lore.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lore";}; name = Release;};
+		AA0000400000000000000005 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_COMMA = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; ENABLE_USER_SCRIPT_SANDBOXING = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)"); GCC_WARN_64_TO_32_BIT_CONVERSION = YES; GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR; GCC_WARN_UNDECLARED_SELECTOR = YES; GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE; GCC_WARN_UNUSED_FUNCTION = YES; GCC_WARN_UNUSED_VARIABLE = YES; LOCALIZATION_PREFERS_STRING_CATALOGS = YES; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; MTL_FAST_MATH = YES; ONLY_ACTIVE_ARCH = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug;};
+		AA0000400000000000000006 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_COMMA = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_USER_SCRIPT_SANDBOXING = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; GCC_WARN_64_TO_32_BIT_CONVERSION = YES; GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR; GCC_WARN_UNDECLARED_SELECTOR = YES; GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE; GCC_WARN_UNUSED_FUNCTION = YES; GCC_WARN_UNUSED_VARIABLE = YES; LOCALIZATION_PREFERS_STRING_CATALOGS = YES; MTL_ENABLE_DEBUG_INFO = NO; MTL_FAST_MATH = YES; SWIFT_COMPILATION_MODE = wholemodule; VALIDATE_PRODUCT = YES;}; name = Release;};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA0000300000000000000001 /* Build configuration list for PBXNativeTarget "Lore" */ = {isa = XCConfigurationList; buildConfigurations = (AA0000400000000000000001 /* Debug */, AA0000400000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		AA0000300000000000000002 /* Build configuration list for PBXNativeTarget "LoreTests" */ = {isa = XCConfigurationList; buildConfigurations = (AA0000400000000000000003 /* Debug */, AA0000400000000000000004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		AA0000300000000000000003 /* Build configuration list for PBXProject "Lore" */ = {isa = XCConfigurationList; buildConfigurations = (AA0000400000000000000005 /* Debug */, AA0000400000000000000006 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA00000B0000000000000001 /* XCRemoteSwiftPackageReference "swift-toolkit" */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/readium/swift-toolkit.git"; requirement = {kind = exactVersion; version = 3.11.0;};};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000020000000000000001 /* ReadiumShared */ = {isa = XCSwiftPackageProductDependency; package = AA00000B0000000000000001 /* XCRemoteSwiftPackageReference "swift-toolkit" */; productName = ReadiumShared;};
+		AA0000020000000000000002 /* ReadiumStreamer */ = {isa = XCSwiftPackageProductDependency; package = AA00000B0000000000000001 /* XCRemoteSwiftPackageReference "swift-toolkit" */; productName = ReadiumStreamer;};
+		AA0000020000000000000003 /* ReadiumNavigator */ = {isa = XCSwiftPackageProductDependency; package = AA00000B0000000000000001 /* XCRemoteSwiftPackageReference "swift-toolkit" */; productName = ReadiumNavigator;};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA0000100000000000000001 /* Project object */;
+}

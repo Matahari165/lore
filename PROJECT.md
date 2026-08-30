@@ -94,9 +94,9 @@ La V1 est terminée lorsque :
 ## Architecture générale
 
 - **Application :** SwiftUI, le système natif d’Apple pour construire l’interface iPhone puis Mac.
-- **Données locales :** bibliothèque, progression, annotations, sessions et statistiques restent disponibles sur l’appareil.
+- **Données locales :** SwiftData conserve les métadonnées et le Locator Readium complet ; les EPUB sont copiés dans le dossier Application Support propre à l’application.
 - **iCloud :** synchronise les données entre les appareils personnels.
-- **Moteur EPUB :** ouvre le livre, affiche ses chapitres et conserve un repère stable pour reprendre la lecture.
+- **Moteur EPUB :** Readium Swift Toolkit 3.11 ouvre le livre et fournit le Locator stable utilisé pour reprendre la lecture.
 - **Mesure de lecture :** enregistre des sessions actives, puis calcule les statistiques à partir de ces sessions.
 - **IA :** module séparé afin de pouvoir choisir plus tard une solution locale ou externe sans reconstruire le lecteur.
 
@@ -124,12 +124,14 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Progression fondée sur le pourcentage et les chapitres, pas sur un nombre de pages fixe.
 - Synchronisation via iCloud.
 - Toutes les fonctions IA sont reportées après le premier socle utilisable.
+- Premier parcours local isolé d’iCloud : import atomique d’un EPUB sans DRM, bibliothèque au lancement, lecture et reprise par Locator complet.
+- Direction visuelle du premier parcours : blanc cassé froid, bleu encre, couvertures comme couleur principale, lecteur immersif et commandes natives sobres.
+- L’écran de lancement est la bibliothèque ; l’action « Reprendre » y reste visible lorsqu’une position de lecture existe.
 
 ## Décisions nécessitant une consultation
 
 - Autoriser ou non l’envoi de passages à un service d’IA externe.
 - Budget mensuel maximal éventuel pour l’IA.
-- Direction visuelle et organisation des écrans principaux.
 - Durée exacte avant arrêt pour inactivité ; point de départ recommandé : 2 minutes.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
 - Ajout, retrait ou changement important d’une fonction de la V1.
