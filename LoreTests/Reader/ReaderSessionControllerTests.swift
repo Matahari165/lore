@@ -1,4 +1,5 @@
 import Foundation
+import ReadiumNavigator
 import ReadiumShared
 import Testing
 import UIKit
@@ -68,6 +69,42 @@ struct ReaderSessionControllerTests {
         #expect(store.saveAttempts == 0)
     }
 
+    @Test func preferenceUpdateIsPersistedAndSubmittedToReadiumController() throws {
+        let controller = ReaderControllerSpy()
+        let store = PreferencesStoreSpy(initial: .default)
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: PositionManagerSpy(),
+            preferencesStore: store
+        )
+        let updated = ReaderPreferences(
+            fontSize: 1.4, typeface: .sansSerif, lineHeight: 1.8, appearance: .dark
+        )
+
+        try session.updatePreferences(updated)
+
+        #expect(store.saved == [updated])
+        #expect(controller.submittedPreferences.count == 1)
+        #expect(controller.submittedPreferences[0].fontSize == 1.4)
+        #expect(controller.submittedPreferences[0].publisherStyles == false)
+    }
+
+    @Test func chapterNavigationDelegatesTheOriginalReadiumLink() async {
+        let controller = ReaderControllerSpy()
+        let chapter = ReaderChapter(
+            id: "0:chapter.xhtml", title: "Chapitre", depth: 0,
+            link: Link(href: "chapter.xhtml", title: "Chapitre")
+        )
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: PositionManagerSpy(),
+            chapters: [chapter]
+        )
+
+        #expect(await session.go(to: chapter))
+        #expect(controller.openedLinks.map(\.href) == ["chapter.xhtml"])
+    }
+
     private func makeLocator(_ progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
@@ -81,6 +118,32 @@ private final class LocationProviderSpy: ReaderLocationProviding {
     let currentLocation: Locator?
     let viewController = UIViewController()
     init(locator: Locator?) { currentLocation = locator }
+}
+
+@MainActor
+private final class ReaderControllerSpy: EPUBReaderControlling {
+    let currentLocation: Locator? = nil
+    let viewController = UIViewController()
+    private(set) var submittedPreferences: [EPUBPreferences] = []
+    private(set) var openedLinks: [Link] = []
+
+    func submitPreferences(_ preferences: EPUBPreferences) {
+        submittedPreferences.append(preferences)
+    }
+
+    func go(to link: Link, options: NavigatorGoOptions) async -> Bool {
+        openedLinks.append(link)
+        return true
+    }
+}
+
+@MainActor
+private final class PreferencesStoreSpy: ReaderPreferencesStoring {
+    let initial: ReaderPreferences
+    private(set) var saved: [ReaderPreferences] = []
+    init(initial: ReaderPreferences) { self.initial = initial }
+    func load() -> ReaderPreferences { initial }
+    func save(_ preferences: ReaderPreferences) throws { saved.append(preferences) }
 }
 
 @MainActor
