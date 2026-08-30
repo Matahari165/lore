@@ -374,7 +374,6 @@ private struct StatisticsBookRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityAddTraits(.isButton)
     }
 
     private var detail: String {

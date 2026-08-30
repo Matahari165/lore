@@ -22,9 +22,13 @@ struct LoreApp: App {
             if ProcessInfo.processInfo.arguments.contains("-statisticsPreview") {
                 StatisticsScreen(state: .loaded(StatisticsPreviewData.snapshot))
             } else {
-                LibraryView(
-                    repository: BookRepository(context: container.mainContext),
-                    sessionRepository: ReadingSessionRepository(context: container.mainContext),
+                let books = BookRepository(context: container.mainContext)
+                let sessions = ReadingSessionRepository(context: container.mainContext)
+                AppRootView(
+                    initialTab: ProcessInfo.processInfo.arguments.contains("-statisticsTab") ? .statistics : .library,
+                    bookRepository: books,
+                    sessionRepository: sessions,
+                    statisticsAdapter: StatisticsDataAdapter(context: container.mainContext),
                     fileStore: fileStore,
                     publicationService: ReadiumPublicationService()
                 )
