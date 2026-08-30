@@ -33,6 +33,7 @@ Dernière mise à jour : 30 août 2026
 - Le lecteur expose un sommaire hiérarchique issu du manifeste EPUB et navigue avec les `Link` Readium, sans remplacer le Locator de reprise par un numéro de page.
 - Les commandes du lecteur utilisent les événements de toucher Readium et des barres limitées au haut et au bas de l’écran afin de préserver la sélection native et les gestes de pagination.
 - Les tests de préférences, bornes, traduction Readium, sommaire et navigation ont été ajoutés et leur cible compile ; leur exécution reste bloquée par le lanceur XCTest du simulateur.
+- Le contrat de données de l’écran Statistiques est raccordé aux vraies sessions et aux livres : totaux exacts, jours de lecture du mois, historique en cours/terminé avec couverture, première session réelle, fin explicite et note entière 0–10. L’interface reste dans son lot séparé.
 
 ## En cours
 

@@ -15,6 +15,8 @@ final class BookRecord {
     var lastProgression: Double?
     var progressUpdatedAt: Date?
     var locatorSchemaVersion: Int?
+    var finishedAt: Date?
+    var rating: Int?
     var importStateRawValue: String = BookImportState.ready.rawValue
     var stagingToken: UUID?
 
@@ -31,6 +33,8 @@ final class BookRecord {
         lastProgression: Double? = nil,
         progressUpdatedAt: Date? = nil,
         locatorSchemaVersion: Int? = nil,
+        finishedAt: Date? = nil,
+        rating: Int? = nil,
         importState: BookImportState = .ready,
         stagingToken: UUID? = nil
     ) {
@@ -46,6 +50,8 @@ final class BookRecord {
         self.lastProgression = lastProgression
         self.progressUpdatedAt = progressUpdatedAt
         self.locatorSchemaVersion = locatorSchemaVersion
+        self.finishedAt = finishedAt
+        self.rating = rating
         importStateRawValue = importState.rawValue
         self.stagingToken = stagingToken
     }
