@@ -16,12 +16,12 @@ Dernière mise à jour : 30 août 2026
 - Architecture locale du premier parcours arrêtée : SwiftUI, SwiftData, fichiers privés dans Application Support et Readium Swift Toolkit 3.11.
 - Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
 - Direction du premier parcours appliquée : bibliothèque au lancement, « Reprendre » visible, blanc cassé froid, bleu encre, couvertures dominantes et lecteur immersif.
-- Le code de la cible application et la cible de tests compilent pour iPhoneOS avec Swift 6 et une cible minimale iOS 17 ; la compilation complète des assets reste bloquée par l’absence de runtime simulateur.
+- Le runtime iOS 26.5 est installé et un appareil virtuel `Lore iPhone 13` est disponible. La compilation complète de l’application réussit sur ce simulateur.
 - L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
 - Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures, conserve les livres au fichier manquant et déplace les dossiers finaux orphelins de plus de 7 jours dans une quarantaine persistante jamais supprimée automatiquement.
 - Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
 - La persistance du Locator est versionnée ; un échec de sauvegarde conserve la position en attente, empêche la fermeture normale du lecteur et est retenté au retour actif.
-- Des tests couvrant les contrats critiques d’import, de réconciliation et de cycle de vie du lecteur ont été ajoutés et compilent, mais ils n’ont pas été exécutés faute de runtime iOS Simulator.
+- Des tests couvrant les contrats critiques d’import, de réconciliation et de cycle de vie du lecteur ont été ajoutés et compilent. Leur première exécution a été bloquée par la préparation initiale du simulateur, sans échec de test observé.
 
 ## En cours
 
@@ -84,8 +84,7 @@ Dernière mise à jour : 30 août 2026
 ## Problèmes et risques connus
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
-- Le runtime iOS Simulator n’est pas disponible dans l’environnement actuel : les cibles compilent, mais les tests ne peuvent pas être exécutés et le parcours réel n’est pas encore prouvé.
-- Preuve Xcode actuelle : aucune destination iPhone 13 n’est disponible et Xcode indique `iOS 26.5 is not installed`.
+- Le runtime iOS 26.5 et le simulateur `Lore iPhone 13` sont disponibles. Sa préparation initiale a terminé, mais le service d’applications du simulateur ne répond pas encore au lancement de Lore. Il ne reste que 6,3 Go libres après l’installation du runtime ; les tests et le parcours avec un EPUB réel ne sont donc pas encore prouvés.
 - La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
@@ -99,7 +98,7 @@ Dernière mise à jour : 30 août 2026
 
 ## Prochaines étapes
 
-1. Exécuter les tests dans un environnement disposant d’un runtime iOS Simulator.
+1. Rétablir une marge d’espace disque suffisante, redémarrer `Lore iPhone 13`, puis exécuter les tests.
 2. Tester le parcours complet sur iPhone 13 avec plusieurs EPUB légaux, dont un fichier invalide ou incomplet.
 3. Vérifier visuellement le format `390 × 844`, Dynamic Type, VoiceOver et les zones tactiles.
 4. Corriger les défauts observés avant de déclarer le premier parcours local terminé.

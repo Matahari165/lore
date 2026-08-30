@@ -1,0 +1,6 @@
+# Réglages Xcode propres à ce Mac et à son utilisateur
+xcuserdata/
+*.xcuserstate
+
+# Fichiers générés par macOS
+.DS_Store
