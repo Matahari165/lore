@@ -6,7 +6,8 @@ import Testing
 @MainActor
 struct ReadingSessionRepositoryTests {
     @Test func recoversOpenSessionAtInactivityDeadline() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         let start = Date(timeIntervalSince1970: 1_000)
         let id = try repository.begin(bookID: UUID(), at: start)
         try repository.recordActivity(sessionID: id, at: start.addingTimeInterval(30))
@@ -18,7 +19,8 @@ struct ReadingSessionRepositoryTests {
     }
 
     @Test func summarySplitsAnIntervalAcrossMidnightWeekAndMonth() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         var calendar = Calendar(identifier: .iso8601)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let start = try #require(calendar.date(from: DateComponents(
@@ -36,13 +38,15 @@ struct ReadingSessionRepositoryTests {
     }
 
     @Test func summariesAreZeroWithoutSessions() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         let summary = try repository.summary(containing: Date(timeIntervalSince1970: 1_000))
         #expect(summary == ReadingTimeSummary(today: 0, thisWeek: 0, thisMonth: 0))
     }
 
     @Test func firstSessionDateComesFromFirstRealReadingInterval() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         let bookID = UUID()
         let first = Date(timeIntervalSince1970: 10)
         _ = try repository.begin(bookID: bookID, at: first)
@@ -50,9 +54,19 @@ struct ReadingSessionRepositoryTests {
         #expect(try repository.firstSessionDate(for: bookID) == first)
     }
 
-    private func makeRepository() throws -> ReadingSessionRepository {
+    private func makeRepository() throws -> ReadingSessionRepositoryFixture {
+        try ReadingSessionRepositoryFixture()
+    }
+}
+
+@MainActor
+private final class ReadingSessionRepositoryFixture {
+    let container: ModelContainer
+    let repository: ReadingSessionRepository
+
+    init() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: ReadingSessionRecord.self, configurations: configuration)
-        return ReadingSessionRepository(context: container.mainContext)
+        container = try ModelContainer(for: ReadingSessionRecord.self, configurations: configuration)
+        repository = ReadingSessionRepository(context: container.mainContext)
     }
 }
