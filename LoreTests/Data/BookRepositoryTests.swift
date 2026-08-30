@@ -6,7 +6,8 @@ import Testing
 @MainActor
 struct BookRepositoryTests {
     @Test func storesBooksAndReturnsNewestFirst() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         let older = BookRecord(
             title: "Older",
             relativeFilePath: "Books/older/book.epub",
@@ -25,7 +26,8 @@ struct BookRepositoryTests {
     }
 
     @Test func savesCompleteLocatorForOnlyTheRequestedBook() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
         let first = BookRecord(title: "First", relativeFilePath: "Books/1/book.epub")
         let second = BookRecord(title: "Second", relativeFilePath: "Books/2/book.epub")
         try repository.add(first)
@@ -43,7 +45,8 @@ struct BookRepositoryTests {
     }
 
     @Test func rejectsProgressForMissingBook() throws {
-        let repository = try makeRepository()
+        let fixture = try makeRepository()
+        let repository = fixture.repository
 
         #expect(throws: BookRepositoryError.bookNotFound) {
             try repository.saveProgress(
@@ -66,9 +69,19 @@ struct BookRepositoryTests {
         #expect(try repository.books().isEmpty)
     }
 
-    private func makeRepository() throws -> BookRepository {
+    private func makeRepository() throws -> RepositoryFixture {
+        try RepositoryFixture()
+    }
+}
+
+@MainActor
+private final class RepositoryFixture {
+    let container: ModelContainer
+    let repository: BookRepository
+
+    init() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: BookRecord.self, configurations: configuration)
-        return BookRepository(context: container.mainContext)
+        container = try ModelContainer(for: BookRecord.self, configurations: configuration)
+        repository = BookRepository(context: container.mainContext)
     }
 }

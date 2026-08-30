@@ -37,15 +37,15 @@ struct ReadingPositionControllerTests {
 
     @Test func debounceFailureIsReportedAndRemainsRetryable() async throws {
         let store = ProgressStoreSpy(failuresRemaining: 1)
-        var reported = false
+        let (errors, errorContinuation) = AsyncStream<Void>.makeStream()
         let controller = ReadingPositionController(
             bookID: UUID(), store: store, debounceDuration: .zero,
-            sleep: { _ in }, onError: { _ in reported = true }
+            sleep: { _ in }, onError: { _ in errorContinuation.yield() }
         )
         controller.record(makeLocator(progression: 0.7))
-        await Task.yield()
-        await Task.yield()
-        #expect(reported)
+        var errorIterator = errors.makeAsyncIterator()
+        await errorIterator.next()
+        errorContinuation.finish()
         try await controller.flush()
         #expect(store.attempts == 2)
     }
