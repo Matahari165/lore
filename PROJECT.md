@@ -143,7 +143,6 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 
 - Autoriser ou non l’envoi de passages à un service d’IA externe.
 - Budget mensuel maximal éventuel pour l’IA.
-- Durée exacte avant arrêt pour inactivité ; point de départ recommandé : 2 minutes.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
 - Ajout, retrait ou changement important d’une fonction de la V1.
 - Toute dépense, suppression risquée ou décision difficilement réversible.

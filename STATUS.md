@@ -102,7 +102,6 @@ Dernière mise à jour : 30 août 2026
 ## Décisions en attente
 
 - Place future de l'IA : section principale ou outils intégrés au lecteur.
-- Règle exacte d'arrêt automatique du compteur de lecture en cas d'inactivité.
 - Ordre détaillé entre annotations, statistiques enrichies et synchronisation iCloud après le lecteur essentiel.
 
 ## Prochaines étapes
