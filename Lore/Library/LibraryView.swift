@@ -86,6 +86,7 @@ struct LibraryView: View {
         } actions: {
             Button("Importer un EPUB") { presentsImporter = true }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(LoreTheme.canvas)
                 .controlSize(.large)
         }
     }

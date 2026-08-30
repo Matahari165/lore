@@ -17,6 +17,8 @@ Dernière mise à jour : 30 août 2026
 - Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
 - Direction du premier parcours appliquée : bibliothèque au lancement, « Reprendre » visible, blanc cassé froid, bleu encre, couvertures dominantes et lecteur immersif.
 - Le runtime iOS 26.5 est installé et un appareil virtuel `Lore iPhone 13` est disponible. La compilation complète de l’application réussit sur ce simulateur.
+- Lore est installé et lancé réellement sur `Lore iPhone 13` ; l’état vide de la bibliothèque est vérifié visuellement au format de référence.
+- Le libellé du bouton principal d’import, initialement invisible, a été corrigé et confirmé par une seconde capture du simulateur.
 - L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
 - Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures, conserve les livres au fichier manquant et déplace les dossiers finaux orphelins de plus de 7 jours dans une quarantaine persistante jamais supprimée automatiquement.
 - Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
@@ -84,7 +86,7 @@ Dernière mise à jour : 30 août 2026
 ## Problèmes et risques connus
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
-- Le runtime iOS 26.5 et le simulateur `Lore iPhone 13` sont disponibles. Sa préparation initiale a terminé, mais le service d’applications du simulateur ne répond pas encore au lancement de Lore. Il ne reste que 6,3 Go libres après l’installation du runtime ; les tests et le parcours avec un EPUB réel ne sont donc pas encore prouvés.
+- L’application normale se lance sur `Lore iPhone 13`, mais Xcode n’a pas réussi à lancer son clone temporaire destiné aux tests (`No such process`). Les tests compilent, mais leur exécution et le parcours avec un EPUB réel ne sont pas encore prouvés.
 - La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
@@ -98,7 +100,7 @@ Dernière mise à jour : 30 août 2026
 
 ## Prochaines étapes
 
-1. Rétablir une marge d’espace disque suffisante, redémarrer `Lore iPhone 13`, puis exécuter les tests.
+1. Stabiliser le lancement du clone de test Xcode, puis exécuter les tests sur `Lore iPhone 13`.
 2. Tester le parcours complet sur iPhone 13 avec plusieurs EPUB légaux, dont un fichier invalide ou incomplet.
 3. Vérifier visuellement le format `390 × 844`, Dynamic Type, VoiceOver et les zones tactiles.
 4. Corriger les défauts observés avant de déclarer le premier parcours local terminé.
