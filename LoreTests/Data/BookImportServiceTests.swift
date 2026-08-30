@@ -114,6 +114,63 @@ struct BookImportServiceTests {
         #expect(pending.relativeFilePath == fixture.fileStore.relativePath(forBookID: pending.id))
     }
 
+    @Test(arguments: [BookImportState.ready, .pending, .recoveryRequired])
+    func newValidatedStagingRepairsEveryExistingStateWhenOldFileIsMissing(
+        state: BookImportState
+    ) async throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let source = try fixture.source(named: "repair.epub", contents: "repair")
+        let digest = try fixture.fileStore.sha256(of: source)
+        let existing = BookRecord(
+            contentSHA256: digest, title: "Existing", relativeFilePath: "Books/missing/book.epub",
+            importState: state, stagingToken: state == .pending ? UUID() : nil
+        )
+        try fixture.repository.add(existing)
+
+        let result = try await fixture.service.importEPUB(from: source)
+
+        #expect(result.book.id == existing.id)
+        #expect(existing.importState == .ready)
+        #expect(try fixture.fileStore.fileURL(for: existing.relativeFilePath).lastPathComponent == "book.epub")
+        #expect(fixture.validator.validatedURLs.count == 1)
+    }
+
+    @Test func corruptedFinalIsQuarantinedBeforeValidatedReplacement() async throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let source = try fixture.source(named: "replacement.epub", contents: "replacement")
+        let digest = try fixture.fileStore.sha256(of: source)
+        let existing = BookRecord(contentSHA256: digest, title: "Existing", relativeFilePath: "")
+        try fixture.repository.add(existing)
+        let corrupt = try fixture.fileStore.stageEPUB(
+            from: fixture.source(named: "corrupt.epub", contents: "corrupt")
+        )
+        _ = try fixture.fileStore.promote(corrupt, to: existing.id)
+
+        _ = try await fixture.service.importEPUB(from: source)
+
+        let quarantine = fixture.support.appendingPathComponent("Books/.quarantine")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: quarantine.path).count == 1)
+        #expect(try Data(contentsOf: fixture.fileStore.fileURL(for: existing.relativeFilePath)) == Data("replacement".utf8))
+    }
+
+    @Test func failedSwiftDataReservationLeavesNoRecordAndNoStaging() async throws {
+        enum SimulatedSaveError: Error { case failed }
+        let fixture = try Fixture(save: { _ in throw SimulatedSaveError.failed })
+        defer { fixture.cleanup() }
+        let source = try fixture.source(named: "save-failure.epub", contents: "valid")
+
+        await #expect(throws: SimulatedSaveError.self) {
+            _ = try await fixture.service.importEPUB(from: source)
+        }
+
+        #expect(try fixture.repository.books().isEmpty)
+        #expect(fixture.validator.validatedURLs.count == 1)
+        let staging = fixture.support.appendingPathComponent("Books/.staging")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging.path).isEmpty)
+        let books = try FileManager.default.contentsOfDirectory(atPath: fixture.support.appendingPathComponent("Books").path)
+        #expect(books.filter { !$0.hasPrefix(".") }.isEmpty)
+    }
+
     @MainActor
     private final class Fixture {
         let root: URL, sourceRoot: URL, support: URL
@@ -125,7 +182,7 @@ struct BookImportServiceTests {
 
         init(metadata: ImportedEPUBMetadata = .init(
             mediaType: "application/epub+zip", title: "Title", author: "Author", coverData: nil
-        ), validationError: Error? = nil) throws {
+        ), validationError: Error? = nil, save: ((ModelContext) throws -> Void)? = nil) throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             sourceRoot = root.appendingPathComponent("Source")
             support = root.appendingPathComponent("Support")
@@ -135,7 +192,7 @@ struct BookImportServiceTests {
                 for: BookRecord.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
-            repository = BookRepository(context: container.mainContext)
+            repository = BookRepository(context: container.mainContext, save: save)
             fileStore = try BookFileStore(applicationSupportURL: support)
             validator = FakeValidator(metadata: metadata, error: validationError)
             service = BookImportService(repository: repository, fileStore: fileStore, publicationService: validator)

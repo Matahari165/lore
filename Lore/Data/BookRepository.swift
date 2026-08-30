@@ -61,6 +61,22 @@ final class BookRepository {
         try saveContext(context)
     }
 
+    func prepareRepair(
+        bookID: UUID,
+        stagingToken: UUID,
+        metadata: ImportedEPUBMetadata
+    ) throws {
+        guard let book = try book(id: bookID) else { throw BookRepositoryError.bookNotFound }
+        book.title = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? book.title
+        book.author = metadata.author?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        book.coverData = metadata.coverData
+        book.mediaType = metadata.mediaType
+        book.relativeFilePath = ""
+        book.importState = .pending
+        book.stagingToken = stagingToken
+        try saveContext(context)
+    }
+
     func markRecoveryRequired(bookID: UUID) throws {
         guard let book = try book(id: bookID) else {
             throw BookRepositoryError.bookNotFound
@@ -90,6 +106,10 @@ final class BookRepository {
         context.delete(book)
         try saveContext(context)
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 enum BookRepositoryError: LocalizedError, Equatable {

@@ -26,7 +26,9 @@ struct StagedBookFile: Sendable, Equatable {
 struct BookFileReconciliationReport: Sendable, Equatable {
     var removedStagingTokens: [UUID] = []
     var orphanBookIDs: [UUID] = []
+    var quarantinedBookIDs: [UUID] = []
     var missingBookIDs: [UUID] = []
+    var quarantineReviewAfter: Date?
 }
 
 struct BookFileStore: Sendable {
@@ -124,6 +126,20 @@ struct BookFileStore: Sendable {
 
     func relativePath(forBookID bookID: UUID) -> String { "Books/\(bookID.uuidString)/book.epub" }
 
+    @discardableResult
+    func quarantineFinalDirectory(bookID: UUID, now: Date = .now) throws -> URL? {
+        let source = booksRoot.appendingPathComponent(bookID.uuidString, isDirectory: true)
+        guard fileManager.fileExists(atPath: source.path) else { return nil }
+        try fileManager.createDirectory(at: quarantineRoot, withIntermediateDirectories: true)
+        let timestamp = Int(now.timeIntervalSince1970)
+        var destination = quarantineRoot.appendingPathComponent("\(bookID.uuidString)-\(timestamp)", isDirectory: true)
+        if fileManager.fileExists(atPath: destination.path) {
+            destination = quarantineRoot.appendingPathComponent("\(bookID.uuidString)-\(timestamp)-\(UUID().uuidString)")
+        }
+        try fileManager.moveItem(at: source, to: destination)
+        return destination
+    }
+
     func removeBookFile(at relativePath: String) throws {
         try fileManager.removeItem(at: try fileURL(for: relativePath).deletingLastPathComponent())
     }
@@ -132,7 +148,8 @@ struct BookFileStore: Sendable {
         referencedBookIDs: Set<UUID>,
         referencedStagingTokens: Set<UUID>,
         now: Date = .now,
-        staleAfter: TimeInterval = 24 * 60 * 60
+        staleAfter: TimeInterval = 24 * 60 * 60,
+        quarantineOrphansAfter: TimeInterval = 7 * 24 * 60 * 60
     ) throws -> BookFileReconciliationReport {
         try fileManager.createDirectory(at: stagingRoot, withIntermediateDirectories: true)
         var report = BookFileReconciliationReport()
@@ -143,13 +160,25 @@ struct BookFileStore: Sendable {
             try fileManager.removeItem(at: url)
             report.removedStagingTokens.append(token)
         }
-        for url in try directoryContents(at: booksRoot) where url.lastPathComponent != ".staging" {
+        for url in try directoryContents(at: booksRoot)
+        where url.lastPathComponent != ".staging" && url.lastPathComponent != ".quarantine" {
             guard let id = UUID(uuidString: url.lastPathComponent) else { continue }
-            if !referencedBookIDs.contains(id) { report.orphanBookIDs.append(id) }
+            if !referencedBookIDs.contains(id) {
+                let modified = try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                if let modified, now.timeIntervalSince(modified) >= quarantineOrphansAfter {
+                    _ = try quarantineFinalDirectory(bookID: id, now: now)
+                    report.quarantinedBookIDs.append(id)
+                } else {
+                    report.orphanBookIDs.append(id)
+                }
+            }
         }
         for id in referencedBookIDs {
             let url = booksRoot.appendingPathComponent(id.uuidString).appendingPathComponent("book.epub")
             if !fileManager.fileExists(atPath: url.path) { report.missingBookIDs.append(id) }
+        }
+        if !report.quarantinedBookIDs.isEmpty {
+            report.quarantineReviewAfter = now.addingTimeInterval(7 * 24 * 60 * 60)
         }
         return report
     }
@@ -173,6 +202,7 @@ struct BookFileStore: Sendable {
     private var booksRoot: URL { applicationSupportURL.appendingPathComponent("Books", isDirectory: true) }
     private var fileManager: FileManager { .default }
     private var stagingRoot: URL { booksRoot.appendingPathComponent(".staging", isDirectory: true) }
+    private var quarantineRoot: URL { booksRoot.appendingPathComponent(".quarantine", isDirectory: true) }
     private func stagingDirectory(for token: UUID) -> URL {
         stagingRoot.appendingPathComponent(token.uuidString, isDirectory: true)
     }

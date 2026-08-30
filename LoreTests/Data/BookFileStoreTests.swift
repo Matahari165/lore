@@ -56,6 +56,37 @@ struct BookFileStoreTests {
         #expect(report.missingBookIDs == [missingID])
     }
 
+    @Test func oldOrphanMovesToPersistentQuarantineAndIsNeverDeleted() throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let orphanID = UUID()
+        let staged = try fixture.store.stageEPUB(
+            from: fixture.sourceFile(named: "old-orphan.epub", contents: "preserve me")
+        )
+        _ = try fixture.store.promote(staged, to: orphanID)
+        let now = Date()
+        let finalDirectory = fixture.support.appendingPathComponent("Books/\(orphanID.uuidString)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-8 * 24 * 60 * 60)],
+            ofItemAtPath: finalDirectory.path
+        )
+
+        let first = try fixture.store.reconcile(
+            referencedBookIDs: [], referencedStagingTokens: [], now: now
+        )
+        let second = try fixture.store.reconcile(
+            referencedBookIDs: [], referencedStagingTokens: [], now: now.addingTimeInterval(30 * 24 * 60 * 60)
+        )
+
+        #expect(first.quarantinedBookIDs == [orphanID])
+        #expect(first.quarantineReviewAfter == now.addingTimeInterval(7 * 24 * 60 * 60))
+        #expect(second.quarantinedBookIDs.isEmpty)
+        let quarantine = fixture.support.appendingPathComponent("Books/.quarantine")
+        let quarantinedDirectory = try #require(
+            FileManager.default.contentsOfDirectory(at: quarantine, includingPropertiesForKeys: nil).first
+        )
+        #expect(try Data(contentsOf: quarantinedDirectory.appendingPathComponent("book.epub")) == Data("preserve me".utf8))
+    }
+
     @Test func rejectsAPathEscapingApplicationSupport() throws {
         let fixture = try Fixture(); defer { fixture.cleanup() }
         #expect(throws: BookFileStoreError.storedFileMissing) {

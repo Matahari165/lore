@@ -2,7 +2,7 @@ import Foundation
 import ReadiumShared
 
 @MainActor
-final class ReadingPositionController {
+final class ReadingPositionController: ReadingPositionManaging {
     typealias Sleep = @Sendable (Duration) async throws -> Void
 
     private struct PendingPosition {

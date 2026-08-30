@@ -20,7 +20,7 @@ final class ReaderContainerViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let navigator = session.navigator
+        let navigator = session.contentViewController
         addChild(navigator)
         navigator.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(navigator.view)

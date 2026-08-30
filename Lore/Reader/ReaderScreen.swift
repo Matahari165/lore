@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ReaderScreen: View {
     let presentation: LibraryViewModel.ReaderPresentation
-    let onClose: () -> Void
+    let onRequestClose: @MainActor () async -> Void
 
     @State private var showsControls = true
 
@@ -39,16 +39,12 @@ struct ReaderScreen: View {
         .accessibilityAction(.escape) {
             closeReader()
         }
+        .interactiveDismissDisabled(true)
     }
 
     private func closeReader() {
         Task {
-            do {
-                try await presentation.session.close()
-                onClose()
-            } catch {
-                // The session already surfaced the error; keep the reader open so retry is possible.
-            }
+            await onRequestClose()
         }
     }
 }

@@ -16,11 +16,12 @@ Dernière mise à jour : 30 août 2026
 - Architecture locale du premier parcours arrêtée : SwiftUI, SwiftData, fichiers privés dans Application Support et Readium Swift Toolkit 3.11.
 - Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
 - Direction du premier parcours appliquée : bibliothèque au lancement, « Reprendre » visible, blanc cassé froid, bleu encre, couvertures dominantes et lecteur immersif.
-- La cible application et la cible de tests compilent pour iPhoneOS avec Swift 6 et une cible minimale iOS 17.
+- Le code de la cible application et la cible de tests compilent pour iPhoneOS avec Swift 6 et une cible minimale iOS 17 ; la compilation complète des assets reste bloquée par l’absence de runtime simulateur.
 - L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
-- Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures et conserve les dossiers finaux orphelins ainsi que les livres au fichier manquant.
-- La persistance du Locator est versionnée ; un échec de sauvegarde conserve la position en attente et empêche la fermeture normale du lecteur.
-- Les tests critiques de doublon, staging, réconciliation, métadonnées absentes, SwiftData, migration et échec de sauvegarde ont été ajoutés et compilent.
+- Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures, conserve les livres au fichier manquant et déplace les dossiers finaux orphelins de plus de 7 jours dans une quarantaine persistante jamais supprimée automatiquement.
+- Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
+- La persistance du Locator est versionnée ; un échec de sauvegarde conserve la position en attente, empêche la fermeture normale du lecteur et est retenté au retour actif.
+- Des tests couvrant les contrats critiques d’import, de réconciliation et de cycle de vie du lecteur ont été ajoutés et compilent, mais ils n’ont pas été exécutés faute de runtime iOS Simulator.
 
 ## En cours
 
