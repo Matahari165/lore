@@ -11,6 +11,7 @@ final class LibraryViewModel {
     }
 
     private let repository: BookRepository
+    private let sessionRepository: ReadingSessionRepository
     private let fileStore: BookFileStore
     private let publicationService: ReadiumPublicationService
     private let importService: BookImportService
@@ -24,10 +25,12 @@ final class LibraryViewModel {
 
     init(
         repository: BookRepository,
+        sessionRepository: ReadingSessionRepository,
         fileStore: BookFileStore,
         publicationService: ReadiumPublicationService
     ) {
         self.repository = repository
+        self.sessionRepository = sessionRepository
         self.fileStore = fileStore
         self.publicationService = publicationService
         importService = BookImportService(
@@ -81,6 +84,11 @@ final class LibraryViewModel {
                 fileURL: fileURL,
                 publicationService: publicationService,
                 progressStore: repository,
+                readingActivity: ReadingActivityController(
+                    bookID: book.id,
+                    store: sessionRepository,
+                    onError: { [weak self] error in self?.present(error) }
+                ),
                 onError: { [weak self] error in self?.present(error) }
             )
             readerPresentation = ReaderPresentation(id: book.id, title: book.title, session: session)

@@ -7,11 +7,13 @@ struct LibraryView: View {
 
     init(
         repository: BookRepository,
+        sessionRepository: ReadingSessionRepository,
         fileStore: BookFileStore,
         publicationService: ReadiumPublicationService
     ) {
         _model = State(initialValue: LibraryViewModel(
             repository: repository,
+            sessionRepository: sessionRepository,
             fileStore: fileStore,
             publicationService: publicationService
         ))

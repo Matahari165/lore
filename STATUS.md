@@ -26,6 +26,9 @@ Dernière mise à jour : 30 août 2026
 - Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
 - La persistance du Locator est versionnée ; un échec de sauvegarde conserve la position en attente, empêche la fermeture normale du lecteur et est retenté au retour actif.
 - Des tests couvrant les contrats critiques d’import, de réconciliation et de cycle de vie du lecteur ont été ajoutés et compilent. Leur première exécution a été bloquée par la préparation initiale du simulateur, sans échec de test observé.
+- Le socle local des sessions de lecture est implémenté avec SwiftData : démarrage à la première interaction de lecture réelle, arrêt en arrière-plan ou à la fermeture, seuil d’inactivité isolé à 2 minutes et récupération prudente après interruption.
+- Les durées exactes et les agrégats aujourd’hui, semaine commençant le lundi et mois sont exposés à l’interface, selon le calendrier et le fuseau locaux de l’iPhone. Aucune interface de statistiques ni synchronisation iCloud n’est incluse dans ce jalon.
+- Le timer utilise une horloge injectable et une durée monotone pour résister aux changements de l’heure système. Des tests déterministes couvrent l’inactivité, les interactions tardives, le retour au premier plan, les erreurs d’arrêt, la reprise après interruption et les frontières jour/semaine/mois.
 
 ## En cours
 
@@ -41,7 +44,7 @@ Dernière mise à jour : 30 août 2026
 ### Phase 1 — Fondation iPhone
 
 - Créer l'application native iPhone. *(Implémenté ; validation sur appareil restant à faire.)*
-- Mettre en place le modèle de données local pour les livres et la progression. *(Implémenté pour le premier parcours ; sessions reportées.)*
+- Mettre en place le modèle de données local pour les livres, la progression et les sessions. *(Implémenté pour le premier parcours local.)*
 - Préparer une structure simple qui pourra accueillir iCloud plus tard sans complexifier inutilement le démarrage.
 - Vérifier le fonctionnement sur un écran iPhone `390 × 844`.
 
@@ -57,13 +60,13 @@ Dernière mise à jour : 30 août 2026
 - Ouvrir et parcourir un EPUB. *(Implémenté avec Readium ; essai système restant.)*
 - Reprendre exactement à la dernière position enregistrée. *(Implémenté avec le Locator complet ; preuve après relance restant à obtenir.)*
 - Régler la police, la taille, l'interligne, le fond et le mode sombre.
-- Mesurer le temps de lecture en évitant de compter une page laissée ouverte sans lecture réelle.
+- Mesurer le temps de lecture en évitant de compter une page laissée ouverte sans lecture réelle. *(Socle local implémenté ; validation réelle du timer restant à faire.)*
 - Vérifier la lisibilité, les gestes, l'accessibilité et les états de chargement ou d'erreur.
 
 ### Phase 4 — Historique et statistiques essentielles
 
-- Enregistrer les sessions de lecture.
-- Afficher le temps lu aujourd'hui, cette semaine et ce mois.
+- Enregistrer les sessions de lecture. *(Implémenté localement.)*
+- Afficher le temps lu aujourd'hui, cette semaine et ce mois. *(Agrégats implémentés ; interface reportée.)*
 - Afficher les livres terminés par période avec leurs couvertures.
 - Conserver les dates de début et de fin de chaque livre.
 - Ajouter une note personnelle sur 10.
@@ -94,7 +97,7 @@ Dernière mise à jour : 30 août 2026
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
 - L’application normale se lance sur `Lore iPhone 13`, mais Xcode n’a pas réussi à lancer son clone temporaire destiné aux tests (`No such process`). Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
 - L’automatisation tactile du simulateur ne transmet pas les clics : l’ouverture du sélecteur Fichiers n’est donc pas encore prouvée. L’import après sélection, la lecture et la reprise ont été vérifiés avec des harnais temporaires appelant les composants de production, puis entièrement supprimés.
-- La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
+- L’exécution des tests sur `Lore iPhone 13` reste bloquée avant le lancement du processus de tests (`waiting for workers to materialize`) ; la compilation du code et des tests réussit, mais leur exécution automatique n’est pas encore prouvée.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
 - L'analyse IA d'un livre complet peut être coûteuse, lente et limitée par les droits sur le contenu ; elle n'appartient pas à la première version.
