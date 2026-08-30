@@ -13,32 +13,36 @@ Dernière mise à jour : 30 août 2026
 - Dépôt Git initialisé sur la branche `chore/project-foundation`.
 - Appareil de référence confirmé : iPhone 13, avec iOS 17 comme version minimale.
 - Quatre conversations spécialisées actives et isolées : iOS, EPUB/données/iCloud, UI/UX et QA.
+- Architecture locale du premier parcours arrêtée : SwiftUI, SwiftData, fichiers privés dans Application Support et Readium Swift Toolkit 3.11.
+- Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
+- Direction du premier parcours appliquée : bibliothèque au lancement, « Reprendre » visible, blanc cassé froid, bleu encre, couvertures dominantes et lecteur immersif.
+- La cible application et la cible de tests compilent pour iPhoneOS avec Swift 6 et une cible minimale iOS 17.
 
 ## En cours
 
-- Définition de l'architecture technique minimale de la première version iPhone.
-- Décomposition du développement en phases testables et livrables.
+- Vérification réelle du parcours import → lecture → fermeture → reprise dans un simulateur iPhone 13 ou sur appareil.
+- Vérification visuelle et accessibilité au format `390 × 844`.
 
 ## À faire
 
 ### Phase 1 — Fondation iPhone
 
-- Créer l'application native iPhone.
-- Mettre en place le modèle de données local pour les livres, la progression et les sessions de lecture.
+- Créer l'application native iPhone. *(Implémenté ; validation sur appareil restant à faire.)*
+- Mettre en place le modèle de données local pour les livres et la progression. *(Implémenté pour le premier parcours ; sessions reportées.)*
 - Préparer une structure simple qui pourra accueillir iCloud plus tard sans complexifier inutilement le démarrage.
 - Vérifier le fonctionnement sur un écran iPhone `390 × 844`.
 
 ### Phase 2 — Bibliothèque EPUB
 
-- Importer un fichier `.epub` depuis l'iPhone.
-- Extraire et afficher le titre, l'auteur et la couverture lorsque ces informations existent.
+- Importer un fichier `.epub` depuis l'iPhone. *(Implémenté ; essai système restant.)*
+- Extraire et afficher le titre, l'auteur et la couverture lorsque ces informations existent. *(Implémenté ; essai avec plusieurs EPUB restant.)*
 - Afficher les livres en cours, à lire et terminés.
 - Gérer les erreurs d'import et les EPUB incomplets.
 
 ### Phase 3 — Lecteur essentiel
 
-- Ouvrir et parcourir un EPUB.
-- Reprendre exactement à la dernière position enregistrée.
+- Ouvrir et parcourir un EPUB. *(Implémenté avec Readium ; essai système restant.)*
+- Reprendre exactement à la dernière position enregistrée. *(Implémenté avec le Locator complet ; preuve après relance restant à obtenir.)*
 - Régler la police, la taille, l'interligne, le fond et le mode sombre.
 - Mesurer le temps de lecture en évitant de compter une page laissée ouverte sans lecture réelle.
 - Vérifier la lisibilité, les gestes, l'accessibilité et les états de chargement ou d'erreur.
@@ -75,23 +79,21 @@ Dernière mise à jour : 30 août 2026
 ## Problèmes et risques connus
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
+- Le runtime iOS Simulator n’est pas disponible dans l’environnement actuel : les cibles compilent, mais les tests ne peuvent pas être exécutés et le parcours réel n’est pas encore prouvé.
 - La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
 - L'analyse IA d'un livre complet peut être coûteuse, lente et limitée par les droits sur le contenu ; elle n'appartient pas à la première version.
-- La direction UI détaillée n'est pas encore validée. Elle nécessitera une recherche de références, une proposition visuelle puis une validation avant implémentation importante.
 
 ## Décisions en attente
 
-- Direction visuelle précise : ambiance neutre de type Apple ou sensation plus chaleureuse de papier.
-- Écran présenté au lancement : reprise immédiate du livre en cours ou vue générale de la bibliothèque.
 - Place future de l'IA : section principale ou outils intégrés au lecteur.
 - Règle exacte d'arrêt automatique du compteur de lecture en cas d'inactivité.
 - Ordre détaillé entre annotations, statistiques enrichies et synchronisation iCloud après le lecteur essentiel.
 
 ## Prochaines étapes
 
-1. Faire valider l'architecture minimale de la première version par les spécialistes iOS et données.
-2. Rechercher des références UI adaptées à la lecture personnelle sur iPhone, puis proposer une direction sans la figer prématurément.
-3. Construire un premier parcours vertical : importer un EPUB, l'ouvrir, lire, fermer puis reprendre au bon endroit.
-4. Tester ce parcours sur le format prioritaire `390 × 844` avant d'ajouter les fonctions secondaires.
+1. Exécuter les tests dans un environnement disposant d’un runtime iOS Simulator.
+2. Tester le parcours complet sur iPhone 13 avec plusieurs EPUB légaux, dont un fichier invalide ou incomplet.
+3. Vérifier visuellement le format `390 × 844`, Dynamic Type, VoiceOver et les zones tactiles.
+4. Corriger les défauts observés avant de déclarer le premier parcours local terminé.
