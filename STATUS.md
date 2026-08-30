@@ -31,6 +31,10 @@ Dernière mise à jour : 30 août 2026
 
 - Vérification réelle du parcours import → lecture → fermeture → reprise dans un simulateur iPhone 13 ou sur appareil.
 - Vérification visuelle et accessibilité au format `390 × 844`.
+- Développement parallèle de la prochaine tranche : réglages et sommaire du lecteur par IOS / ARCHITECTURE APPLE.
+- Développement parallèle du timer actif, des sessions et des agrégations locales par EPUB / DONNÉES / ICLOUD.
+- Conception et implémentation du premier écran Historique & statistiques par UI / UX LECTURE.
+- Diagnostic du clone de tests Xcode et préparation de la matrice de régression par QA / REVIEW.
 
 ## À faire
 
