@@ -19,6 +19,8 @@ Dernière mise à jour : 30 août 2026
 - Le runtime iOS 26.5 est installé et un appareil virtuel `Lore iPhone 13` est disponible. La compilation complète de l’application réussit sur ce simulateur.
 - Lore est installé et lancé réellement sur `Lore iPhone 13` ; l’état vide de la bibliothèque est vérifié visuellement au format de référence.
 - Le libellé du bouton principal d’import, initialement invisible, a été corrigé et confirmé par une seconde capture du simulateur.
+- L’EPUB réel *Deep Work* a été validé puis importé par le pipeline de production : couverture, titre `Deep Work`, auteur `Cal Newport`, copie privée et persistance après relance sont confirmés.
+- Le lecteur Readium rend réellement le livre. Après huit avances de page, le Locator `Introduction`, position `8`, progression `37,5 %` a été sauvegardé puis restauré au même passage après relance.
 - L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
 - Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures, conserve les livres au fichier manquant et déplace les dossiers finaux orphelins de plus de 7 jours dans une quarantaine persistante jamais supprimée automatiquement.
 - Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
@@ -86,7 +88,8 @@ Dernière mise à jour : 30 août 2026
 ## Problèmes et risques connus
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
-- L’application normale se lance sur `Lore iPhone 13`, mais Xcode n’a pas réussi à lancer son clone temporaire destiné aux tests (`No such process`). Les tests compilent, mais leur exécution et le parcours avec un EPUB réel ne sont pas encore prouvés.
+- L’application normale se lance sur `Lore iPhone 13`, mais Xcode n’a pas réussi à lancer son clone temporaire destiné aux tests (`No such process`). Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
+- L’automatisation tactile du simulateur ne transmet pas les clics : l’ouverture du sélecteur Fichiers n’est donc pas encore prouvée. L’import après sélection, la lecture et la reprise ont été vérifiés avec des harnais temporaires appelant les composants de production, puis entièrement supprimés.
 - La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
