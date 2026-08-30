@@ -1,4 +1,5 @@
 import Foundation
+import ReadiumNavigator
 import ReadiumShared
 import UIKit
 
@@ -25,6 +26,33 @@ enum ReaderLifecycleState: Sendable {
 protocol ReaderLocationProviding: AnyObject {
     var currentLocation: Locator? { get }
     var viewController: UIViewController { get }
+}
+
+@MainActor
+protocol EPUBReaderControlling: ReaderLocationProviding {
+    func submitPreferences(_ preferences: EPUBPreferences)
+    func go(to link: Link, options: NavigatorGoOptions) async -> Bool
+}
+
+struct ReaderChapter: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let depth: Int
+    let link: Link
+
+    static func flatten(_ links: [Link], depth: Int = 0, path: String = "") -> [ReaderChapter] {
+        links.enumerated().flatMap { index, link in
+            let itemPath = path.isEmpty ? "\(index)" : "\(path).\(index)"
+            let title = link.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let chapter = ReaderChapter(
+                id: "\(itemPath):\(link.href)",
+                title: title?.isEmpty == false ? title! : "Chapitre sans titre",
+                depth: depth,
+                link: link
+            )
+            return [chapter] + flatten(link.children, depth: depth + 1, path: itemPath)
+        }
+    }
 }
 
 @MainActor

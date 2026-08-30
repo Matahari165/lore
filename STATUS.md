@@ -29,6 +29,10 @@ Dernière mise à jour : 30 août 2026
 - Le socle local des sessions de lecture est implémenté avec SwiftData : démarrage à la première interaction de lecture réelle, arrêt en arrière-plan ou à la fermeture, seuil d’inactivité isolé à 2 minutes et récupération prudente après interruption.
 - Les durées exactes et les agrégats aujourd’hui, semaine commençant le lundi et mois sont exposés à l’interface, selon le calendrier et le fuseau locaux de l’iPhone. Aucune interface de statistiques ni synchronisation iCloud n’est incluse dans ce jalon.
 - Le timer utilise une horloge injectable et une durée monotone pour résister aux changements de l’heure système. Des tests déterministes couvrent l’inactivité, les interactions tardives, le retour au premier plan, les erreurs d’arrêt, la reprise après interruption et les frontières jour/semaine/mois.
+- Les préférences globales du lecteur (taille, sérif/sans sérif, interligne et thème clair/sombre) sont conservées dans `UserDefaults` et soumises à Readium à l’ouverture comme pendant la lecture.
+- Le lecteur expose un sommaire hiérarchique issu du manifeste EPUB et navigue avec les `Link` Readium, sans remplacer le Locator de reprise par un numéro de page.
+- Les commandes du lecteur utilisent les événements de toucher Readium et des barres limitées au haut et au bas de l’écran afin de préserver la sélection native et les gestes de pagination.
+- Les tests de préférences, bornes, traduction Readium, sommaire et navigation ont été ajoutés et leur cible compile ; leur exécution reste bloquée par le lanceur XCTest du simulateur.
 
 ## En cours
 
@@ -59,7 +63,7 @@ Dernière mise à jour : 30 août 2026
 
 - Ouvrir et parcourir un EPUB. *(Implémenté avec Readium ; essai système restant.)*
 - Reprendre exactement à la dernière position enregistrée. *(Implémenté avec le Locator complet ; preuve après relance restant à obtenir.)*
-- Régler la police, la taille, l'interligne, le fond et le mode sombre.
+- Régler la police, la taille, l'interligne, le fond et le mode sombre. *(Implémenté pour taille, sérif/sans sérif, interligne et thèmes clair/sombre ; vérification visuelle réelle restant à faire.)*
 - Mesurer le temps de lecture en évitant de compter une page laissée ouverte sans lecture réelle. *(Socle local implémenté ; validation réelle du timer restant à faire.)*
 - Vérifier la lisibilité, les gestes, l'accessibilité et les états de chargement ou d'erreur.
 
@@ -95,7 +99,8 @@ Dernière mise à jour : 30 août 2026
 ## Problèmes et risques connus
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
-- L’application normale se lance sur `Lore iPhone 13`, mais Xcode n’a pas réussi à lancer son clone temporaire destiné aux tests (`No such process`). Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
+- L’application normale a déjà été vérifiée sur `Lore iPhone 13`, mais le lanceur XCTest reste bloqué sur `waiting for workers to materialize` ; un premier clone a ensuite échoué avec `Invalid device state` et `server died`. Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
+- Pour cette tranche, `simctl install` n’a pas créé le conteneur de l’application après le redémarrage du simulateur ; aucune capture des nouveaux réglages ou du sommaire n’est donc disponible.
 - L’automatisation tactile du simulateur ne transmet pas les clics : l’ouverture du sélecteur Fichiers n’est donc pas encore prouvée. L’import après sélection, la lecture et la reprise ont été vérifiés avec des harnais temporaires appelant les composants de production, puis entièrement supprimés.
 - L’exécution des tests sur `Lore iPhone 13` reste bloquée avant le lancement du processus de tests (`waiting for workers to materialize`) ; la compilation du code et des tests réussit, mais leur exécution automatique n’est pas encore prouvée.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
