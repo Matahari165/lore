@@ -17,6 +17,10 @@ Dernière mise à jour : 30 août 2026
 - Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
 - Direction du premier parcours appliquée : bibliothèque au lancement, « Reprendre » visible, blanc cassé froid, bleu encre, couvertures dominantes et lecteur immersif.
 - La cible application et la cible de tests compilent pour iPhoneOS avec Swift 6 et une cible minimale iOS 17.
+- L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
+- Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures et conserve les dossiers finaux orphelins ainsi que les livres au fichier manquant.
+- La persistance du Locator est versionnée ; un échec de sauvegarde conserve la position en attente et empêche la fermeture normale du lecteur.
+- Les tests critiques de doublon, staging, réconciliation, métadonnées absentes, SwiftData, migration et échec de sauvegarde ont été ajoutés et compilent.
 
 ## En cours
 
@@ -80,6 +84,7 @@ Dernière mise à jour : 30 août 2026
 
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
 - Le runtime iOS Simulator n’est pas disponible dans l’environnement actuel : les cibles compilent, mais les tests ne peuvent pas être exécutés et le parcours réel n’est pas encore prouvé.
+- Preuve Xcode actuelle : aucune destination iPhone 13 n’est disponible et Xcode indique `iOS 26.5 is not installed`.
 - La mesure du temps de lecture exige une règle fiable pour distinguer lecture active et application simplement ouverte.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.

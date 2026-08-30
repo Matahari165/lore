@@ -10,6 +10,7 @@ final class ReaderSessionController {
     private let positionController: ReadingPositionController
     private let navigatorDelegate: ReaderNavigatorDelegate
     private let directionalNavigationAdapter: DirectionalNavigationAdapter
+    private let onError: @MainActor (Error) -> Void
 
     static func make(
         bookID: UUID,
@@ -21,21 +22,31 @@ final class ReaderSessionController {
         let opened = try await publicationService.openEPUB(at: fileURL)
 
         let initialLocation: Locator?
+        var requiresLocatorRewrite = false
         do {
-            initialLocation = try progressStore.locatorData(for: bookID)
-                .map(LocatorJSONCodec.decode)
+            if let stored = try progressStore.storedLocator(for: bookID) {
+                let decoded = try LocatorPersistenceCodec.decode(stored)
+                initialLocation = decoded.locator
+                requiresLocatorRewrite = decoded.requiresRewrite
+            } else {
+                initialLocation = nil
+            }
         } catch {
             initialLocation = nil
             onError(error)
         }
 
-        return try ReaderSessionController(
+        let session = try ReaderSessionController(
             bookID: bookID,
             publication: opened.publication,
             initialLocation: initialLocation,
             progressStore: progressStore,
             onError: onError
         )
+        if requiresLocatorRewrite, let initialLocation {
+            session.positionController.record(initialLocation)
+        }
+        return session
     }
 
     init(
@@ -46,6 +57,7 @@ final class ReaderSessionController {
         onError: @escaping @MainActor (Error) -> Void = { _ in }
     ) throws {
         self.publication = publication
+        self.onError = onError
 
         let positionController = ReadingPositionController(
             bookID: bookID,
@@ -72,17 +84,27 @@ final class ReaderSessionController {
         directionalNavigationAdapter.bind(to: navigator)
     }
 
-    func handleLifecycle(_ state: ReaderLifecycleState) async {
+    func handleLifecycle(_ state: ReaderLifecycleState) async throws {
         switch state {
         case .active:
             break
         case .inactive, .background:
-            await positionController.flush(currentLocator: navigator.currentLocation)
+            do {
+                try await positionController.flush(currentLocator: navigator.currentLocation)
+            } catch {
+                onError(error)
+                throw error
+            }
         }
     }
 
-    func close() async {
-        await positionController.flush(currentLocator: navigator.currentLocation)
+    func close() async throws {
+        do {
+            try await positionController.flush(currentLocator: navigator.currentLocation)
+        } catch {
+            onError(error)
+            throw error
+        }
     }
 }
 

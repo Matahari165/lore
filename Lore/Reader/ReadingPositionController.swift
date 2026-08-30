@@ -5,13 +5,18 @@ import ReadiumShared
 final class ReadingPositionController {
     typealias Sleep = @Sendable (Duration) async throws -> Void
 
+    private struct PendingPosition {
+        let locator: Locator
+        let revision: UInt64
+    }
+
     private let bookID: UUID
     private let store: any ReaderProgressStore
     private let debounceDuration: Duration
     private let sleep: Sleep
     private let onError: @MainActor (Error) -> Void
-
-    private var latestLocator: Locator?
+    private var pendingPosition: PendingPosition?
+    private var nextRevision: UInt64 = 0
     private var pendingSave: Task<Void, Never>?
 
     init(
@@ -29,41 +34,42 @@ final class ReadingPositionController {
     }
 
     func record(_ locator: Locator) {
-        latestLocator = locator
+        nextRevision &+= 1
+        pendingPosition = PendingPosition(locator: locator, revision: nextRevision)
         pendingSave?.cancel()
         pendingSave = Task { [weak self, sleep, debounceDuration] in
             do {
                 try await sleep(debounceDuration)
                 guard !Task.isCancelled else { return }
-                await self?.saveLatest()
+                try self?.savePending()
             } catch is CancellationError {
-                // A newer location or an explicit flush superseded this save.
+                // A newer position or explicit flush owns the next attempt.
             } catch {
                 self?.onError(error)
             }
         }
     }
 
-    func flush(currentLocator: Locator? = nil) async {
+    func flush(currentLocator: Locator? = nil) async throws {
         pendingSave?.cancel()
         pendingSave = nil
-        if let currentLocator {
-            latestLocator = currentLocator
-        }
-        await saveLatest()
+        if let currentLocator { recordWithoutDebounce(currentLocator) }
+        try savePending()
     }
 
-    private func saveLatest() async {
-        guard let latestLocator else { return }
-        do {
-            let data = try LocatorJSONCodec.encode(latestLocator)
-            try store.saveLocatorData(
-                data,
-                progression: latestLocator.locations.totalProgression,
-                for: bookID
-            )
-        } catch {
-            onError(error)
-        }
+    private func recordWithoutDebounce(_ locator: Locator) {
+        nextRevision &+= 1
+        pendingPosition = PendingPosition(locator: locator, revision: nextRevision)
+    }
+
+    private func savePending() throws {
+        guard let pending = pendingPosition else { return }
+        let stored = try LocatorPersistenceCodec.encode(pending.locator)
+        try store.saveLocator(
+            stored,
+            progression: pending.locator.locations.totalProgression,
+            for: bookID
+        )
+        if pendingPosition?.revision == pending.revision { pendingPosition = nil }
     }
 }

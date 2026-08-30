@@ -6,63 +6,82 @@ import Testing
 @MainActor
 struct ReadingPositionControllerTests {
     @Test func flushSavesLatestLocatorForCurrentBook() async throws {
-        let bookID = UUID()
-        let store = ProgressStoreSpy()
-        let controller = ReadingPositionController(
-            bookID: bookID,
-            store: store,
-            debounceDuration: .seconds(60)
-        )
+        let bookID = UUID(), store = ProgressStoreSpy()
+        let controller = ReadingPositionController(bookID: bookID, store: store, debounceDuration: .seconds(60))
         let locator = makeLocator(progression: 0.64)
-
         controller.record(locator)
-        await controller.flush()
-
-        let saved = store.saved
-        #expect(saved?.bookID == bookID)
-        #expect(try saved.map { try LocatorJSONCodec.decode($0.data) } == locator)
+        try await controller.flush()
+        #expect(store.saved.last?.bookID == bookID)
+        #expect(try store.saved.last.map { try LocatorPersistenceCodec.decode($0.stored).locator } == locator)
     }
 
-    @Test func newerLocationReplacesPendingLocation() async throws {
+    @Test func storeFailureKeepsPendingLocatorForRetry() async throws {
+        let store = ProgressStoreSpy(failuresRemaining: 1)
+        let controller = ReadingPositionController(bookID: UUID(), store: store, debounceDuration: .seconds(60))
+        let locator = makeLocator(progression: 0.4)
+        controller.record(locator)
+        await #expect(throws: ProgressStoreSpy.Failure.self) { try await controller.flush() }
+        try await controller.flush()
+        #expect(store.attempts == 2)
+        #expect(try LocatorPersistenceCodec.decode(store.saved[0].stored).locator == locator)
+    }
+
+    @Test func successfulFlushClearsPendingAndDoesNotRewrite() async throws {
         let store = ProgressStoreSpy()
+        let controller = ReadingPositionController(bookID: UUID(), store: store, debounceDuration: .seconds(60))
+        controller.record(makeLocator(progression: 0.2))
+        try await controller.flush()
+        try await controller.flush()
+        #expect(store.attempts == 1)
+    }
+
+    @Test func debounceFailureIsReportedAndRemainsRetryable() async throws {
+        let store = ProgressStoreSpy(failuresRemaining: 1)
+        var reported = false
         let controller = ReadingPositionController(
-            bookID: UUID(),
-            store: store,
-            debounceDuration: .seconds(60)
+            bookID: UUID(), store: store, debounceDuration: .zero,
+            sleep: { _ in }, onError: { _ in reported = true }
         )
-        let latest = makeLocator(progression: 0.9)
+        controller.record(makeLocator(progression: 0.7))
+        await Task.yield()
+        await Task.yield()
+        #expect(reported)
+        try await controller.flush()
+        #expect(store.attempts == 2)
+    }
 
-        controller.record(makeLocator(progression: 0.1))
-        controller.record(latest)
-        await controller.flush()
-
-        let saved = store.saved
-        #expect(try saved.map { try LocatorJSONCodec.decode($0.data) } == latest)
+    @Test func explicitCurrentLocationIsSavedForBackgroundOrClose() async throws {
+        let store = ProgressStoreSpy()
+        let controller = ReadingPositionController(bookID: UUID(), store: store, debounceDuration: .seconds(60))
+        let current = makeLocator(progression: 0.95)
+        try await controller.flush(currentLocator: current)
+        #expect(try LocatorPersistenceCodec.decode(store.saved[0].stored).locator == current)
     }
 
     private func makeLocator(progression: Double) -> Locator {
         Locator(
-            href: URL(string: "chapter.xhtml")!,
-            mediaType: .xhtml,
-            locations: .init(progression: progression)
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: progression, totalProgression: progression)
         )
     }
 }
 
 @MainActor
 private final class ProgressStoreSpy: ReaderProgressStore {
-    struct Saved: Sendable {
-        let data: Data
-        let bookID: UUID
-    }
+    enum Failure: Error { case save }
+    struct Saved { let stored: StoredLocator; let bookID: UUID; let progression: Double? }
+    var failuresRemaining: Int
+    private(set) var attempts = 0
+    private(set) var saved: [Saved] = []
 
-    private(set) var saved: Saved?
-
-    func locatorData(for bookID: UUID) throws -> Data? {
-        saved?.bookID == bookID ? saved?.data : nil
-    }
-
-    func saveLocatorData(_ data: Data, progression: Double?, for bookID: UUID) throws {
-        saved = Saved(data: data, bookID: bookID)
+    init(failuresRemaining: Int = 0) { self.failuresRemaining = failuresRemaining }
+    func storedLocator(for bookID: UUID) throws -> StoredLocator? { saved.last?.stored }
+    func saveLocator(_ stored: StoredLocator, progression: Double?, for bookID: UUID) throws {
+        attempts += 1
+        if failuresRemaining > 0 {
+            failuresRemaining -= 1
+            throw Failure.save
+        }
+        saved.append(Saved(stored: stored, bookID: bookID, progression: progression))
     }
 }

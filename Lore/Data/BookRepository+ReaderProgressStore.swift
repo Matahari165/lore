@@ -1,11 +1,17 @@
 import Foundation
 
 extension BookRepository: ReaderProgressStore {
-    func locatorData(for bookID: UUID) throws -> Data? {
-        try book(id: bookID)?.lastLocatorJSON
+    func storedLocator(for bookID: UUID) throws -> StoredLocator? {
+        guard let book = try book(id: bookID), let data = book.lastLocatorJSON else { return nil }
+        return StoredLocator(data: data, schemaVersion: book.locatorSchemaVersion)
     }
 
-    func saveLocatorData(_ data: Data, progression: Double?, for bookID: UUID) throws {
-        try saveProgress(for: bookID, locatorJSON: data, progression: progression)
+    func saveLocator(_ stored: StoredLocator, progression: Double?, for bookID: UUID) throws {
+        try saveProgress(
+            for: bookID,
+            locatorJSON: stored.data,
+            locatorSchemaVersion: stored.schemaVersion,
+            progression: progression
+        )
     }
 }
