@@ -98,9 +98,16 @@ final class ReadingSessionRepository: ReadingSessionStore {
         }
         let sessions = try context.fetch(FetchDescriptor<ReadingSessionRecord>())
         return ReadingTimeSummary(
-            today: total(sessions, from: today, to: tomorrow, now: now, inactivityTimeout: inactivityTimeout),
-            thisWeek: total(sessions, from: week.start, to: week.end, now: now, inactivityTimeout: inactivityTimeout),
-            thisMonth: total(sessions, from: month.start, to: month.end, now: now, inactivityTimeout: inactivityTimeout)
+            today: ReadingSessionDuration.total(
+                sessions, in: DateInterval(start: today, end: tomorrow), now: now,
+                inactivityTimeout: inactivityTimeout
+            ),
+            thisWeek: ReadingSessionDuration.total(
+                sessions, in: week, now: now, inactivityTimeout: inactivityTimeout
+            ),
+            thisMonth: ReadingSessionDuration.total(
+                sessions, in: month, now: now, inactivityTimeout: inactivityTimeout
+            )
         )
     }
 
@@ -123,19 +130,22 @@ final class ReadingSessionRepository: ReadingSessionStore {
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
     }
+}
 
-    private func total(
+enum ReadingSessionDuration {
+    static func total(
         _ sessions: [ReadingSessionRecord],
-        from start: Date,
-        to end: Date,
+        in interval: DateInterval,
         now: Date,
         inactivityTimeout: TimeInterval
     ) -> TimeInterval {
         sessions.reduce(0) { result, session in
-            let sessionEnd = session.endedAt
-                ?? min(now, session.lastActivityAt.addingTimeInterval(inactivityTimeout))
-            let overlapStart = max(start, session.startedAt)
-            let overlapEnd = min(end, sessionEnd)
+            let sessionEnd = min(
+                now,
+                session.endedAt ?? session.lastActivityAt.addingTimeInterval(inactivityTimeout)
+            )
+            let overlapStart = max(interval.start, session.startedAt)
+            let overlapEnd = min(interval.end, sessionEnd)
             return result + max(0, overlapEnd.timeIntervalSince(overlapStart))
         }
     }

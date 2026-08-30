@@ -29,6 +29,7 @@ Dernière mise à jour : 30 août 2026
 - Le socle local des sessions de lecture est implémenté avec SwiftData : démarrage à la première interaction de lecture réelle, arrêt en arrière-plan ou à la fermeture, seuil d’inactivité isolé à 2 minutes et récupération prudente après interruption.
 - Les durées exactes et les agrégats aujourd’hui, semaine commençant le lundi et mois sont exposés à l’interface, selon le calendrier et le fuseau locaux de l’iPhone. Aucune interface de statistiques ni synchronisation iCloud n’est incluse dans ce jalon.
 - Le timer utilise une horloge injectable et une durée monotone pour résister aux changements de l’heure système. Des tests déterministes couvrent l’inactivité, les interactions tardives, le retour au premier plan, les erreurs d’arrêt, la reprise après interruption et les frontières jour/semaine/mois.
+- Le contrat de données de l’écran Statistiques est raccordé aux vraies sessions et aux livres : totaux exacts, jours de lecture du mois, historique en cours/terminé avec couverture, première session réelle, fin explicite et note entière 0–10. L’interface reste dans son lot séparé.
 
 ## En cours
 
