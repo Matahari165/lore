@@ -132,6 +132,12 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le format persistant du Locator est versionné et migré par un codec centralisé.
 - Direction visuelle du premier parcours : blanc cassé froid, bleu encre, couvertures comme couleur principale, lecteur immersif et commandes natives sobres.
 - L’écran de lancement est la bibliothèque ; l’action « Reprendre » y reste visible lorsqu’une position de lecture existe.
+- Les préférences de lecture de la V1 sont globales : elles s’appliquent à tous les livres. Le lecteur utilise des valeurs par défaut sûres si elles sont absentes ou illisibles.
+- Le compteur passe en inactivité après 2 minutes sans interaction de lecture. Tourner une page, faire défiler le contenu ou agir sur un passage relance l’activité ; ouvrir les réglages ou revenir simplement au premier plan ne compte pas comme lecture.
+- Les durées sont conservées avec leur précision réelle ; seul l’affichage utilisateur est arrondi en minutes.
+- Les statistiques utilisent le fuseau local de l’iPhone et une semaine commençant le lundi.
+- La date de début d’un livre correspond à sa première session réelle. La date de fin est enregistrée lorsque le livre est explicitement marqué comme terminé.
+- La note personnelle est un entier de 0 à 10.
 
 ## Décisions nécessitant une consultation
 
