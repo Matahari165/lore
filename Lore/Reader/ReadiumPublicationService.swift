@@ -11,10 +11,32 @@ struct OpenedEPUB {
     let coverData: Data?
 }
 
+struct ImportedEPUBMetadata: Sendable, Equatable {
+    let mediaType: String
+    let title: String?
+    let author: String?
+    let coverData: Data?
+}
+
+@MainActor
+protocol EPUBImportValidating: AnyObject {
+    func validateEPUBForImport(at fileURL: URL) async throws -> ImportedEPUBMetadata
+}
+
 /// Owns the long-lived Readium opening dependencies. Lore supplies no content
 /// protection, so a restricted publication is rejected instead of prompting.
 @MainActor
-final class ReadiumPublicationService {
+final class ReadiumPublicationService: EPUBImportValidating {
+    func validateEPUBForImport(at fileURL: URL) async throws -> ImportedEPUBMetadata {
+        let opened = try await openEPUB(at: fileURL)
+        return ImportedEPUBMetadata(
+            mediaType: opened.mediaType?.string ?? "application/epub+zip",
+            title: opened.title,
+            author: opened.author,
+            coverData: opened.coverData
+        )
+    }
+
     func openEPUB(at fileURL: URL) async throws -> OpenedEPUB {
         guard fileURL.isFileURL, let readiumURL = FileURL(url: fileURL) else {
             throw ReaderError.invalidFileURL

@@ -9,10 +9,11 @@ struct ReaderView: View {
         ReaderViewControllerBridge(session: session)
             .ignoresSafeArea()
             .task(id: scenePhase) {
-                await session.handleLifecycle(scenePhase.readerLifecycleState)
-            }
-            .onDisappear {
-                Task { await session.close() }
+                do {
+                    try await session.handleLifecycle(scenePhase.readerLifecycleState)
+                } catch {
+                    // The session reports the failure and keeps the Locator pending for retry.
+                }
             }
     }
 }

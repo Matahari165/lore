@@ -32,10 +32,13 @@ struct BookRepositoryTests {
         try repository.add(second)
         let locator = Data(#"{"href":"chapter.xhtml","locations":{"progression":0.42}}"#.utf8)
 
-        try repository.saveProgress(for: first.id, locatorJSON: locator, progression: 1.4)
+        try repository.saveProgress(
+            for: first.id, locatorJSON: locator, locatorSchemaVersion: 1, progression: 1.4
+        )
 
         #expect(try repository.book(id: first.id)?.lastLocatorJSON == locator)
         #expect(try repository.book(id: first.id)?.lastProgression == 1)
+        #expect(try repository.book(id: first.id)?.locatorSchemaVersion == 1)
         #expect(try repository.book(id: second.id)?.lastLocatorJSON == nil)
     }
 
@@ -46,9 +49,21 @@ struct BookRepositoryTests {
             try repository.saveProgress(
                 for: UUID(),
                 locatorJSON: Data("{}".utf8),
+                locatorSchemaVersion: 1,
                 progression: nil
             )
         }
+    }
+
+    @Test func failedInsertIsRemovedFromTheContext() throws {
+        enum Expected: Error { case save }
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: BookRecord.self, configurations: configuration)
+        let repository = BookRepository(context: container.mainContext) { _ in throw Expected.save }
+        let book = BookRecord(title: "Unsaved", relativeFilePath: "")
+
+        #expect(throws: Expected.self) { try repository.add(book) }
+        #expect(try repository.books().isEmpty)
     }
 
     private func makeRepository() throws -> BookRepository {

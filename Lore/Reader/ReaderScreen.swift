@@ -43,8 +43,12 @@ struct ReaderScreen: View {
 
     private func closeReader() {
         Task {
-            await presentation.session.close()
-            onClose()
+            do {
+                try await presentation.session.close()
+                onClose()
+            } catch {
+                // The session already surfaced the error; keep the reader open so retry is possible.
+            }
         }
     }
 }

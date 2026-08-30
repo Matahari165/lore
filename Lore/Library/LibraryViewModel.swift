@@ -34,6 +34,11 @@ final class LibraryViewModel {
             fileStore: fileStore,
             publicationService: publicationService
         )
+        do {
+            _ = try importService.reconcileImports()
+        } catch {
+            present(error)
+        }
         reload()
     }
 
