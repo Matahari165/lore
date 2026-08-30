@@ -19,12 +19,16 @@ struct LoreApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LibraryView(
-                repository: BookRepository(context: container.mainContext),
-                sessionRepository: ReadingSessionRepository(context: container.mainContext),
-                fileStore: fileStore,
-                publicationService: ReadiumPublicationService()
-            )
+            if ProcessInfo.processInfo.arguments.contains("-statisticsPreview") {
+                StatisticsScreen(state: .loaded(StatisticsPreviewData.snapshot))
+            } else {
+                LibraryView(
+                    repository: BookRepository(context: container.mainContext),
+                    sessionRepository: ReadingSessionRepository(context: container.mainContext),
+                    fileStore: fileStore,
+                    publicationService: ReadiumPublicationService()
+                )
+            }
         }
         .modelContainer(container)
     }
