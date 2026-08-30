@@ -11,6 +11,8 @@ Dernière mise à jour : 30 août 2026
 - Organisation initiale du travail et responsabilités des agents formalisées dans `AGENTS.md`.
 - Périmètre de la V1 validé et consigné dans `PROJECT.md`.
 - Dépôt Git initialisé sur la branche `chore/project-foundation`.
+- Appareil de référence confirmé : iPhone 13, avec iOS 17 comme version minimale.
+- Quatre conversations spécialisées actives et isolées : iOS, EPUB/données/iCloud, UI/UX et QA.
 
 ## En cours
 

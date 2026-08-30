@@ -17,6 +17,7 @@ Permettre une boucle de lecture complète et simple :
 - Un seul utilisateur : le propriétaire de l’application.
 - Usage privé, sans fonctions sociales ni gestion de comptes multiples.
 - Appareils Apple connectés au même compte iCloud.
+- Appareil principal : iPhone 13.
 
 ## V1 validée — iPhone
 
@@ -108,6 +109,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - EPUB sans DRM uniquement dans la V1.
 - Un EPUB n’a pas de nombre de pages fixe : la référence principale est le pourcentage et les chapitres lus.
 - Interface lisible, accessible et optimisée pour 390 × 844.
+- Version minimale : iOS 17, compatible avec l'iPhone 13 utilisé pour Lore.
 - Fonctionnement utile même sans connexion, sauf fonction IA externe éventuelle.
 - Aucun service payant, déploiement ou envoi de données externe sans autorisation explicite.
 - Pas de complexité ou de dépendance sans bénéfice clair.
@@ -117,6 +119,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Nom du projet : Lore.
 - Produit personnel, sans comptes multiples.
 - Développement iPhone en premier ; Mac reporté.
+- Appareil de référence : iPhone 13 ; version minimale : iOS 17.
 - Boucle principale de V1 : importer, lire, reprendre, annoter et mesurer.
 - Progression fondée sur le pourcentage et les chapitres, pas sur un nombre de pages fixe.
 - Synchronisation via iCloud.
@@ -129,6 +132,5 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Direction visuelle et organisation des écrans principaux.
 - Durée exacte avant arrêt pour inactivité ; point de départ recommandé : 2 minutes.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
-- Version minimale d’iOS si elle exclut un appareil personnel.
 - Ajout, retrait ou changement important d’une fonction de la V1.
 - Toute dépense, suppression risquée ou décision difficilement réversible.
