@@ -114,8 +114,7 @@ private struct StatisticsContent: View {
                 }
 
                 if !snapshot.finishedBooks.isEmpty {
-                    StatisticsBookList(
-                        title: "Terminés",
+                    FinishedBooksArchive(
                         books: snapshot.finishedBooks,
                         onSelectBook: onSelectBook
                     )
@@ -125,6 +124,91 @@ private struct StatisticsContent: View {
             .padding(.bottom, 32)
         }
         .background(LoreTheme.canvas)
+    }
+}
+
+private struct FinishedBooksArchive: View {
+    let books: [StatisticsBookSummary]
+    let onSelectBook: (StatisticsBookSummary) -> Void
+    @State private var selectedYear: Int?
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 74, maximum: 96), spacing: 16, alignment: .top)
+    ]
+
+    private var calendar: Calendar { .autoupdatingCurrent }
+
+    private var availableYears: [Int] {
+        Set(books.compactMap { book in
+            book.finishedAt.map { calendar.component(.year, from: $0) }
+        }).sorted(by: >)
+    }
+
+    private var displayedGroups: [(year: Int, books: [StatisticsBookSummary])] {
+        availableYears.compactMap { year in
+            guard selectedYear == nil || selectedYear == year else { return nil }
+            let matches = books.filter { book in
+                book.finishedAt.map { calendar.component(.year, from: $0) == year } ?? false
+            }
+            return matches.isEmpty ? nil : (year, matches)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Livres terminés")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Menu {
+                    Button("Toutes les années") { selectedYear = nil }
+                    ForEach(availableYears, id: \.self) { year in
+                        Button(String(year)) { selectedYear = year }
+                    }
+                } label: {
+                    Label(selectedYear.map(String.init) ?? "Toutes", systemImage: "calendar")
+                        .font(.subheadline.weight(.medium))
+                }
+                .accessibilityLabel("Filtrer les livres terminés par année")
+                .accessibilityValue(selectedYear.map(String.init) ?? "Toutes les années")
+            }
+
+            ForEach(displayedGroups, id: \.year) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(String(group.year))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(LoreTheme.secondaryInk)
+                        .accessibilityAddTraits(.isHeader)
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                        ForEach(group.books) { book in
+                            Button { onSelectBook(book) } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    StatisticsBookCover(book: book)
+                                    Text(book.title)
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(LoreTheme.ink)
+                                        .lineLimit(2)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(archiveAccessibilityLabel(for: book))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func archiveAccessibilityLabel(for book: StatisticsBookSummary) -> String {
+        var values = [book.title]
+        if let author = book.author { values.append(author) }
+        if let date = book.finishedAt {
+            values.append("Terminé le \(date.formatted(.dateTime.day().month(.wide).year()))")
+        }
+        if let rating = book.rating { values.append("Note \(rating) sur 10") }
+        return values.joined(separator: ", ")
     }
 }
 

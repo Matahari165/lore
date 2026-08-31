@@ -3,6 +3,11 @@ import Foundation
 enum LoreAIFeature: Sendable {
     case explainSelection
     case previousReadingRecap
+    case chapterSummary
+    case bookQuestion
+    case charactersAndConcepts
+    case flashcards
+    case endingDiscussion
 }
 
 struct BookAIContext: Equatable, Sendable {
@@ -69,6 +74,7 @@ enum LoreAIError: LocalizedError, Equatable {
     case requestFailed(statusCode: Int, message: String?)
     case transport(String)
     case emptyContext
+    case invalidFlashcardCount
 
     var errorDescription: String? {
         switch self {
@@ -85,6 +91,8 @@ enum LoreAIError: LocalizedError, Equatable {
             "Connexion au service IA impossible : \(message)"
         case .emptyContext:
             "Aucun texte exploitable n’est disponible pour cette demande."
+        case .invalidFlashcardCount:
+            "Le nombre de cartes doit être compris entre 1 et 12."
         }
     }
 }

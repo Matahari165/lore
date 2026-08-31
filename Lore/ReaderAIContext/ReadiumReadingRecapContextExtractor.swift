@@ -51,7 +51,7 @@ final class ReadiumReadingRecapContextExtractor {
         )
     }
 
-    nonisolated(unsafe) private static func extractUnchecked(
+    nonisolated private static func extractUnchecked(
         from publication: Publication,
         firstLocator: Locator,
         lastLocator: Locator,

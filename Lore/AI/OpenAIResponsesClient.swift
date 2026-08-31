@@ -12,7 +12,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
     private let keyStore: any OpenAIAPIKeyStore
     private let session: URLSession
     private let configuration: OpenAIResponsesConfiguration
-    private let promptBuilder: LoreAIPromptBuilder
+    let promptBuilder: LoreAIPromptBuilder
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -45,7 +45,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         try await respond(to: promptBuilder.previousReadingRecap(for: context))
     }
 
-    private func respond(to prompt: LoreAIPrompt) async throws -> String {
+    func respond(to prompt: LoreAIPrompt) async throws -> String {
         guard let rawKey = try keyStore.loadAPIKey() else { throw LoreAIError.missingAPIKey }
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw LoreAIError.invalidAPIKey }

@@ -165,6 +165,18 @@ struct LibraryView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain).accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+        .contextMenu {
+            if book.readingStatus == .finished {
+                Button("Marquer comme non terminé", systemImage: "arrow.uturn.backward") {
+                    model.setFinished(false, for: book)
+                }
+            } else {
+                Button("Marquer comme lu", systemImage: "checkmark.circle") {
+                    model.setFinished(true, for: book)
+                }
+            }
+        }
     }
 }

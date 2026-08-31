@@ -82,9 +82,30 @@ protocol EPUBReaderControlling: ReaderLocationProviding {
 }
 
 enum ReaderSelectionPalette {
-    /// Intentionally distinct from the persistent yellow highlight color.
-    static let background = "#66E3FF"
-    static let text = "#071018"
+    /// An opaque, saturated selection color that remains unmistakable over a
+    /// dark reading canvas. It is intentionally distinct from the persistent
+    /// yellow highlight decoration.
+    static let background = "#00E5FF"
+    static let text = "#001018"
+
+    /// Readium injects the two custom properties for each loaded resource.
+    /// This second, last-in-document rule is needed for EPUBs whose own CSS
+    /// overrides `::selection`; it is applied to the visible WebView after it
+    /// has loaded and uses `!important` only on the selection declarations.
+    static let webViewStyleScript = """
+    (function() {
+        var style = document.getElementById('lore-selection-palette');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'lore-selection-palette';
+            (document.head || document.documentElement).appendChild(style);
+        }
+        style.textContent = '*::selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; } *::-moz-selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; }';
+        document.documentElement.style.setProperty('--RS__selectionTextColor', '\(text)', 'important');
+        document.documentElement.style.setProperty('--RS__selectionBackgroundColor', '\(background)', 'important');
+        return true;
+    })();
+    """
 }
 
 struct ReaderChapter: Identifiable, Sendable {

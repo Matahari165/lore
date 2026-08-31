@@ -221,6 +221,15 @@ final class LibraryViewModel {
         }
     }
 
+    func setFinished(_ isFinished: Bool, for book: BookRecord) {
+        do {
+            try repository.setFinished(isFinished, for: book.id)
+            reload()
+        } catch {
+            present(error)
+        }
+    }
+
     private func present(_ error: Error) {
         errorMessage = (error as? LocalizedError)?.errorDescription ?? "Une erreur inattendue est survenue."
     }

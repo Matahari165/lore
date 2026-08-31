@@ -125,6 +125,56 @@ final class ReadingSessionRepository: ReadingSessionStore {
         try sessions(for: bookID).first?.startedAt
     }
 
+    /// Efface uniquement la portion des sessions comprise dans le jour civil demandé.
+    /// Les éventuelles portions situées avant ou après minuit sont conservées.
+    @discardableResult
+    func clearSessions(
+        on date: Date,
+        calendar: Calendar = .autoupdatingCurrent
+    ) throws -> Int {
+        guard let day = calendar.dateInterval(of: .day, for: date) else {
+            throw ReadingSessionRepositoryError.invalidCalendar
+        }
+        let records = try context.fetch(FetchDescriptor<ReadingSessionRecord>())
+        let affected = records.filter { record in
+            let end = record.endedAt ?? record.lastActivityAt
+            return record.startedAt < day.end && end > day.start
+        }
+        guard !affected.isEmpty else { return 0 }
+
+        for record in affected {
+            let originalEnd = record.endedAt ?? record.lastActivityAt
+            let originalLastActivity = record.lastActivityAt
+            let wasOpen = record.endedAt == nil
+            let preservesBefore = record.startedAt < day.start
+            let preservesAfter = originalEnd > day.end
+
+            if preservesBefore {
+                record.lastActivityAt = min(record.lastActivityAt, day.start)
+                record.endedAt = day.start
+            } else {
+                context.delete(record)
+            }
+
+            if preservesAfter {
+                context.insert(ReadingSessionRecord(
+                    bookID: record.bookID,
+                    startedAt: day.end,
+                    lastActivityAt: max(day.end, originalLastActivity),
+                    endedAt: wasOpen ? nil : originalEnd
+                ))
+            }
+        }
+
+        do {
+            try saveContext(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+        return affected.count
+    }
+
     private func session(id: UUID) throws -> ReadingSessionRecord? {
         var descriptor = FetchDescriptor<ReadingSessionRecord>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
@@ -153,8 +203,12 @@ enum ReadingSessionDuration {
 
 enum ReadingSessionRepositoryError: LocalizedError, Equatable {
     case sessionNotFound
+    case invalidCalendar
 
     var errorDescription: String? {
-        "La session de lecture active est introuvable."
+        switch self {
+        case .sessionNotFound: "La session de lecture active est introuvable."
+        case .invalidCalendar: "Le jour local ne peut pas être déterminé."
+        }
     }
 }

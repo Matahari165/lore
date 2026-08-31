@@ -54,6 +54,44 @@ struct ReadingSessionRepositoryTests {
         #expect(try repository.firstSessionDate(for: bookID) == first)
     }
 
+    @Test func clearsOnlyTheRequestedLocalDayAndKeepsAdjacentDays() throws {
+        let fixture = try makeRepository()
+        let repository = fixture.repository
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 31, hour: 12
+        )))
+        let previous = day.addingTimeInterval(-24 * 60 * 60)
+        let todayID = try repository.begin(bookID: UUID(), at: day)
+        try repository.finish(sessionID: todayID, at: day.addingTimeInterval(600))
+        let previousID = try repository.begin(bookID: UUID(), at: previous)
+        try repository.finish(sessionID: previousID, at: previous.addingTimeInterval(600))
+
+        #expect(try repository.clearSessions(on: day, calendar: calendar) == 1)
+        let remaining = try repository.sessions()
+        #expect(remaining.count == 1)
+        #expect(remaining.first?.id == previousID)
+        #expect(try repository.summary(containing: day, calendar: calendar).today == 0)
+    }
+
+    @Test func clearingTodayTruncatesACrossMidnightSessionWithoutErasingYesterday() throws {
+        let fixture = try makeRepository()
+        let repository = fixture.repository
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let midnight = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 31
+        )))
+        let id = try repository.begin(bookID: UUID(), at: midnight.addingTimeInterval(-300))
+        try repository.finish(sessionID: id, at: midnight.addingTimeInterval(300))
+
+        #expect(try repository.clearSessions(on: midnight.addingTimeInterval(60), calendar: calendar) == 1)
+        let remaining = try #require(repository.sessions().first)
+        #expect(remaining.startedAt == midnight.addingTimeInterval(-300))
+        #expect(remaining.endedAt == midnight)
+    }
+
     private func makeRepository() throws -> ReadingSessionRepositoryFixture {
         try ReadingSessionRepositoryFixture()
     }

@@ -115,6 +115,18 @@ final class BookRepository {
             throw error
         }
     }
+
+    func setFinished(_ isFinished: Bool, for bookID: UUID, at date: Date = .now) throws {
+        guard let book = try book(id: bookID) else { throw BookRepositoryError.bookNotFound }
+        let previous = book.finishedAt
+        book.finishedAt = isFinished ? (previous ?? date) : nil
+        do {
+            try saveContext(context)
+        } catch {
+            book.finishedAt = previous
+            throw error
+        }
+    }
 }
 
 extension BookRepository: HighlightStoring {

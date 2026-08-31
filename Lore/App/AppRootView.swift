@@ -12,8 +12,10 @@ struct AppRootView: View {
     @State private var libraryModel: LibraryViewModel
     @State private var dailyGoalModel: DailyReadingGoalModel
     @State private var presentsSettings = false
+    @State private var statisticsRevision = 0
 
     let statisticsAdapter: StatisticsDataAdapter
+    let sessionRepository: ReadingSessionRepository
 
     init(
         initialTab: Tab = .home,
@@ -33,6 +35,7 @@ struct AppRootView: View {
         ))
         _dailyGoalModel = State(initialValue: DailyReadingGoalModel(store: dailyGoalStore))
         self.statisticsAdapter = statisticsAdapter
+        self.sessionRepository = sessionRepository
     }
 
     var body: some View {
@@ -58,6 +61,7 @@ struct AppRootView: View {
             StatisticsDashboardView(
                 adapter: statisticsAdapter,
                 dailyGoalModel: dailyGoalModel,
+                refreshRevision: statisticsRevision,
                 onOpenLibrary: { selectedTab = .library }
             )
             .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
@@ -70,7 +74,12 @@ struct AppRootView: View {
         }
         .onChange(of: selectedTab) { _, _ in reloadDailyGoal() }
         .sheet(isPresented: $presentsSettings, onDismiss: reloadDailyGoal) {
-            SettingsView(model: dailyGoalModel)
+            SettingsView(model: dailyGoalModel) {
+                let count = try sessionRepository.clearSessions(on: .now)
+                statisticsRevision += 1
+                reloadDailyGoal()
+                return count
+            }
         }
         .alert("Importation terminée", isPresented: Binding(
             get: { libraryModel.importSummary != nil },

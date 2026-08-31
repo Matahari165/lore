@@ -69,11 +69,9 @@ Permettre une boucle de lecture complète et simple :
 - Boutique de livres.
 - Comptes multiples et fonctions sociales.
 - Questions sur tout le livre.
-- Résumés automatiques de chapitres.
-- Fiches de personnages et de concepts.
-- Flashcards.
+- Interface complète pour les résumés de chapitres, personnages/concepts et flashcards. *(Contrats et prompts prêts.)*
 - Recommandations avancées.
-- Discussion et analyse globale de fin de livre.
+- Interface complète de discussion et analyse de fin de livre. *(Contrat et prompt prêts.)*
 - Séries de jours et statistiques complexes.
 
 ## Définition de terminé de la V1
@@ -161,7 +159,10 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le résumé quotidien porte uniquement sur le jour civil précédent, utilise les premier et dernier Locator enregistrés et n’est présenté qu’une fois par livre pendant la journée locale.
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
-- L’icône de Lore est une page pliée minimaliste formant un `L` ivoire sur fond bleu nuit.
+- L’icône de Lore est un trait violet minimaliste formant un `L` plié, sur fond ivoire lumineux, d’après la référence fournie.
+- Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
+- Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
+- Les services IA avancés couvrent le résumé de chapitre, les questions sur le texte lu, les personnages/concepts, les flashcards et la discussion de fin. Leur mise à disposition dans l’interface se fait progressivement après validation de chaque contexte anti-spoiler.
 
 ## Décisions nécessitant une consultation
 

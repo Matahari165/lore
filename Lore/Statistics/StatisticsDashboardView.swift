@@ -5,15 +5,18 @@ struct StatisticsDashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: StatisticsDashboardModel
     let dailyGoalModel: DailyReadingGoalModel
+    let refreshRevision: Int
     let onOpenLibrary: () -> Void
 
     init(
         adapter: StatisticsDataAdapter,
         dailyGoalModel: DailyReadingGoalModel,
+        refreshRevision: Int = 0,
         onOpenLibrary: @escaping () -> Void
     ) {
         _model = State(initialValue: StatisticsDashboardModel(adapter: adapter))
         self.dailyGoalModel = dailyGoalModel
+        self.refreshRevision = refreshRevision
         self.onOpenLibrary = onOpenLibrary
     }
 
@@ -26,6 +29,7 @@ struct StatisticsDashboardView: View {
             onChangeMonth: model.changeMonth
         )
         .onAppear(perform: model.load)
+        .onChange(of: refreshRevision) { _, _ in model.load() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             model.load()

@@ -50,11 +50,18 @@ Dernière mise à jour : 31 août 2026
 - Les surlignages sont persistés localement par livre avec le Locator Readium complet, le texte, la date et la couleur. Ils sont restaurés dans le livre, consultables depuis le lecteur, ouvrables au passage exact et supprimables avec confirmation.
 - La suppression d’un livre supprime ses surlignages dans la même sauvegarde. Les échecs de suppression et les erreurs d’agrégation de l’objectif ne sont pas présentés comme des réussites ou des valeurs nulles.
 - La compilation finale de l’application et de sa cible de tests réussit après revue QA indépendante. La nouvelle version IA signée est installée sur l’iPhone 13 physique ; son lancement automatisé reste à confirmer une fois l’appareil déverrouillé.
+- Les réponses IA du lecteur rendent désormais le Markdown (titres, gras, italiques et listes) au lieu d’afficher ses signes bruts.
+- La fermeture du lecteur est placée en haut à droite. La sélection sombre est renforcée directement dans le contenu EPUB avec un fond cyan vif et un texte presque noir.
+- Les réglages permettent d’effacer, après confirmation, uniquement le temps du jour local sans supprimer la portion éventuelle d’une session appartenant à un autre jour.
+- Un appui long sur un livre permet de le marquer terminé ou non terminé. Les statistiques affichent en bas les couvertures des livres terminés, filtrables par année.
+- L’icône de l’application reprend le symbole `L` plié violet fourni, sur un fond ivoire lumineux.
+- Les contrats et prompts IA sont prêts pour cinq fonctions supplémentaires : résumé de chapitre, questions sur le texte lu, personnages et concepts, flashcards et discussion de fin. Leur interface utilisateur reste à raccorder.
 
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
+- Raccordement progressif des cinq nouvelles fonctions IA à des écrans utiles, sans envoyer de texte non lu ni ajouter de spoilers.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 

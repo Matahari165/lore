@@ -184,10 +184,21 @@ final class ReaderSessionController {
             try preferencesStore.save(normalized)
             preferences = normalized
             readerController?.submitPreferences(normalized.readiumValue)
+            Task { @MainActor [weak self] in
+                await self?.reinforceSelectionAppearance()
+            }
         } catch {
             onError(error)
             throw error
         }
+    }
+
+    /// Readium applies its CSS variables to every loaded EPUB resource. The
+    /// visible WebView gets one additional rule so publisher CSS cannot make
+    /// the active selection look like a dark rectangle on a dark page.
+    func reinforceSelectionAppearance() async {
+        guard let navigator = readerController as? EPUBNavigatorViewController else { return }
+        _ = await navigator.evaluateJavaScript(ReaderSelectionPalette.webViewStyleScript)
     }
 
     func setTapHandler(_ handler: (@MainActor () -> Void)?) {
@@ -336,7 +347,9 @@ final class ReaderSessionController {
 
     @discardableResult
     func go(to highlight: ReaderHighlight) async -> Bool {
-        await readerController?.go(to: highlight.locator, options: .animated) ?? false
+        let didNavigate = await readerController?.go(to: highlight.locator, options: .animated) ?? false
+        if didNavigate { await reinforceSelectionAppearance() }
+        return didNavigate
     }
 
     private func applyHighlights(to navigator: any DecorableNavigator) {
@@ -360,7 +373,9 @@ final class ReaderSessionController {
 
     @discardableResult
     func go(to chapter: ReaderChapter) async -> Bool {
-        await readerController?.go(to: chapter.link, options: .animated) ?? false
+        let didNavigate = await readerController?.go(to: chapter.link, options: .animated) ?? false
+        if didNavigate { await reinforceSelectionAppearance() }
+        return didNavigate
     }
 
     static func restoreInitialLocation(

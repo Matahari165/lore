@@ -178,7 +178,7 @@ final class ReadiumSelectionContextExtractor {
         )
     }
 
-    nonisolated(unsafe) private static func extractUnchecked(
+    nonisolated private static func extractUnchecked(
         from publication: Publication,
         selection: Locator,
         selectedText selected: String,

@@ -33,6 +33,13 @@ final class ReaderContainerViewController: UIViewController {
         navigator.didMove(toParent: self)
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        Task { @MainActor [weak self] in
+            await self?.session.reinforceSelectionAppearance()
+        }
+    }
+
     @objc func highlightSelection(_ sender: Any?) {
         session.highlightCurrentSelection()
     }

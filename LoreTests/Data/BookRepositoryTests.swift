@@ -88,6 +88,27 @@ struct BookRepositoryTests {
         #expect(finished.readingStatus == .finished)
     }
 
+    @Test func marksABookFinishedAndRestoresItsPreviousReadingCategory() throws {
+        let fixture = try makeRepository()
+        let repository = fixture.repository
+        let book = BookRecord(
+            title: "Lecture",
+            relativeFilePath: "book.epub",
+            lastLocatorJSON: Data("{}".utf8),
+            lastProgression: 0.4
+        )
+        try repository.add(book)
+        let finishedAt = Date(timeIntervalSince1970: 100)
+
+        try repository.setFinished(true, for: book.id, at: finishedAt)
+        #expect(book.finishedAt == finishedAt)
+        #expect(book.readingStatus == .finished)
+
+        try repository.setFinished(false, for: book.id)
+        #expect(book.finishedAt == nil)
+        #expect(book.readingStatus == .inProgress)
+    }
+
     private func makeRepository() throws -> RepositoryFixture {
         try RepositoryFixture()
     }

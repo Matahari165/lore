@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct ReaderScreen: View {
@@ -99,11 +100,11 @@ struct ReaderScreen: View {
     private var controls: some View {
         VStack {
             HStack(spacing: 8) {
-                controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
                 Text(presentation.title)
                     .font(.footnote.weight(.medium))
                     .lineLimit(1)
                 Spacer(minLength: 8)
+                controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
             }
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -235,9 +236,7 @@ private struct ReaderAIExplanationSheet: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
                     case let .answer(_, text):
-                        Text(text)
-                            .font(.body)
-                            .textSelection(.enabled)
+                        ReaderMarkdownText(markdown: text)
                     case let .failure(_, message):
                         ContentUnavailableView(
                             "Explication indisponible",
@@ -276,10 +275,8 @@ private struct ReaderAIRecapSheet: View {
                     .padding(20)
                 case let .answer(text):
                     ScrollView {
-                        Text(text)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        ReaderMarkdownText(markdown: text)
                             .padding(20)
-                            .textSelection(.enabled)
                     }
                 case let .failure(message):
                     ContentUnavailableView(
@@ -297,6 +294,37 @@ private struct ReaderAIRecapSheet: View {
                 }
             }
         }
+    }
+}
+
+/// Displays the AI answer as rich Markdown instead of exposing the syntax
+/// (`**gras**`, `# titre`, etc.) to the reader. Foundation handles the
+/// standard inline and block Markdown syntax and the plain text fallback keeps
+/// an answer readable if a future response contains unsupported markup.
+private struct ReaderMarkdownText: View {
+    let markdown: String
+
+    var body: some View {
+        if let attributed = ReaderMarkdownRenderer.attributedString(from: markdown) {
+            Text(attributed)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.leading)
+        } else {
+            Text(markdown)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.leading)
+        }
+    }
+}
+
+enum ReaderMarkdownRenderer {
+    static func attributedString(from markdown: String) -> AttributedString? {
+        try? AttributedString(
+            markdown: markdown,
+            options: .init(interpretedSyntax: .full)
+        )
     }
 }
 
