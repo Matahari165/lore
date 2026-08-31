@@ -54,7 +54,7 @@ Dernière mise à jour : 31 août 2026
 - La fermeture du lecteur est placée en haut à droite. La sélection sombre est renforcée directement dans le contenu EPUB avec un fond cyan vif et un texte presque noir.
 - Les réglages permettent d’effacer, après confirmation, uniquement le temps du jour local sans supprimer la portion éventuelle d’une session appartenant à un autre jour.
 - Un appui long sur un livre permet de le marquer terminé ou non terminé. Les statistiques affichent en bas les couvertures des livres terminés, filtrables par année.
-- L’icône de l’application reprend le symbole `L` plié violet fourni, sur un fond ivoire lumineux.
+- L’icône de l’application reprend le symbole `L` plié violet fourni dans un document Icon Composer, avec matériau Liquid Glass et fond système sombre validé.
 - Les contrats et prompts IA sont prêts pour cinq fonctions supplémentaires : résumé de chapitre, questions sur le texte lu, personnages et concepts, flashcards et discussion de fin. Leur interface utilisateur reste à raccorder.
 
 ## En cours
