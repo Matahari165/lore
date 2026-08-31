@@ -81,6 +81,8 @@ final class LibraryViewModel {
     private let publicationService: ReadiumPublicationService
     private let importService: BookImportService
     private let recapEngine: DailyReadingRecapEngine
+    private let aiService: any LoreAIService
+    private let yesterdayRecapCache: YesterdayReadingRecapCache
     let conversationRepository: AIConversationRepository?
 
     var books: [BookRecord] = []
@@ -93,22 +95,27 @@ final class LibraryViewModel {
     var sort: Sort = .recent
     var sortAscending = false
     var importSummary: ImportSummary?
-    private(set) var yesterdayReadingSummary: String?
+    private(set) var yesterdayReadingSummaryState: YesterdayReadingSummaryState = .noReading
     private(set) var lastReconciliationReport: ImportReconciliationReport?
     private var latestSessionActivityByBookID: [UUID: Date] = [:]
+    private var yesterdayActivity: YesterdayActivity?
 
     init(
         repository: BookRepository,
         sessionRepository: ReadingSessionRepository,
         fileStore: BookFileStore,
         publicationService: ReadiumPublicationService,
-        conversationRepository: AIConversationRepository? = nil
+        conversationRepository: AIConversationRepository? = nil,
+        aiService: any LoreAIService = OpenAIResponsesClient(),
+        yesterdayRecapCache: YesterdayReadingRecapCache = .init()
     ) {
         self.repository = repository
         self.sessionRepository = sessionRepository
         self.fileStore = fileStore
         self.publicationService = publicationService
         self.conversationRepository = conversationRepository
+        self.aiService = aiService
+        self.yesterdayRecapCache = yesterdayRecapCache
         recapEngine = DailyReadingRecapEngine(
             store: UserDefaultsReadingRecapStateStore(),
             sessionRepository: sessionRepository
@@ -135,7 +142,9 @@ final class LibraryViewModel {
     /// The small resume queue shown on Accueil. A completion flag always wins over
     /// a saved position, so finished books never reappear here.
     var resumableBooks: [BookRecord] {
-        let candidates = books.filter { $0.readingStatus == .inProgress }
+        let candidates = books.filter {
+            $0.readingStatus == .inProgress && !$0.isHiddenFromResume
+        }
         return Array(candidates.sorted { lhs, rhs in
             let lhsActivity = recentActivityDate(for: lhs) ?? lhs.importedAt
             let rhsActivity = recentActivityDate(for: rhs) ?? rhs.importedAt
@@ -165,6 +174,23 @@ final class LibraryViewModel {
         // Two complete rows keep the home screen useful on iPhone while still
         // respecting the actual number of imported books.
         Array(books.sorted { $0.importedAt > $1.importedAt }.prefix(6))
+    }
+
+    var recentlyViewedBooks: [BookRecord] {
+        Array(books.compactMap { book -> (BookRecord, Date)? in
+            guard let activity = recentActivityDate(for: book) else { return nil }
+            return (book, activity)
+        }
+        .sorted { lhs, rhs in
+            if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
+            return lhs.0.id.uuidString < rhs.0.id.uuidString
+        }
+        .prefix(3)
+        .map(\.0))
+    }
+
+    var yesterdayRecapRequestID: String {
+        yesterdayActivity?.fingerprint ?? "no-reading-yesterday"
     }
 
     var visibleBooks: [BookRecord] {
@@ -276,15 +302,148 @@ final class LibraryViewModel {
                 guard session.lastActivityAt > (latest[session.bookID] ?? .distantPast) else { return }
                 latest[session.bookID] = session.lastActivityAt
             }
-            yesterdayReadingSummary = makeYesterdaySummary(from: sessions)
+            updateYesterdayActivity(from: sessions)
         } catch {
             present(error)
+        }
+    }
+
+    func loadYesterdayAIRecapIfNeeded(force: Bool = false) async {
+        guard let activity = yesterdayActivity else {
+            yesterdayReadingSummaryState = .noReading
+            return
+        }
+
+        if let cached = yesterdayRecapCache.recap(
+            dayStart: activity.dayStart,
+            fingerprint: activity.fingerprint
+        ) {
+            yesterdayReadingSummaryState = .available(
+                activityLine: activity.activityLine,
+                markdown: cached
+            )
+            return
+        }
+
+        if !force {
+            switch yesterdayReadingSummaryState {
+            case .loading, .available, .missingAPIKey, .failed:
+                return
+            case .noReading, .awaiting:
+                break
+            }
+        }
+
+        do {
+            let storedKey = try KeychainOpenAIAPIKeyStore().loadAPIKey()
+            guard let storedKey,
+                  !storedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                yesterdayReadingSummaryState = .missingAPIKey(activityLine: activity.activityLine)
+                return
+            }
+        } catch {
+            yesterdayReadingSummaryState = .failed(
+                activityLine: activity.activityLine,
+                message: "La clé OpenAI ne peut pas être lue pour le moment."
+            )
+            return
+        }
+
+        yesterdayReadingSummaryState = .loading(activityLine: activity.activityLine)
+
+        do {
+            let store = UserDefaultsReadingRecapStateStore()
+            let extractor = ReadiumReadingRecapContextExtractor(maximumCharacters: 7_000)
+            var contexts: [ReaderAIReadingRecapContext] = []
+
+            // A single recap request combines at most the three books actually
+            // read yesterday. This keeps the context, latency and energy bounded.
+            for book in activity.books.prefix(3) {
+                try Task.checkCancellation()
+                guard let checkpoint = try store.checkpoint(
+                    for: book.id,
+                    localDayStart: activity.dayStart
+                ) else { continue }
+
+                do {
+                    let first = try LocatorPersistenceCodec.decode(
+                        checkpoint.firstLocator.storedLocator
+                    ).locator
+                    let last = try LocatorPersistenceCodec.decode(
+                        checkpoint.lastLocator.storedLocator
+                    ).locator
+                    let fileURL = try fileStore.fileURL(for: book.relativeFilePath)
+                    let publication = try await publicationService.openEPUB(at: fileURL).publication
+                    contexts.append(try await extractor.extract(
+                        from: publication,
+                        firstLocator: first,
+                        lastLocator: last
+                    ))
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    // A missing or malformed book must not hide a valid recap
+                    // from another book read on the same day.
+                    continue
+                }
+            }
+
+            guard !contexts.isEmpty else {
+                yesterdayReadingSummaryState = .failed(
+                    activityLine: activity.activityLine,
+                    message: "Le texte lu hier n’est pas disponible pour créer le résumé."
+                )
+                return
+            }
+
+            let combinedExcerpt = contexts.map { context in
+                "LIVRE : \(context.title)\n\(context.excerpt)"
+            }.joined(separator: "\n\n")
+            let answer = try await aiService.recap(PreviousReadingContext(
+                title: contexts.map(\.title).joined(separator: " · "),
+                author: nil,
+                chapterTitles: contexts.flatMap(\.chapterTitles),
+                excerpt: combinedExcerpt,
+                lastReadPositionDescription: contexts.last?.lastReadPositionDescription
+            ))
+            let conciseAnswer = Self.conciseRecap(answer)
+
+            try? yesterdayRecapCache.save(
+                conciseAnswer,
+                dayStart: activity.dayStart,
+                fingerprint: activity.fingerprint
+            )
+            for book in activity.books {
+                try? recapEngine.markShown(for: book.id, at: .now, completion: .delivered)
+            }
+            yesterdayReadingSummaryState = .available(
+                activityLine: activity.activityLine,
+                markdown: conciseAnswer
+            )
+        } catch is CancellationError {
+            yesterdayReadingSummaryState = .awaiting(activityLine: activity.activityLine)
+        } catch {
+            yesterdayReadingSummaryState = .failed(
+                activityLine: activity.activityLine,
+                message: (error as? LocalizedError)?.errorDescription
+                    ?? "Le résumé est indisponible pour le moment."
+            )
         }
     }
 
     func setFinished(_ isFinished: Bool, for book: BookRecord) {
         do {
             try repository.setFinished(isFinished, for: book.id)
+            reload()
+        } catch {
+            present(error)
+        }
+    }
+
+    func setHiddenFromResume(_ isHidden: Bool, for book: BookRecord) {
+        do {
+            try repository.setHiddenFromResume(isHidden, for: book.id)
             reload()
         } catch {
             present(error)
@@ -313,7 +472,29 @@ final class LibraryViewModel {
         errorMessage = (error as? LocalizedError)?.errorDescription ?? "Une erreur inattendue est survenue."
     }
 
-    private func makeYesterdaySummary(from sessions: [ReadingSessionRecord]) -> String? {
+    private func updateYesterdayActivity(from sessions: [ReadingSessionRecord]) {
+        let previousFingerprint = yesterdayActivity?.fingerprint
+        guard let activity = makeYesterdayActivity(from: sessions) else {
+            yesterdayActivity = nil
+            yesterdayReadingSummaryState = .noReading
+            return
+        }
+        yesterdayActivity = activity
+
+        if let cached = yesterdayRecapCache.recap(
+            dayStart: activity.dayStart,
+            fingerprint: activity.fingerprint
+        ) {
+            yesterdayReadingSummaryState = .available(
+                activityLine: activity.activityLine,
+                markdown: cached
+            )
+        } else if previousFingerprint != activity.fingerprint {
+            yesterdayReadingSummaryState = .awaiting(activityLine: activity.activityLine)
+        }
+    }
+
+    private func makeYesterdayActivity(from sessions: [ReadingSessionRecord]) -> YesterdayActivity? {
         let calendar = Calendar.autoupdatingCurrent
         let today = calendar.startOfDay(for: .now)
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return nil }
@@ -333,7 +514,98 @@ final class LibraryViewModel {
             books.first(where: { $0.id == session.bookID })?.title
         }).sorted()
         let minutes = max(1, Int((duration / 60).rounded()))
-        guard !titles.isEmpty else { return "Vous avez lu \(minutes) min hier." }
-        return "Vous avez lu \(minutes) min hier dans " + titles.joined(separator: ", ") + "."
+        let durationText = minutes == 1 ? "1 minute" : "\(minutes) minutes"
+        let activityLine: String
+        if titles.isEmpty {
+            activityLine = "Vous avez lu \(durationText) hier."
+        } else {
+            activityLine = "Vous avez lu \(durationText) hier dans "
+                + ListFormatter.localizedString(byJoining: titles) + "."
+        }
+
+        let matchingBookIDs = Set(matching.map(\.bookID))
+        let matchingBooks = books.compactMap { book -> YesterdayBook? in
+            guard matchingBookIDs.contains(book.id) else { return nil }
+            let latest = matching
+                .filter { $0.bookID == book.id }
+                .map(\.lastActivityAt)
+                .max() ?? .distantPast
+            return YesterdayBook(
+                id: book.id,
+                title: book.title,
+                relativeFilePath: book.relativeFilePath,
+                lastActivityAt: latest
+            )
+        }.sorted { $0.lastActivityAt > $1.lastActivityAt }
+
+        let fingerprint = matching.sorted { $0.id.uuidString < $1.id.uuidString }.map {
+            "\($0.id.uuidString):\($0.lastActivityAt.timeIntervalSinceReferenceDate):\($0.endedAt?.timeIntervalSinceReferenceDate ?? -1)"
+        }.joined(separator: "|")
+
+        return YesterdayActivity(
+            dayStart: yesterday,
+            exactDuration: duration,
+            activityLine: activityLine,
+            books: matchingBooks,
+            fingerprint: fingerprint
+        )
     }
+
+    private static func conciseRecap(_ source: String) -> String {
+        let lines = source
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var bullets = lines.filter {
+            $0.hasPrefix("-") || $0.hasPrefix("•") || $0.range(
+                of: #"^\d+[\.)]\s"#,
+                options: .regularExpression
+            ) != nil
+        }
+        let resumeLine = lines.first {
+            $0.localizedCaseInsensitiveContains("où reprendre")
+        }
+
+        if bullets.isEmpty {
+            var sentences: [String] = []
+            source.enumerateSubstrings(
+                in: source.startIndex..<source.endIndex,
+                options: [.bySentences, .substringNotRequired]
+            ) { _, range, _, stop in
+                let sentence = source[range]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !sentence.isEmpty { sentences.append(sentence) }
+                if sentences.count == 4 { stop = true }
+            }
+            bullets = sentences.map { "- \($0)" }
+        }
+
+        let shortBullets = bullets.prefix(4).map { line -> String in
+            let normalized = line
+                .replacingOccurrences(of: "•", with: "-")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return String(normalized.prefix(240))
+        }
+        var output = shortBullets.joined(separator: "\n")
+        if let resumeLine, !shortBullets.contains(resumeLine) {
+            output += "\n\n" + String(resumeLine.prefix(260))
+        }
+        return output.isEmpty ? String(source.prefix(900)) : output
+    }
+}
+
+private struct YesterdayActivity {
+    let dayStart: Date
+    let exactDuration: TimeInterval
+    let activityLine: String
+    let books: [YesterdayBook]
+    let fingerprint: String
+}
+
+private struct YesterdayBook {
+    let id: UUID
+    let title: String
+    let relativeFilePath: String
+    let lastActivityAt: Date
 }

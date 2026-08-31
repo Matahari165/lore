@@ -21,6 +21,9 @@ final class BookRecord {
     /// `finishedAt` so imported/restored completion dates do not redefine the
     /// user's reading-year metadata.
     var readingYear: Int?
+    /// Hides the book from the quick Resume queue without touching its Locator
+    /// or its reading progress.
+    var isHiddenFromResume: Bool = false
     var importStateRawValue: String = BookImportState.ready.rawValue
     var stagingToken: UUID?
 
@@ -40,6 +43,7 @@ final class BookRecord {
         finishedAt: Date? = nil,
         rating: Int? = nil,
         readingYear: Int? = nil,
+        isHiddenFromResume: Bool = false,
         importState: BookImportState = .ready,
         stagingToken: UUID? = nil
     ) {
@@ -58,6 +62,7 @@ final class BookRecord {
         self.finishedAt = finishedAt
         self.rating = rating
         self.readingYear = readingYear
+        self.isHiddenFromResume = isHiddenFromResume
         importStateRawValue = importState.rawValue
         self.stagingToken = stagingToken
     }

@@ -69,6 +69,12 @@ Dernière mise à jour : 31 août 2026
 - L’Accueil affiche sous Reprendre un bilan local du temps et des livres lus la veille. Un toucher sur l’objectif ouvre un graphique réel des minutes de la semaine ou du mois.
 - Les statistiques affichent sous le calendrier les seules couvertures déclarées lues depuis 2026. Les réglages indiquent le modèle IA exact `gpt-5.6-luna`.
 - L’icône de discussion visible sur les pochettes a été supprimée ; l’action reste disponible par appui long avec une icône d’étincelles. Le `L` de l’icône d’application est blanc, légèrement agrandi et sans arrière-plan dans l’asset fourni.
+- Les titres Accueil et Bibliothèque sont désormais de vrais en-têtes dans le contenu, ce qui évite leur troncature dans la barre d’outils. Reprendre affiche deux commandes 44 × 44 identiques : ouvrir et discuter.
+- L’Accueil affiche les trois derniers livres consultés. Son bloc Hier conserve la durée et les titres, puis génère un résumé IA court en puces, borné à trois livres et mis en cache pour éviter les appels répétés.
+- Le graphique d’activité indique la moyenne quotidienne sur les jours écoulés de la semaine ou du mois.
+- Un appui long sur un passage surligné prépare une discussion IA avec ce passage. Les dix étoiles de notation tiennent sur une seule ligne.
+- Le lecteur propose des marges horizontales et verticales globales, ainsi qu’un vocabulaire local exportable avec retour au passage exact. La sélection temporaire sombre utilise un cyan clair opaque et des poignées assorties.
+- Un livre peut être retiré de Reprendre sans perdre sa progression. L’ouverture ne redécode plus la couverture et utilise une animation de page qui grandit depuis le bas, avec respect de Réduire les animations.
 
 ## En cours
 
@@ -77,6 +83,7 @@ Dernière mise à jour : 31 août 2026
 - Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.
+- Profilage Énergie/CPU sur l’iPhone : l’audit statique soupçonne les sauvegardes SwiftData et la réécriture des checkpoints de récap lors du défilement, mais aucune mesure Instruments n’a encore été réalisée.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 
 ## À faire

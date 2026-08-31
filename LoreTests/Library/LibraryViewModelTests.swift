@@ -59,6 +59,24 @@ struct LibraryViewModelTests {
         #expect(model.visibleBooks.contains(where: { $0.readingStatus == .finished }))
         #expect(model.visibleBooks.contains(where: { $0.readingStatus == .toRead }))
     }
+
+    @Test func hiddenBookLeavesResumeButKeepsItsLibraryStatus() throws {
+        let fixture = try LibraryViewModelFixture()
+        let book = BookRecord(
+            title: "Masqué de Reprendre",
+            relativeFilePath: "Books/hidden/book.epub",
+            lastLocatorJSON: Data("{}".utf8),
+            lastProgression: 0.35,
+            isHiddenFromResume: true
+        )
+        try fixture.repository.add(book)
+
+        let model = fixture.makeModel()
+
+        #expect(model.resumableBooks.isEmpty)
+        #expect(model.visibleBooks.map(\.id) == [book.id])
+        #expect(model.visibleBooks.first?.lastProgression == 0.35)
+    }
 }
 
 @MainActor

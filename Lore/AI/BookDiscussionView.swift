@@ -34,7 +34,8 @@ struct BookDiscussionView: View {
         conversationRepository: AIConversationRepository?,
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
-        aiService: any LoreAIChatService = OpenAIResponsesClient()
+        aiService: any LoreAIChatService = OpenAIResponsesClient(),
+        initialDraft: String? = nil
     ) {
         self.init(
             bookID: book.id,
@@ -45,7 +46,8 @@ struct BookDiscussionView: View {
             conversationRepository: conversationRepository,
             session: session,
             onOpenSettings: onOpenSettings,
-            aiService: aiService
+            aiService: aiService,
+            initialDraft: initialDraft
         )
     }
 
@@ -58,7 +60,8 @@ struct BookDiscussionView: View {
         conversationRepository: AIConversationRepository?,
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
-        aiService: any LoreAIChatService = OpenAIResponsesClient()
+        aiService: any LoreAIChatService = OpenAIResponsesClient(),
+        initialDraft: String? = nil
     ) {
         self.bookID = bookID
         self.title = title
@@ -69,6 +72,7 @@ struct BookDiscussionView: View {
         self.session = session
         self.onOpenSettings = onOpenSettings
         self.aiService = aiService
+        _draft = State(initialValue: initialDraft ?? "")
     }
 
     var body: some View {

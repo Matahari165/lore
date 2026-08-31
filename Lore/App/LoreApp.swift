@@ -12,6 +12,7 @@ struct LoreApp: App {
                 for: BookRecord.self,
                 ReadingSessionRecord.self,
                 HighlightRecord.self,
+                VocabularyRecord.self,
                 AIConversationRecord.self,
                 AIMessageRecord.self
             )
@@ -29,9 +30,11 @@ struct LoreApp: App {
                 StatisticsScreen(state: .loaded(StatisticsPreviewData.snapshot))
             } else {
                 let conversations = AIConversationRepository(context: container.mainContext)
+                let vocabulary = VocabularyRepository(context: container.mainContext)
                 let books = BookRepository(
                     context: container.mainContext,
-                    conversationRepository: conversations
+                    conversationRepository: conversations,
+                    vocabularyRepository: vocabulary
                 )
                 let sessions = ReadingSessionRepository(context: container.mainContext)
                 AppRootView(

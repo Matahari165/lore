@@ -33,6 +33,25 @@ protocol HighlightStoring: AnyObject {
     func deleteHighlight(id: UUID, bookID: UUID) throws
 }
 
+/// A word or sentence explicitly saved by the reader for later study.
+/// The complete Readium Locator is retained so Lore can return to the exact
+/// context without storing a fragile page number.
+struct VocabularyItem: Identifiable, Sendable {
+    let id: UUID
+    let bookID: UUID
+    let locator: Locator
+    let text: String
+    let createdAt: Date
+}
+
+@MainActor
+protocol VocabularyStoring: AnyObject {
+    func vocabulary(for bookID: UUID) throws -> [VocabularyItem]
+    func allVocabulary() throws -> [VocabularyItem]
+    func addVocabulary(bookID: UUID, locator: Locator, text: String) throws -> VocabularyItem
+    func deleteVocabulary(id: UUID, bookID: UUID) throws
+}
+
 struct StoredHighlightLocator: Sendable, Equatable {
     let data: Data
     let schemaVersion: Int
@@ -85,14 +104,17 @@ enum ReaderSelectionPalette {
     /// An opaque, saturated selection color that remains unmistakable over a
     /// dark reading canvas. It is intentionally distinct from the persistent
     /// yellow highlight decoration.
-    static let background = "#00E5FF"
-    static let text = "#001018"
+    static let background = "#8EEBFF"
+    static let text = "#001319"
+    static let handleTint = UIColor(red: 0.44, green: 0.91, blue: 1.0, alpha: 1)
 
     /// Readium injects the two custom properties for each loaded resource.
     /// This second, last-in-document rule is needed for EPUBs whose own CSS
     /// overrides `::selection`; it is applied to the visible WebView after it
     /// has loaded and uses `!important` only on the selection declarations.
-    static let webViewStyleScript = """
+    static func webViewStyleScript(verticalMargins: Double) -> String {
+        let safeMargins = min(max(verticalMargins, ReaderPreferences.verticalMarginsRange.lowerBound), ReaderPreferences.verticalMarginsRange.upperBound)
+        return """
     (function() {
         var style = document.getElementById('lore-selection-palette');
         if (!style) {
@@ -100,12 +122,13 @@ enum ReaderSelectionPalette {
             style.id = 'lore-selection-palette';
             (document.head || document.documentElement).appendChild(style);
         }
-        style.textContent = '*::selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; } *::-moz-selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; }';
+        style.textContent = '*::selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; } *::-moz-selection { color: \(text) !important; background-color: \(background) !important; text-shadow: none !important; } body { padding-block-start: \(safeMargins)rem !important; padding-block-end: \(safeMargins)rem !important; }';
         document.documentElement.style.setProperty('--RS__selectionTextColor', '\(text)', 'important');
         document.documentElement.style.setProperty('--RS__selectionBackgroundColor', '\(background)', 'important');
         return true;
     })();
     """
+    }
 }
 
 struct ReaderChapter: Identifiable, Sendable {

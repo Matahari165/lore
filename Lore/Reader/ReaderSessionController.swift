@@ -12,6 +12,7 @@ final class ReaderSessionController {
     private let publication: Publication?
     private let bookID: UUID?
     private let highlightStore: (any HighlightStoring)?
+    private let vocabularyStore: (any VocabularyStoring)?
     private let aiService: any LoreAIService
     private let selectionContextExtractor: ReadiumSelectionContextExtractor
     private let recapContextExtractor: ReadiumReadingRecapContextExtractor
@@ -24,11 +25,13 @@ final class ReaderSessionController {
     private let navigatorDelegate: ReaderNavigatorDelegate?
     private let onError: @MainActor (Error) -> Void
     private var highlightChangeHandler: (@MainActor ([ReaderHighlight]) -> Void)?
+    private var vocabularyChangeHandler: (@MainActor ([VocabularyItem]) -> Void)?
     private var explanationHandler: (@MainActor (ReaderAIExplanationState) -> Void)?
     private var recapHandler: (@MainActor (ReaderAIRecapState) -> Void)?
     private var explanationTask: Task<Void, Never>?
     private var recapTask: Task<Void, Never>?
     private(set) var highlights: [ReaderHighlight] = []
+    private(set) var vocabulary: [VocabularyItem] = []
 
     static func make(
         bookID: UUID,
@@ -86,6 +89,7 @@ final class ReaderSessionController {
         self.publication = publication
         self.bookID = bookID
         highlightStore = progressStore as? any HighlightStoring
+        vocabularyStore = progressStore as? any VocabularyStoring
         self.preferences = preferences
         self.preferencesStore = preferencesStore
         self.chapters = chapters
@@ -104,6 +108,7 @@ final class ReaderSessionController {
         self.readingActivity = readingActivity
 
         let highlightAction = EditingAction(title: "Surligner", action: #selector(ReaderContainerViewController.highlightSelection(_:)))
+        let vocabularyAction = EditingAction(title: "Vocabulaire", action: #selector(ReaderContainerViewController.addSelectionToVocabulary(_:)))
         let explainAction = EditingAction(title: "Expliquer", action: #selector(ReaderContainerViewController.explainSelection(_:)))
         var cssProperties = CSSRSProperties()
         cssProperties.selectionTextColor = CSSHexColor(ReaderSelectionPalette.text)
@@ -113,7 +118,7 @@ final class ReaderSessionController {
             initialLocation: initialLocation,
             config: .init(
                 preferences: preferences.readiumValue,
-                editingActions: [.copy, highlightAction, explainAction, .translate, .lookup],
+                editingActions: [.copy, highlightAction, vocabularyAction, explainAction, .translate, .lookup],
                 disablePageTurnsWhileScrolling: true,
                 readiumCSSRSProperties: cssProperties
             )
@@ -141,10 +146,18 @@ final class ReaderSessionController {
         )
         navigatorDelegate = delegate
         navigator.delegate = delegate
+        delegate.onContentStyleRefresh = { [weak self] in
+            Task { @MainActor in await self?.reinforceSelectionAppearance() }
+        }
 
         do {
             highlights = try highlightStore?.highlights(for: bookID) ?? []
             applyHighlights(to: navigator)
+        } catch {
+            onError(error)
+        }
+        do {
+            vocabulary = try vocabularyStore?.vocabulary(for: bookID) ?? []
         } catch {
             onError(error)
         }
@@ -161,6 +174,7 @@ final class ReaderSessionController {
         publication = nil
         bookID = nil
         highlightStore = nil
+        vocabularyStore = nil
         aiService = OpenAIResponsesClient()
         selectionContextExtractor = ReadiumSelectionContextExtractor()
         recapContextExtractor = ReadiumReadingRecapContextExtractor()
@@ -198,7 +212,10 @@ final class ReaderSessionController {
     /// the active selection look like a dark rectangle on a dark page.
     func reinforceSelectionAppearance() async {
         guard let navigator = readerController as? EPUBNavigatorViewController else { return }
-        _ = await navigator.evaluateJavaScript(ReaderSelectionPalette.webViewStyleScript)
+        navigator.view.tintColor = ReaderSelectionPalette.handleTint
+        _ = await navigator.evaluateJavaScript(
+            ReaderSelectionPalette.webViewStyleScript(verticalMargins: preferences.verticalMargins)
+        )
     }
 
     func setTapHandler(_ handler: (@MainActor () -> Void)?) {
@@ -208,6 +225,11 @@ final class ReaderSessionController {
     func setHighlightChangeHandler(_ handler: (@MainActor ([ReaderHighlight]) -> Void)?) {
         highlightChangeHandler = handler
         handler?(highlights)
+    }
+
+    func setVocabularyChangeHandler(_ handler: (@MainActor ([VocabularyItem]) -> Void)?) {
+        vocabularyChangeHandler = handler
+        handler?(vocabulary)
     }
 
     func setExplanationHandler(_ handler: (@MainActor (ReaderAIExplanationState) -> Void)?) {
@@ -392,6 +414,48 @@ final class ReaderSessionController {
         }
     }
 
+    func addCurrentSelectionToVocabulary() {
+        guard
+            let navigator = readerController as? any SelectableNavigator,
+            let selection = navigator.currentSelection,
+            let text = selection.locator.text.highlight?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !text.isEmpty,
+            let bookID,
+            let vocabularyStore
+        else { return }
+
+        do {
+            let item = try vocabularyStore.addVocabulary(
+                bookID: bookID,
+                locator: selection.locator,
+                text: text
+            )
+            vocabulary.insert(item, at: 0)
+            navigator.clearSelection()
+            vocabularyChangeHandler?(vocabulary)
+        } catch {
+            onError(error)
+        }
+    }
+
+    func deleteVocabularyItem(_ item: VocabularyItem) {
+        guard let bookID, let vocabularyStore else { return }
+        do {
+            try vocabularyStore.deleteVocabulary(id: item.id, bookID: bookID)
+            vocabulary.removeAll { $0.id == item.id }
+            vocabularyChangeHandler?(vocabulary)
+        } catch {
+            onError(error)
+        }
+    }
+
+    @discardableResult
+    func go(to vocabularyItem: VocabularyItem) async -> Bool {
+        let didNavigate = await readerController?.go(to: vocabularyItem.locator, options: .animated) ?? false
+        if didNavigate { await reinforceSelectionAppearance() }
+        return didNavigate
+    }
+
     func deleteHighlight(_ highlight: ReaderHighlight) {
         guard let bookID, let highlightStore else { return }
         do {
@@ -506,6 +570,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     private var selectionActivityPolicy = SelectionActivityPolicy()
     var onChromeTap: (@MainActor () -> Void)?
     var onProgressionChange: (@MainActor (Double) -> Void)?
+    var onContentStyleRefresh: (@MainActor () -> Void)?
 
     init(
         positionController: ReadingPositionController,
@@ -523,6 +588,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
         selectionActivityPolicy.reset()
         positionController.record(locator)
         onProgressionChange?(locator.locations.totalProgression ?? 0)
+        if previousLocation?.href != locator.href { onContentStyleRefresh?() }
         defer { previousLocation = locator }
         guard let previousLocation, previousLocation != locator else { return }
         do {
@@ -547,6 +613,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     }
 
     func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
+        onContentStyleRefresh?()
         if selectionActivityPolicy.shouldRecord(selection.locator) {
             do {
                 try readingActivity.recordReadingInteraction()

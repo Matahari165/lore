@@ -35,12 +35,15 @@ struct ReaderPreferencesTests {
             fontSize: 1.3,
             typeface: .sansSerif,
             lineHeight: 1.7,
-            appearance: .dark
+            appearance: .dark,
+            horizontalMargins: 1.75,
+            verticalMargins: 2
         ).readiumValue
 
         #expect(preferences.fontSize == 1.3)
         #expect(preferences.fontFamily == .sansSerif)
         #expect(preferences.lineHeight == 1.7)
+        #expect(preferences.pageMargins == 1.75)
         #expect(preferences.publisherStyles == false)
         #expect(preferences.theme == .dark)
         #expect(preferences.imageFilter == .darken)
@@ -50,7 +53,8 @@ struct ReaderPreferencesTests {
         let preferences = ReaderPreferences.default.readiumValue
         #expect(preferences.fontFamily == nil)
         #expect(preferences.lineHeight == nil)
-        #expect(preferences.publisherStyles == nil)
+        #expect(preferences.pageMargins == 1)
+        #expect(preferences.publisherStyles == false)
     }
 
     @Test func quickFontAdjustmentsUseStableStepsAndRespectBounds() {
@@ -71,12 +75,34 @@ struct ReaderPreferencesTests {
             fontSize: 1.7,
             typeface: .sansSerif,
             lineHeight: 1.8,
-            appearance: .dark
+            appearance: .dark,
+            horizontalMargins: 2,
+            verticalMargins: 2.5
         )
 
         preferences.reset()
 
         #expect(preferences == .default)
+    }
+
+    @Test func olderStoredPreferencesReceiveSafeMarginDefaults() throws {
+        let fixture = DefaultsFixture()
+        fixture.defaults.set(Data(#"{"fontSize":1.4,"typeface":"serif","appearance":"dark"}"#.utf8), forKey: fixture.key)
+
+        let restored = fixture.store.load()
+
+        #expect(restored.fontSize == 1.4)
+        #expect(restored.typeface == .serif)
+        #expect(restored.appearance == .dark)
+        #expect(restored.horizontalMargins == 1)
+        #expect(restored.verticalMargins == 1)
+    }
+
+    @Test func marginValuesAreClamped() {
+        let preferences = ReaderPreferences(horizontalMargins: 9, verticalMargins: -4)
+
+        #expect(preferences.horizontalMargins == ReaderPreferences.horizontalMarginsRange.upperBound)
+        #expect(preferences.verticalMargins == ReaderPreferences.verticalMarginsRange.lowerBound)
     }
 
     @Test func chapterTreeKeepsDepthFallbackTitlesAndUniqueStructuralIDs() {

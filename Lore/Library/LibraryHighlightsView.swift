@@ -4,6 +4,7 @@ struct LibraryHighlightsView: View {
     let book: BookRecord
     let highlights: [ReaderHighlight]
     let onOpenHighlight: ((ReaderHighlight) -> Void)?
+    let onDiscussHighlight: ((ReaderHighlight) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -17,14 +18,24 @@ struct LibraryHighlightsView: View {
                     )
                 } else {
                     List(highlights) { highlight in
-                        if let onOpenHighlight {
-                            Button { onOpenHighlight(highlight) } label: {
+                        Group {
+                            if let onOpenHighlight {
+                                Button { onOpenHighlight(highlight) } label: {
+                                    highlightLabel(highlight)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Ouvre ce passage dans le lecteur")
+                            } else {
                                 highlightLabel(highlight)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Ouvre ce passage dans le lecteur")
-                        } else {
-                            highlightLabel(highlight)
+                        }
+                        .contextMenu {
+                            if let onDiscussHighlight {
+                                Button("Discuter de ce passage", systemImage: "sparkles") {
+                                    dismiss()
+                                    onDiscussHighlight(highlight)
+                                }
+                            }
                         }
                     }
                 }

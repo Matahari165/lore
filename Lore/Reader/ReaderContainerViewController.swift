@@ -47,4 +47,8 @@ final class ReaderContainerViewController: UIViewController {
     @objc func explainSelection(_ sender: Any?) {
         session.explainCurrentSelection()
     }
+
+    @objc func addSelectionToVocabulary(_ sender: Any?) {
+        session.addCurrentSelectionToVocabulary()
+    }
 }

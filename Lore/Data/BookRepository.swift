@@ -8,16 +8,19 @@ final class BookRepository {
     private let saveContext: (ModelContext) throws -> Void
     private let highlightRepository: HighlightRepository
     private let conversationRepository: AIConversationRepository?
+    private let vocabularyRepository: VocabularyRepository?
 
     init(
         context: ModelContext,
         save: ((ModelContext) throws -> Void)? = nil,
-        conversationRepository: AIConversationRepository? = nil
+        conversationRepository: AIConversationRepository? = nil,
+        vocabularyRepository: VocabularyRepository? = nil
     ) {
         self.context = context
         saveContext = save ?? { try $0.save() }
         highlightRepository = HighlightRepository(context: context, save: save)
         self.conversationRepository = conversationRepository
+        self.vocabularyRepository = vocabularyRepository
     }
 
     func add(_ book: BookRecord) throws {
@@ -113,6 +116,7 @@ final class BookRepository {
 
     func delete(_ book: BookRecord) throws {
         try highlightRepository.deleteHighlights(for: book.id, save: false)
+        try vocabularyRepository?.deleteVocabulary(for: book.id, save: false)
         try conversationRepository?.deleteConversations(for: book.id, save: false)
         context.delete(book)
         do {
@@ -131,6 +135,18 @@ final class BookRepository {
             try saveContext(context)
         } catch {
             book.finishedAt = previous
+            throw error
+        }
+    }
+
+    func setHiddenFromResume(_ isHidden: Bool, for bookID: UUID) throws {
+        guard let book = try book(id: bookID) else { throw BookRepositoryError.bookNotFound }
+        let previous = book.isHiddenFromResume
+        book.isHiddenFromResume = isHidden
+        do {
+            try saveContext(context)
+        } catch {
+            book.isHiddenFromResume = previous
             throw error
         }
     }
@@ -180,6 +196,28 @@ extension BookRepository: HighlightStoring {
 
     func deleteHighlight(id: UUID, bookID: UUID) throws {
         try highlightRepository.deleteHighlight(id: id, bookID: bookID)
+    }
+}
+
+extension BookRepository: VocabularyStoring {
+    func vocabulary(for bookID: UUID) throws -> [VocabularyItem] {
+        guard let vocabularyRepository else { throw VocabularyStoreError.unavailable }
+        return try vocabularyRepository.vocabulary(for: bookID)
+    }
+
+    func allVocabulary() throws -> [VocabularyItem] {
+        guard let vocabularyRepository else { throw VocabularyStoreError.unavailable }
+        return try vocabularyRepository.allVocabulary()
+    }
+
+    func addVocabulary(bookID: UUID, locator: Locator, text: String) throws -> VocabularyItem {
+        guard let vocabularyRepository else { throw VocabularyStoreError.unavailable }
+        return try vocabularyRepository.addVocabulary(bookID: bookID, locator: locator, text: text)
+    }
+
+    func deleteVocabulary(id: UUID, bookID: UUID) throws {
+        guard let vocabularyRepository else { throw VocabularyStoreError.unavailable }
+        try vocabularyRepository.deleteVocabulary(id: id, bookID: bookID)
     }
 }
 

@@ -42,21 +42,34 @@ struct BookCompletionView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Votre note")
                             .font(.headline)
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
-                            ForEach(1...10, id: \.self) { star in
-                                Button {
-                                    rating = star
-                                } label: {
+                        GeometryReader { geometry in
+                            HStack(spacing: 2) {
+                                ForEach(1...10, id: \.self) { star in
                                     Image(systemName: (rating ?? 0) >= star ? "star.fill" : "star")
-                                        .font(.title2)
+                                        .font(.system(size: 22, weight: .medium))
                                         .foregroundStyle((rating ?? 0) >= star ? Color.orange : LoreTheme.secondaryInk)
-                                        .frame(width: 40, height: 44)
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .accessibilityHidden(true)
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("\(star) sur 10")
-                                .accessibilityValue(rating == star ? "Note sélectionnée" : "Non sélectionnée")
+                            }
+                            .contentShape(Rectangle())
+                            .gesture(SpatialTapGesture().onEnded { value in
+                                let unit = max(1, geometry.size.width / 10)
+                                rating = min(10, max(1, Int(value.location.x / unit) + 1))
+                            })
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Note sur 10")
+                            .accessibilityValue(rating.map { "\($0) sur 10" } ?? "Aucune note")
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAdjustableAction { direction in
+                                switch direction {
+                                case .increment: rating = min(10, (rating ?? 0) + 1)
+                                case .decrement: rating = max(0, (rating ?? 0) - 1)
+                                @unknown default: break
+                                }
                             }
                         }
+                        .frame(height: 44)
                         Text(rating.map { "\($0)/10" } ?? "Aucune note")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(LoreTheme.secondaryInk)

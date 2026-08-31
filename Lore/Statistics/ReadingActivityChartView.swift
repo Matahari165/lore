@@ -100,9 +100,13 @@ struct ReadingActivityChartView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(chartAccessibilityLabel(points))
 
-                Text(totalLabel(for: points))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(LoreTheme.secondaryInk)
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(totalLabel(for: points))
+                    Text(averageLabel(for: points))
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(LoreTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, LoreTheme.pageMargin)
             .padding(.bottom, 32)
@@ -120,12 +124,22 @@ struct ReadingActivityChartView: View {
         return "Total : \(StatisticsFormat.accessibleDuration(total))"
     }
 
+    private func averageLabel(for points: [ReadingActivityPoint], now: Date = .now) -> String {
+        let calendar = Calendar.autoupdatingCurrent
+        let today = calendar.startOfDay(for: now)
+        let elapsedPoints = points.filter { $0.date <= today }
+        let divisor = max(1, elapsedPoints.count)
+        let total = elapsedPoints.reduce(0) { $0 + $1.duration }
+        return "Moyenne : \(StatisticsFormat.accessibleDuration(total / Double(divisor)))/jour"
+    }
+
     private func chartAccessibilityLabel(_ points: [ReadingActivityPoint]) -> String {
         guard !points.isEmpty else { return "Aucune minute de lecture" }
-        return points.map { point in
+        let detail = points.map { point in
             let date = point.date.formatted(.dateTime.day().month(.wide))
             return "\(date), \(StatisticsFormat.accessibleDuration(point.duration))"
         }.joined(separator: ". ")
+        return "\(averageLabel(for: points)). \(detail)"
     }
 
     private func load() {

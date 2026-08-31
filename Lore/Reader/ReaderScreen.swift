@@ -12,6 +12,7 @@ struct ReaderScreen: View {
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
     @State private var highlights: [ReaderHighlight]
+    @State private var vocabulary: [VocabularyItem]
     @State private var aiExplanation: ReaderAIExplanationState?
     @State private var aiRecap: ReaderAIRecapState?
     @State private var showsDiscussion = false
@@ -30,19 +31,25 @@ struct ReaderScreen: View {
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
         _highlights = State(initialValue: presentation.session.highlights)
+        _vocabulary = State(initialValue: presentation.session.vocabulary)
     }
 
     var body: some View {
         ZStack {
+            readerBackground
+                .ignoresSafeArea()
+
             ReaderView(session: presentation.session)
-                .opacity(readerPresentationState.opacity)
-                .scaleEffect(readerPresentationState.scale)
 
             if showsControls {
                 controls
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scaleEffect(readerPresentationState.scale, anchor: .bottom)
+        .offset(y: readerPresentationState.verticalOffset)
+        .opacity(readerPresentationState.opacity)
         .preferredColorScheme(preferences.appearance == .dark ? .dark : .light)
         .statusBarHidden(!showsControls)
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
@@ -57,6 +64,7 @@ struct ReaderScreen: View {
             }
             presentation.session.setProgressionHandler { progression = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
+            presentation.session.setVocabularyChangeHandler { vocabulary = $0 }
             presentation.session.setExplanationHandler { aiExplanation = $0 }
             presentation.session.setRecapHandler { aiRecap = $0 }
             presentation.session.requestDailyRecapIfEligible()
@@ -65,6 +73,7 @@ struct ReaderScreen: View {
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)
+            presentation.session.setVocabularyChangeHandler(nil)
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
         }
@@ -78,6 +87,12 @@ struct ReaderScreen: View {
                     highlights: highlights,
                     onSelect: openHighlight,
                     onDelete: presentation.session.deleteHighlight
+                )
+            case .vocabulary:
+                ReaderVocabularySheet(
+                    items: vocabulary,
+                    onSelect: openVocabularyItem,
+                    onDelete: presentation.session.deleteVocabularyItem
                 )
             }
         }
@@ -174,6 +189,7 @@ struct ReaderScreen: View {
                         Divider().frame(height: 20)
                         controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
                         controlButton("Surlignages", systemImage: "highlighter") { presentedPanel = .highlights }
+                        controlButton("Vocabulaire", systemImage: "character.book.closed") { presentedPanel = .vocabulary }
                         controlButton("Réglages de lecture", systemImage: "textformat") {
                             animateChrome { showsQuickPreferences.toggle() }
                         }
@@ -225,11 +241,11 @@ struct ReaderScreen: View {
             return
         }
 
-        // The full-screen cover owns the large transition. This short inner
-        // fade/scale keeps the Readium web view from appearing as a hard cut
-        // once the cover has settled.
+        // The reader grows from a small page resting near the bottom. Keeping
+        // the whole Readium surface in one transform avoids rebuilding its
+        // WebView during the transition.
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.28)) {
+            withAnimation(.spring(duration: 0.38, bounce: 0.06)) {
                 readerPresentationState = .visible
             }
         }
@@ -261,6 +277,15 @@ struct ReaderScreen: View {
         }
     }
 
+    private func openVocabularyItem(_ item: VocabularyItem) {
+        Task {
+            if await presentation.session.go(to: item) {
+                presentedPanel = nil
+                showsControls = false
+            }
+        }
+    }
+
     private func closeReader() {
         guard readerPresentationState != .closing else { return }
         guard !reduceMotion else {
@@ -268,18 +293,18 @@ struct ReaderScreen: View {
             return
         }
 
-        withAnimation(.easeIn(duration: 0.18)) {
+        withAnimation(.easeIn(duration: 0.22)) {
             readerPresentationState = .closing
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(220))
             guard !Task.isCancelled else { return }
             await onRequestClose()
 
             // If closing failed (for example, a pending Locator could not be
             // saved), keep the reader usable instead of leaving it invisible.
             if readerPresentationState == .closing {
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(.spring(duration: 0.32, bounce: 0.05)) {
                     readerPresentationState = .visible
                 }
             }
@@ -287,7 +312,7 @@ struct ReaderScreen: View {
     }
 
     private enum Panel: String, Identifiable {
-        case chapters, highlights
+        case chapters, highlights, vocabulary
         var id: String { rawValue }
     }
 
@@ -298,17 +323,30 @@ struct ReaderScreen: View {
 
         var opacity: Double {
             switch self {
-            case .appearing, .closing: 0
+            case .appearing: 0.35
+            case .closing: 0
             case .visible: 1
             }
         }
 
         var scale: CGFloat {
             switch self {
-            case .appearing, .closing: 0.985
+            case .appearing, .closing: 0.14
             case .visible: 1
             }
         }
+
+        var verticalOffset: CGFloat {
+            switch self {
+            case .appearing, .closing: 44
+            case .visible: 0
+            }
+        }
+
+    }
+
+    private var readerBackground: Color {
+        preferences.appearance == .dark ? .black : Color(uiColor: .systemBackground)
     }
 }
 
@@ -627,6 +665,24 @@ private struct ReaderPreferencesPage: View {
                 }
 
                 Section {
+                    marginSlider(
+                        title: "Gauche et droite",
+                        value: $preferences.horizontalMargins,
+                        range: ReaderPreferences.horizontalMarginsRange
+                    )
+
+                    marginSlider(
+                        title: "Haut et bas",
+                        value: $preferences.verticalMargins,
+                        range: ReaderPreferences.verticalMarginsRange
+                    )
+                } header: {
+                    Text("Marges")
+                } footer: {
+                    Text("Les marges sont globales et s’appliquent à tous les livres.")
+                }
+
+                Section {
                     Button("Réinitialiser les réglages", role: .destructive) {
                         preferences.reset()
                         commit()
@@ -644,6 +700,34 @@ private struct ReaderPreferencesPage: View {
     }
 
     private func commit() { onChange(preferences) }
+
+    private func marginSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value.wrappedValue, format: .percent.precision(.fractionLength(0)))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(
+                value: value,
+                in: range,
+                step: 0.25,
+                onEditingChanged: { isEditing in
+                    if !isEditing { commit() }
+                }
+            )
+            .accessibilityLabel("Marges \(title.lowercased())")
+            .accessibilityValue(
+                Text(value.wrappedValue, format: .percent.precision(.fractionLength(0)))
+            )
+        }
+    }
 }
 
 private extension View {

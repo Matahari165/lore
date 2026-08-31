@@ -47,6 +47,7 @@ final class ReadiumPublicationService: EPUBImportValidating {
     private var publicationCache: [ReadiumPublicationCacheKey: OpenedEPUB] = [:]
     private var cacheRecency: [ReadiumPublicationCacheKey: UInt64] = [:]
     private var nextRecency: UInt64 = 0
+    private var memoryWarningTask: Task<Void, Never>?
 
     /// These counters are intentionally observable for diagnostics and tests:
     /// opening the same immutable imported file twice should produce one miss
@@ -68,15 +69,35 @@ final class ReadiumPublicationService: EPUBImportValidating {
             ),
             contentProtections: []
         )
+        memoryWarningTask = Task { @MainActor [weak self] in
+            for await _ in NotificationCenter.default.notifications(
+                named: UIApplication.didReceiveMemoryWarningNotification
+            ) {
+                guard let self else { return }
+                clearCache()
+            }
+        }
+    }
+
+    deinit {
+        memoryWarningTask?.cancel()
     }
 
     func validateEPUBForImport(at fileURL: URL) async throws -> ImportedEPUBMetadata {
         let opened = try await openEPUB(at: fileURL)
+        // Cover extraction decodes and resizes an image. It is useful once at
+        // import time, but doing it again every time the reader opens would
+        // delay the first rendered page for data already stored in BookRecord.
+        nonisolated(unsafe) let publication = opened.publication
+        let cover = try? await publication.coverFitting(
+            maxSize: CGSize(width: 1_200, height: 1_800)
+        ).get()
         return ImportedEPUBMetadata(
             mediaType: opened.mediaType?.string ?? "application/epub+zip",
             title: opened.title,
             author: opened.author,
-            coverData: opened.coverData
+            coverData: cover?.jpegData(compressionQuality: 0.88)
+                ?? cover?.pngData()
         )
     }
 
@@ -107,10 +128,6 @@ final class ReadiumPublicationService: EPUBImportValidating {
                 throw ReaderError.restrictedPublication
             }
 
-            let cover = try? await publication.coverFitting(
-                maxSize: CGSize(width: 1_200, height: 1_800)
-            ).get()
-
             let opened = OpenedEPUB(
                 publication: publication,
                 mediaType: asset.format.mediaType,
@@ -119,8 +136,9 @@ final class ReadiumPublicationService: EPUBImportValidating {
                     .map(\.name)
                     .joined(separator: ", ")
                     .nilIfEmpty,
-                coverData: cover?.jpegData(compressionQuality: 0.88)
-                    ?? cover?.pngData()
+                // ReaderSessionController only needs the parsed publication.
+                // The imported cover already lives in BookRecord.
+                coverData: nil
             )
             if let cacheKey {
                 publicationCache[cacheKey] = opened

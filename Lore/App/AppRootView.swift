@@ -46,35 +46,49 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var libraryModel = libraryModel
 
-        TabView(selection: $selectedTab) {
-            LibraryView(
-                mode: .home,
-                model: libraryModel,
-                dailyGoalState: dailyGoalModel.state,
-                onOpenSettings: { presentsSettings = true },
-                onOpenActivityChart: { presentsActivityChart = true }
-            )
-            .tabItem { Label("Accueil", systemImage: "house") }
-            .tag(Tab.home)
+        ZStack {
+            TabView(selection: $selectedTab) {
+                LibraryView(
+                    mode: .home,
+                    model: libraryModel,
+                    dailyGoalState: dailyGoalModel.state,
+                    onOpenSettings: { presentsSettings = true },
+                    onOpenActivityChart: { presentsActivityChart = true }
+                )
+                .tabItem { Label("Accueil", systemImage: "house") }
+                .tag(Tab.home)
 
-            LibraryView(
-                mode: .library,
-                model: libraryModel
-            )
-            .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
-            .tag(Tab.library)
+                LibraryView(
+                    mode: .library,
+                    model: libraryModel
+                )
+                .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
+                .tag(Tab.library)
 
-            StatisticsDashboardView(
-                adapter: statisticsAdapter,
-                dailyGoalModel: dailyGoalModel,
-                refreshRevision: statisticsRevision,
-                onOpenLibrary: { selectedTab = .library }
-            )
-            .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
-            .tag(Tab.statistics)
+                StatisticsDashboardView(
+                    adapter: statisticsAdapter,
+                    dailyGoalModel: dailyGoalModel,
+                    refreshRevision: statisticsRevision,
+                    onOpenLibrary: { selectedTab = .library }
+                )
+                .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
+                .tag(Tab.statistics)
+            }
+            .tabBarMinimizeBehavior(.onScrollDown)
+            .loreCanvas()
+            .allowsHitTesting(libraryModel.readerPresentation == nil)
+            .accessibilityHidden(libraryModel.readerPresentation != nil)
+
+            if let presentation = libraryModel.readerPresentation {
+                ReaderScreen(presentation: presentation) {
+                    await libraryModel.closeReader()
+                    if libraryModel.readerPresentation == nil {
+                        reloadDailyGoal()
+                    }
+                }
+                .zIndex(1)
+            }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .loreCanvas()
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             reloadDailyGoal()
@@ -108,11 +122,6 @@ struct AppRootView: View {
             Button("OK", role: .cancel) { libraryModel.errorMessage = nil }
         } message: {
             Text(libraryModel.errorMessage ?? "")
-        }
-        .fullScreenCover(item: $libraryModel.readerPresentation, onDismiss: reloadDailyGoal) { presentation in
-            ReaderScreen(presentation: presentation) {
-                await libraryModel.closeReader()
-            }
         }
     }
 

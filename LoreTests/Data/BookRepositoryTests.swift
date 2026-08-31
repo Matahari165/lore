@@ -109,6 +109,26 @@ struct BookRepositoryTests {
         #expect(book.readingStatus == .inProgress)
     }
 
+    @Test func hidingFromResumePreservesProgress() throws {
+        let fixture = try makeRepository()
+        let repository = fixture.repository
+        let locator = Data(#"{"href":"chapter.xhtml"}"#.utf8)
+        let book = BookRecord(
+            title: "Lecture",
+            relativeFilePath: "book.epub",
+            lastLocatorJSON: locator,
+            lastProgression: 0.4
+        )
+        try repository.add(book)
+
+        try repository.setHiddenFromResume(true, for: book.id)
+
+        #expect(book.isHiddenFromResume)
+        #expect(book.lastLocatorJSON == locator)
+        #expect(book.lastProgression == 0.4)
+        #expect(book.readingStatus == .inProgress)
+    }
+
     private func makeRepository() throws -> RepositoryFixture {
         try RepositoryFixture()
     }

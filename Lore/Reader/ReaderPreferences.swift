@@ -5,6 +5,8 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
     static let fontSizeRange = 0.8 ... 2.0
     static let fontSizeStep = 0.1
     static let lineHeightRange = 1.0 ... 2.0
+    static let horizontalMarginsRange = 0.5 ... 2.0
+    static let verticalMarginsRange = 0.0 ... 2.5
 
     enum Typeface: String, Codable, CaseIterable, Sendable {
         case publisher
@@ -42,10 +44,48 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
     var typeface: Typeface = .publisher
     var lineHeight: Double?
     var appearance: Appearance = .light
+    /// Factor applied by Readium to the left and right page gutters.
+    var horizontalMargins: Double = 1.0
+    /// Top and bottom page padding in `rem`, injected into the current EPUB resource.
+    var verticalMargins: Double = 1.0
+
+    init(
+        fontSize: Double = 1.0,
+        typeface: Typeface = .publisher,
+        lineHeight: Double? = nil,
+        appearance: Appearance = .light,
+        horizontalMargins: Double = 1.0,
+        verticalMargins: Double = 1.0
+    ) {
+        self.fontSize = fontSize
+        self.typeface = typeface
+        self.lineHeight = lineHeight
+        self.appearance = appearance
+        self.horizontalMargins = horizontalMargins
+        self.verticalMargins = verticalMargins
+        normalize()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case fontSize, typeface, lineHeight, appearance, horizontalMargins, verticalMargins
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        fontSize = try values.decodeIfPresent(Double.self, forKey: .fontSize) ?? 1.0
+        typeface = try values.decodeIfPresent(Typeface.self, forKey: .typeface) ?? .publisher
+        lineHeight = try values.decodeIfPresent(Double.self, forKey: .lineHeight)
+        appearance = try values.decodeIfPresent(Appearance.self, forKey: .appearance) ?? .light
+        horizontalMargins = try values.decodeIfPresent(Double.self, forKey: .horizontalMargins) ?? 1.0
+        verticalMargins = try values.decodeIfPresent(Double.self, forKey: .verticalMargins) ?? 1.0
+        normalize()
+    }
 
     mutating func normalize() {
         fontSize = fontSize.clamped(to: Self.fontSizeRange)
         lineHeight = lineHeight?.clamped(to: Self.lineHeightRange)
+        horizontalMargins = horizontalMargins.clamped(to: Self.horizontalMarginsRange)
+        verticalMargins = verticalMargins.clamped(to: Self.verticalMarginsRange)
     }
 
     mutating func adjustFontSize(by steps: Int) {
@@ -63,7 +103,10 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
             fontSize: fontSize,
             imageFilter: appearance == .dark ? .darken : nil,
             lineHeight: lineHeight,
-            publisherStyles: lineHeight == nil ? nil : false,
+            pageMargins: horizontalMargins,
+            // Required for text alignment and the user's global typography
+            // choices to override publisher CSS consistently.
+            publisherStyles: false,
             // Lore is a focused reading surface: paragraphs use the full
             // measure of the page instead of inheriting uneven publisher CSS.
             textAlign: .justify,

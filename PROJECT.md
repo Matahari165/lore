@@ -164,6 +164,10 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les listes principales utilisent trois colonnes de largeur identique et des zones de texte de hauteur fixe afin de conserver des rangées parfaitement alignées.
 - La fin explicite d’un livre demande une note entière sur 10 et une année de lecture ; cette année détermine son classement dans l’archive annuelle.
 - Les deux publications EPUB les plus récemment ouvertes restent temporairement en mémoire afin d’accélérer leur réouverture, sans modifier le fichier ni la position Readium persistée.
+- Les EPUB importés et les données de lecture restent actuellement dans le stockage privé local de Lore ; aucune synchronisation iCloud des fichiers ou des modèles SwiftData n’est encore activée.
+- Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
+- Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
+- Les marges horizontales et verticales sont des préférences globales du lecteur, comme la typographie et l’interligne.
 - L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.

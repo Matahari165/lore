@@ -4,16 +4,18 @@ import Testing
 
 struct ReaderSelectionPaletteTests {
     @Test func selectionUsesDedicatedHighContrastColors() {
-        #expect(ReaderSelectionPalette.background == "#00E5FF")
-        #expect(ReaderSelectionPalette.text == "#001018")
+        #expect(ReaderSelectionPalette.background == "#8EEBFF")
+        #expect(ReaderSelectionPalette.text == "#001319")
         #expect(ReaderSelectionPalette.background != "#FFD54F")
     }
 
     @Test func webViewScriptReinforcesSelectionInsteadOfOnlyDefiningUnusedTokens() {
-        #expect(ReaderSelectionPalette.webViewStyleScript.contains("*::selection"))
-        #expect(ReaderSelectionPalette.webViewStyleScript.contains("!important"))
-        #expect(ReaderSelectionPalette.webViewStyleScript.contains(ReaderSelectionPalette.background))
-        #expect(ReaderSelectionPalette.webViewStyleScript.contains(ReaderSelectionPalette.text))
+        let script = ReaderSelectionPalette.webViewStyleScript(verticalMargins: 1.5)
+        #expect(script.contains("*::selection"))
+        #expect(script.contains("!important"))
+        #expect(script.contains(ReaderSelectionPalette.background))
+        #expect(script.contains(ReaderSelectionPalette.text))
+        #expect(script.contains("padding-block-start: 1.5rem"))
     }
 
     @Test func markdownRendererRemovesFormattingMarkersFromDisplayedText() {
