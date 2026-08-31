@@ -307,6 +307,65 @@ final class ReaderSessionController {
         recapTask = nil
     }
 
+    /// Builds the chat context from the position currently known by Readium.
+    /// The extractor starts at the first reading-order resource but stops at
+    /// the current Locator and remains bounded, so a jump cannot silently
+    /// grant the assistant access to unread content.
+    func chatContext(
+        stage: LoreAIReadingStage,
+        question: String,
+        history: [LoreAIChatMessage]
+    ) async -> LoreAIChatContext? {
+        guard let bookID, let publication else { return nil }
+
+        let currentLocation = locationProvider.currentLocation
+        var excerpts: [LoreAIChatExcerpt] = []
+        var chapterTitle = currentLocation?.title
+        var frontierDescription: String?
+        let frontierProgression = currentLocation?.locations.totalProgression
+
+        if stage != .notStarted, let currentLocation {
+            let firstLocation: Locator = if let firstLink = publication.readingOrder.first,
+                                            let located = await publication.locate(firstLink) {
+                located
+            } else {
+                currentLocation
+            }
+
+            if let extracted = try? await recapContextExtractor.extract(
+                from: publication,
+                firstLocator: firstLocation,
+                lastLocator: currentLocation
+            ) {
+                chapterTitle = currentLocation.title ?? extracted.chapterTitles.last
+                frontierDescription = extracted.lastReadPositionDescription
+                excerpts = [LoreAIChatExcerpt(
+                    text: extracted.excerpt,
+                    sourceDescription: "Texte lu jusqu’à la position actuelle",
+                    progression: frontierProgression
+                )]
+            }
+        }
+
+        let author = publication.metadata.authors.map(\.name).joined(separator: ", ")
+        return LoreAIChatContext(
+            bookID: bookID,
+            title: publication.metadata.title ?? "Livre sans titre",
+            author: author.isEmpty ? nil : author,
+            stage: stage,
+            chapterTitle: chapterTitle,
+            readFrontierProgression: frontierProgression,
+            readFrontierDescription: frontierDescription,
+            excerpts: excerpts,
+            // Full-book extraction is intentionally not claimed here. Until a
+            // dedicated, user-confirmed extractor is wired, the current
+            // Locator remains the only source of text after the end as well.
+            fullBookAccessGranted: false,
+            history: history,
+            question: question
+        )
+    }
+
     func highlightCurrentSelection() {
         guard
             let navigator = readerController as? (any SelectableNavigator & DecorableNavigator),

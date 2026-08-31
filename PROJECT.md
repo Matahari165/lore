@@ -165,6 +165,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
 - La prochaine surface IA est une conversation unique avec chaque livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
+- La surface Discussion est accessible depuis le lecteur et les listes de livres. Elle conserve ses messages localement et affiche explicitement la portée du texte envoyé.
 - Lorsqu’un livre est explicitement terminé, l’utilisateur autorise Lore à sélectionner et envoyer à OpenAI des extraits pertinents provenant de l’ensemble du livre pour l’analyse finale. L’EPUB complet n’est pas envoyé en un seul bloc et aucun envoi ne se déclenche automatiquement.
 
 ## Décisions nécessitant une consultation

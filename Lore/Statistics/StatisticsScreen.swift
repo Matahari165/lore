@@ -29,6 +29,7 @@ struct StatisticsScreen: View {
                 }
             }
             .navigationTitle("Activité")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .loreCanvas()
     }

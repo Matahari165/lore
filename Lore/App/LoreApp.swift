@@ -40,7 +40,8 @@ struct LoreApp: App {
                     sessionRepository: sessions,
                     statisticsAdapter: StatisticsDataAdapter(context: container.mainContext),
                     fileStore: fileStore,
-                    publicationService: ReadiumPublicationService()
+                    publicationService: ReadiumPublicationService(),
+                    conversationRepository: conversations
                 )
             }
         }

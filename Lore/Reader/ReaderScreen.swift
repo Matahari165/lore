@@ -14,6 +14,7 @@ struct ReaderScreen: View {
     @State private var highlights: [ReaderHighlight]
     @State private var aiExplanation: ReaderAIExplanationState?
     @State private var aiRecap: ReaderAIRecapState?
+    @State private var showsDiscussion = false
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -95,6 +96,19 @@ struct ReaderScreen: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showsDiscussion) {
+            BookDiscussionView(
+                bookID: presentation.id,
+                title: presentation.title,
+                author: presentation.author,
+                stage: presentation.readingStage,
+                initialProgression: progression,
+                conversationRepository: presentation.conversationRepository,
+                session: presentation.session
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var controls: some View {
@@ -104,6 +118,9 @@ struct ReaderScreen: View {
                     .font(.footnote.weight(.medium))
                     .lineLimit(1)
                 Spacer(minLength: 8)
+                controlButton("Discuter avec le livre", systemImage: "text.bubble") {
+                    showsDiscussion = true
+                }
                 controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
             }
             .padding(.horizontal, 8)

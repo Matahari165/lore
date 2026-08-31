@@ -16,6 +16,7 @@ struct AppRootView: View {
 
     let statisticsAdapter: StatisticsDataAdapter
     let sessionRepository: ReadingSessionRepository
+    let conversationRepository: AIConversationRepository
 
     init(
         initialTab: Tab = .home,
@@ -24,6 +25,7 @@ struct AppRootView: View {
         statisticsAdapter: StatisticsDataAdapter,
         fileStore: BookFileStore,
         publicationService: ReadiumPublicationService,
+        conversationRepository: AIConversationRepository,
         dailyGoalStore: any DailyReadingGoalStore = UserDefaultsDailyReadingGoalStore()
     ) {
         _selectedTab = State(initialValue: initialTab)
@@ -31,11 +33,13 @@ struct AppRootView: View {
             repository: bookRepository,
             sessionRepository: sessionRepository,
             fileStore: fileStore,
-            publicationService: publicationService
+            publicationService: publicationService,
+            conversationRepository: conversationRepository
         ))
         _dailyGoalModel = State(initialValue: DailyReadingGoalModel(store: dailyGoalStore))
         self.statisticsAdapter = statisticsAdapter
         self.sessionRepository = sessionRepository
+        self.conversationRepository = conversationRepository
     }
 
     var body: some View {
@@ -67,6 +71,7 @@ struct AppRootView: View {
             .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
             .tag(Tab.statistics)
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .loreCanvas()
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }

@@ -59,13 +59,16 @@ Dernière mise à jour : 31 août 2026
 - Toutes les couvertures utilisent désormais un cadre portrait commun : l’image entière reste visible, sans étirement, recadrage ni débordement dans Accueil, Bibliothèque et Statistiques.
 - L’Accueil affiche jusqu’à quatre livres à reprendre, triés par dernière activité de lecture réelle, avec une reprise indépendante pour chacun.
 - Le trait violet du logo transparent a été épaissi d’environ 80 % sans ajouter de fond, halo ni ombre.
-- Le socle local de Discussion par livre est ajouté : historique multi-tours borné, stockage SwiftData local, suppression avec le livre et client IA anti-spoiler. L’écran Discussion reste à construire.
+- Le socle local de Discussion par livre est ajouté : historique multi-tours borné, stockage SwiftData local, suppression avec le livre et client IA anti-spoiler.
+- L’écran Discussion est maintenant accessible depuis le lecteur, l’Accueil et la Bibliothèque. Il conserve l’historique local, affiche le contexte utilisé, rend le Markdown et propose résumé, question libre et discussion de fin.
+- La barre des trois onglets se réduit au défilement vers le bas et réapparaît en remontant. Les titres Accueil, Bibliothèque et Activité sont alignés avec leurs actions afin de supprimer l’espace supérieur perdu.
+- Le logo transparent a encore été agrandi et épaissi, sans fond, halo ni ombre.
 
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
-- Construction de l’interface générale de Discussion, avec contexte limité à la progression pendant la lecture et extraits de l’ensemble du livre seulement après fin explicite.
+- Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 
@@ -119,7 +122,7 @@ Dernière mise à jour : 31 août 2026
 
 - Application Mac complète.
 - Questions-réponses approfondies sur un livre.
-- Résumés de chapitres, personnages, concepts, flashcards et recommandations.
+- Analyse complète des livres terminés et recommandations fondées sur les lectures et notes.
 - Analyse et discussion de fin de livre avec l'IA.
 
 ## Problèmes et risques connus

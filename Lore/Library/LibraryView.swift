@@ -9,6 +9,7 @@ struct LibraryView: View {
     let dailyGoalState: DailyGoalState
     let onOpenSettings: () -> Void
     @State private var presentsImporter = false
+    @State private var discussionBook: BookRecord?
 
     init(
         mode: Mode = .library,
@@ -31,6 +32,7 @@ struct LibraryView: View {
                 else { libraryContent }
             }
             .navigationTitle(mode == .home ? "Accueil" : "Bibliothèque")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if mode == .home {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -57,6 +59,15 @@ struct LibraryView: View {
         }
         .loreCanvas()
         .task { model.reload() }
+        .sheet(item: $discussionBook) { book in
+            BookDiscussionView(
+                book: book,
+                conversationRepository: model.conversationRepository,
+                onOpenSettings: mode == .home ? onOpenSettings : nil
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [UTType(filenameExtension: "epub") ?? .data], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
         }
@@ -126,41 +137,50 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Reprendre").font(.title3.weight(.semibold))
             ForEach(books) { book in
-                Button { Task { await model.open(book) } } label: {
-                    HStack(spacing: 14) {
-                        BookCoverView(book: book).frame(width: 72)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(book.title).font(.headline).foregroundStyle(LoreTheme.ink).lineLimit(2)
-                            if let author = book.author {
-                                Text(author).font(.subheadline).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1)
+                HStack(spacing: 10) {
+                    Button { Task { await model.open(book) } } label: {
+                        HStack(spacing: 14) {
+                            BookCoverView(book: book).frame(width: 72)
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(book.title).font(.headline).foregroundStyle(LoreTheme.ink).lineLimit(2)
+                                if let author = book.author {
+                                    Text(author).font(.subheadline).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1)
+                                }
+                                if let progression = book.lastProgression {
+                                    Text("Progression \(progression, format: .percent.precision(.fractionLength(0)))")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(LoreTheme.secondaryInk)
+                                }
+                                if let activityDate = model.recentActivityDate(for: book) {
+                                    Text("Dernière lecture \(activityDate, format: .dateTime.day().month(.abbreviated).year())")
+                                        .font(.caption2)
+                                        .foregroundStyle(LoreTheme.secondaryInk)
+                                        .lineLimit(1)
+                                }
                             }
-                            if let progression = book.lastProgression {
-                                Text("Progression \(progression, format: .percent.precision(.fractionLength(0)))")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(LoreTheme.secondaryInk)
-                            }
-                            if let activityDate = model.recentActivityDate(for: book) {
-                                Text("Dernière lecture \(activityDate, format: .dateTime.day().month(.abbreviated).year())")
-                                    .font(.caption2)
-                                    .foregroundStyle(LoreTheme.secondaryInk)
-                                    .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            if model.openingBookID == book.id { ProgressView() }
+                            else {
+                                Image(systemName: "play.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(LoreTheme.ink)
+                                    .frame(width: 44, height: 44)
+                                    .background(LoreTheme.ink.opacity(0.08), in: Circle())
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        if model.openingBookID == book.id { ProgressView() }
-                        else {
-                            Image(systemName: "play.fill")
-                                .font(.headline)
-                                .foregroundStyle(LoreTheme.ink)
-                                .frame(width: 44, height: 44)
-                                .background(LoreTheme.ink.opacity(0.08), in: Circle())
-                        }
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Reprendre \(book.title)")
+                    .accessibilityValue(resumeAccessibilityValue(for: book))
+
+                    Button("Discuter avec le livre", systemImage: "text.bubble") {
+                        discussionBook = book
+                    }
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .accessibilityHint("Ouvre la discussion attachée à ce livre")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Reprendre \(book.title)")
-                .accessibilityValue(resumeAccessibilityValue(for: book))
             }
         }
     }
@@ -187,30 +207,50 @@ struct LibraryView: View {
     }
 
     private func bookButton(_ book: BookRecord) -> some View {
-        Button { Task { await model.open(book) } } label: {
-            VStack(alignment: .leading, spacing: 7) {
-                ZStack {
+        ZStack(alignment: .topTrailing) {
+            Button { Task { await model.open(book) } } label: {
+                VStack(alignment: .leading, spacing: 7) {
                     BookCoverView(book: book)
-                    if model.openingBookID == book.id { LoreTheme.canvas.opacity(0.68); ProgressView() }
+                        .overlay {
+                            if model.openingBookID == book.id {
+                                LoreTheme.canvas.opacity(0.68)
+                                ProgressView()
+                            }
+                        }
+                    Text(book.title).font(.subheadline.weight(.semibold)).foregroundStyle(LoreTheme.ink).lineLimit(2)
+                    if let author = book.author { Text(author).font(.caption).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1) }
+                    Text(book.readingStatus.title).font(.caption2.weight(.medium)).foregroundStyle(LoreTheme.secondaryInk)
                 }
-                Text(book.title).font(.subheadline.weight(.semibold)).foregroundStyle(LoreTheme.ink).lineLimit(2)
-                if let author = book.author { Text(author).font(.caption).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1) }
-                Text(book.readingStatus.title).font(.caption2.weight(.medium)).foregroundStyle(LoreTheme.secondaryInk)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
-        .contextMenu {
-            if book.readingStatus == .finished {
-                Button("Marquer comme non terminé", systemImage: "arrow.uturn.backward") {
-                    model.setFinished(false, for: book)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+            .contextMenu {
+                if book.readingStatus == .finished {
+                    Button("Marquer comme non terminé", systemImage: "arrow.uturn.backward") {
+                        model.setFinished(false, for: book)
+                    }
+                } else {
+                    Button("Marquer comme lu", systemImage: "checkmark.circle") {
+                        model.setFinished(true, for: book)
+                    }
                 }
-            } else {
-                Button("Marquer comme lu", systemImage: "checkmark.circle") {
-                    model.setFinished(true, for: book)
+
+                Button("Discuter avec le livre", systemImage: "text.bubble") {
+                    discussionBook = book
                 }
             }
+
+            Button("Discuter avec le livre", systemImage: "text.bubble") {
+                discussionBook = book
+            }
+            .labelStyle(.iconOnly)
+            .font(.headline)
+            .foregroundStyle(LoreTheme.ink)
+            .frame(width: 44, height: 44)
+            .background(.thinMaterial, in: Circle())
+            .padding(6)
+            .accessibilityHint("Ouvre la discussion attachée à ce livre")
         }
     }
 }

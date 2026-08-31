@@ -53,7 +53,26 @@ final class LibraryViewModel {
     struct ReaderPresentation: Identifiable {
         let id: UUID
         let title: String
+        let author: String?
+        let readingStage: LoreAIReadingStage
+        let conversationRepository: AIConversationRepository?
         let session: ReaderSessionController
+
+        init(
+            id: UUID,
+            title: String,
+            author: String? = nil,
+            readingStage: LoreAIReadingStage = .inProgress,
+            conversationRepository: AIConversationRepository? = nil,
+            session: ReaderSessionController
+        ) {
+            self.id = id
+            self.title = title
+            self.author = author
+            self.readingStage = readingStage
+            self.conversationRepository = conversationRepository
+            self.session = session
+        }
     }
 
     private let repository: BookRepository
@@ -62,6 +81,7 @@ final class LibraryViewModel {
     private let publicationService: ReadiumPublicationService
     private let importService: BookImportService
     private let recapEngine: DailyReadingRecapEngine
+    let conversationRepository: AIConversationRepository?
 
     var books: [BookRecord] = []
     var isImporting = false
@@ -80,12 +100,14 @@ final class LibraryViewModel {
         repository: BookRepository,
         sessionRepository: ReadingSessionRepository,
         fileStore: BookFileStore,
-        publicationService: ReadiumPublicationService
+        publicationService: ReadiumPublicationService,
+        conversationRepository: AIConversationRepository? = nil
     ) {
         self.repository = repository
         self.sessionRepository = sessionRepository
         self.fileStore = fileStore
         self.publicationService = publicationService
+        self.conversationRepository = conversationRepository
         recapEngine = DailyReadingRecapEngine(
             store: UserDefaultsReadingRecapStateStore(),
             sessionRepository: sessionRepository
@@ -219,7 +241,14 @@ final class LibraryViewModel {
                 recapEngine: recapEngine,
                 onError: { [weak self] error in self?.present(error) }
             )
-            readerPresentation = ReaderPresentation(id: book.id, title: book.title, session: session)
+            readerPresentation = ReaderPresentation(
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                readingStage: book.readingStatus.loreAIStage,
+                conversationRepository: conversationRepository,
+                session: session
+            )
         } catch {
             present(error)
         }
