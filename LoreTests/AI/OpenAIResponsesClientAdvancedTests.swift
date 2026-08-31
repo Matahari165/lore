@@ -25,8 +25,6 @@ struct OpenAIResponsesClientAdvancedTests {
 
         #expect(try await client.summarizeChapter(.init(title: "Livre", chapterText: "Chapitre lu")) == "Réponse bornée au contexte.")
         #expect(try await client.answerQuestion(.init(title: "Livre", readText: "Texte lu", question: "Que signifie ce passage ?")) == "Réponse bornée au contexte.")
-        #expect(try await client.identifyCharactersAndConcepts(.init(title: "Livre", readText: "Texte lu")) == "Réponse bornée au contexte.")
-        #expect(try await client.generateFlashcards(.init(title: "Livre", readText: "Texte lu", cardCount: 2)) == "Réponse bornée au contexte.")
         #expect(try await client.discussEnding(.init(title: "Livre", readText: "Texte lu")) == "Réponse bornée au contexte.")
     }
 }

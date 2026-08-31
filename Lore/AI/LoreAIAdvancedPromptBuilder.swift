@@ -61,51 +61,6 @@ struct LoreAIAdvancedPromptBuilder: Sendable {
         )
     }
 
-    func charactersAndConcepts(for context: LoreAICharactersConceptsContext) throws -> LoreAIPrompt {
-        let text = try nonEmpty(context.readText, maximum: limits.analysisCharacters)
-        let chapters = context.chapterTitles.prefix(12).map(metadata).joined(separator: ", ")
-        return LoreAIPrompt(
-            developer: Self.safetyInstructions + """
-
-            Identifie au maximum huit personnages ou concepts explicitement présents dans le contexte lu. Pour chacun, donne le nom puis une explication d'une ou deux phrases. N'ajoute rien qui ne soit pas justifié par le texte et n'annonce aucun élément ultérieur.
-            """,
-            user: """
-            LIVRE
-            Titre : \(metadata(context.title))
-            Auteur : \(metadata(context.author ?? "Non renseigné"))
-            Chapitres inclus : \(chapters.isEmpty ? "Non renseignés" : chapters)
-
-            <CONTEXTE_EFFECTIVEMENT_LU>
-            \(text)
-            </CONTEXTE_EFFECTIVEMENT_LU>
-            """
-        )
-    }
-
-    func flashcards(for context: LoreAIFlashcardsContext) throws -> LoreAIPrompt {
-        guard (1...12).contains(context.cardCount) else {
-            throw LoreAIError.invalidFlashcardCount
-        }
-        let text = try nonEmpty(context.readText, maximum: limits.analysisCharacters)
-        let chapters = context.chapterTitles.prefix(12).map(metadata).joined(separator: ", ")
-        return LoreAIPrompt(
-            developer: Self.safetyInstructions + """
-
-            Génère exactement \(context.cardCount) cartes mémoire en français. Utilise le format « Question : ... » puis « Réponse : ... » pour chaque carte. Les réponses doivent rester strictement dans le contexte lu, sans spoiler ni invention.
-            """,
-            user: """
-            LIVRE
-            Titre : \(metadata(context.title))
-            Auteur : \(metadata(context.author ?? "Non renseigné"))
-            Chapitres inclus : \(chapters.isEmpty ? "Non renseignés" : chapters)
-
-            <CONTEXTE_EFFECTIVEMENT_LU>
-            \(text)
-            </CONTEXTE_EFFECTIVEMENT_LU>
-            """
-        )
-    }
-
     func endingDiscussion(for context: LoreAIEndingDiscussionContext) throws -> LoreAIPrompt {
         let text = try nonEmpty(context.readText, maximum: limits.analysisCharacters)
         return LoreAIPrompt(

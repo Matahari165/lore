@@ -21,6 +21,7 @@ enum LoreTheme {
 
     static let pageMargin: CGFloat = 20
     static let coverRadius: CGFloat = 6
+    static let coverAspectRatio: CGFloat = 2.0 / 3.0
 
     private static func adaptiveColor(light: UIColor, dark: UIColor) -> Color {
         Color(UIColor { traits in

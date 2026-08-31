@@ -55,13 +55,17 @@ Dernière mise à jour : 31 août 2026
 - Les réglages permettent d’effacer, après confirmation, uniquement le temps du jour local sans supprimer la portion éventuelle d’une session appartenant à un autre jour.
 - Un appui long sur un livre permet de le marquer terminé ou non terminé. Les statistiques affichent en bas les couvertures des livres terminés, filtrables par année.
 - L’icône de l’application reprend uniquement le symbole `L` plié violet dans un document Icon Composer (`fill: none`, ombre `none`, asset RGBA transparent). La composition ne contient aucun aplat, halo ou image de fond ; iOS 26 conserve la possibilité d’appliquer son propre masque/arrière-plan système.
-- Les contrats et prompts IA sont prêts pour cinq fonctions supplémentaires : résumé de chapitre, questions sur le texte lu, personnages et concepts, flashcards et discussion de fin. Leur interface utilisateur reste à raccorder.
+- Le produit IA est recentré sur une conversation générale avec le livre, des résumés de chapitres, des questions sur le texte lu et une analyse de fin. Les flashcards et la mémoire structurée inter-chapitres sont abandonnées.
+- Toutes les couvertures utilisent désormais un cadre portrait commun : l’image entière reste visible, sans étirement, recadrage ni débordement dans Accueil, Bibliothèque et Statistiques.
+- L’Accueil affiche jusqu’à quatre livres à reprendre, triés par dernière activité de lecture réelle, avec une reprise indépendante pour chacun.
+- Le trait violet du logo transparent a été épaissi d’environ 80 % sans ajouter de fond, halo ni ombre.
+- Le socle local de Discussion par livre est ajouté : historique multi-tours borné, stockage SwiftData local, suppression avec le livre et client IA anti-spoiler. L’écran Discussion reste à construire.
 
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
-- Raccordement progressif des cinq nouvelles fonctions IA à des écrans utiles, sans envoyer de texte non lu ni ajouter de spoilers.
+- Construction de l’interface générale de Discussion, avec contexte limité à la progression pendant la lecture et extraits de l’ensemble du livre seulement après fin explicite.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 

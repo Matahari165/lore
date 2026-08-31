@@ -74,6 +74,7 @@ final class LibraryViewModel {
     var sortAscending = false
     var importSummary: ImportSummary?
     private(set) var lastReconciliationReport: ImportReconciliationReport?
+    private var latestSessionActivityByBookID: [UUID: Date] = [:]
 
     init(
         repository: BookRepository,
@@ -108,11 +109,33 @@ final class LibraryViewModel {
         reload()
     }
 
+    /// The small resume queue shown on Accueil. A completion flag always wins over
+    /// a saved position, so finished books never reappear here.
+    var resumableBooks: [BookRecord] {
+        let candidates = books.filter { $0.readingStatus == .inProgress }
+        return Array(candidates.sorted { lhs, rhs in
+            let lhsActivity = recentActivityDate(for: lhs) ?? lhs.importedAt
+            let rhsActivity = recentActivityDate(for: rhs) ?? rhs.importedAt
+            if lhsActivity != rhsActivity { return lhsActivity > rhsActivity }
+
+            // Keep ordering deterministic when two books were touched at the same
+            // instant (for example after a restored database import).
+            let lhsProgress = lhs.progressUpdatedAt ?? .distantPast
+            let rhsProgress = rhs.progressUpdatedAt ?? .distantPast
+            if lhsProgress != rhsProgress { return lhsProgress > rhsProgress }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }.prefix(4))
+    }
+
+    /// Kept as a convenience for callers that only need the first queue entry.
     var resumableBook: BookRecord? {
-        books
-            .filter { $0.lastLocatorJSON != nil }
-            .sorted { ($0.progressUpdatedAt ?? .distantPast) > ($1.progressUpdatedAt ?? .distantPast) }
-            .first
+        resumableBooks.first
+    }
+
+    func recentActivityDate(for book: BookRecord) -> Date? {
+        [book.progressUpdatedAt, latestSessionActivityByBookID[book.id]]
+            .compactMap { $0 }
+            .max()
     }
 
     var recentlyImportedBooks: [BookRecord] {
@@ -216,6 +239,10 @@ final class LibraryViewModel {
     func reload() {
         do {
             books = try repository.books()
+            latestSessionActivityByBookID = try sessionRepository.sessions().reduce(into: [:]) { latest, session in
+                guard session.lastActivityAt > (latest[session.bookID] ?? .distantPast) else { return }
+                latest[session.bookID] = session.lastActivityAt
+            }
         } catch {
             present(error)
         }

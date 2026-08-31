@@ -2,37 +2,50 @@ import SwiftUI
 import UIKit
 
 struct BookCoverView: View {
-    let book: BookRecord
+    private let coverData: Data?
+    private let title: String
+
+    init(book: BookRecord) {
+        self.init(coverData: book.coverData, title: book.title)
+    }
+
+    init(coverData: Data?, title: String) {
+        self.coverData = coverData
+        self.title = title
+    }
 
     var body: some View {
-        Group {
-            if let data = book.coverData, let image = UIImage(data: data) {
+        ZStack {
+            // The cover slot stays portrait even when an EPUB provides a wide,
+            // square, or otherwise unusual image. The neutral surface becomes
+            // the letterbox instead of allowing the image to crop or stretch.
+            LoreTheme.canvas
+
+            if let coverData, let image = UIImage(data: coverData) {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ZStack {
-                    LoreTheme.ink
-                    VStack(spacing: 10) {
-                        Image(systemName: "book.closed.fill")
-                            .font(.title2)
-                        Text(book.title)
-                            .font(.system(.headline, design: .serif, weight: .semibold))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(4)
-                    }
-                    .foregroundStyle(LoreTheme.canvas)
-                    .padding(14)
+                VStack(spacing: 10) {
+                    Image(systemName: "book.closed.fill")
+                        .font(.title2)
+                    Text(title)
+                        .font(.system(.headline, design: .serif, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(4)
                 }
+                .foregroundStyle(LoreTheme.ink)
+                .padding(14)
             }
         }
-        .aspectRatio(2 / 3, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(LoreTheme.coverAspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous)
                 .stroke(LoreTheme.hairline, lineWidth: 0.5)
         }
-        .shadow(color: LoreTheme.ink.opacity(0.13), radius: 7, y: 4)
         .accessibilityHidden(true)
     }
 }

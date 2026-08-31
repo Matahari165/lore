@@ -45,6 +45,10 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         try await respond(to: promptBuilder.previousReadingRecap(for: context))
     }
 
+    func chat(_ context: LoreAIChatContext) async throws -> String {
+        try await respond(to: LoreAIChatPromptBuilder().chat(for: context))
+    }
+
     func respond(to prompt: LoreAIPrompt) async throws -> String {
         guard let rawKey = try keyStore.loadAPIKey() else { throw LoreAIError.missingAPIKey }
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,10 +64,9 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
                 model: OpenAIResponsesConfiguration.model,
                 store: false,
                 reasoning: .init(effort: "low"),
-                input: [
-                    .init(role: "developer", content: prompt.developer),
-                    .init(role: "user", content: prompt.user),
-                ]
+                input: [.init(role: "developer", content: prompt.developer)]
+                    + prompt.history.map { .init(role: $0.role.rawValue, content: $0.text) }
+                    + [.init(role: "user", content: prompt.user)]
             )
         )
 

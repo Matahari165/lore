@@ -7,11 +7,17 @@ final class BookRepository {
     private let context: ModelContext
     private let saveContext: (ModelContext) throws -> Void
     private let highlightRepository: HighlightRepository
+    private let conversationRepository: AIConversationRepository?
 
-    init(context: ModelContext, save: ((ModelContext) throws -> Void)? = nil) {
+    init(
+        context: ModelContext,
+        save: ((ModelContext) throws -> Void)? = nil,
+        conversationRepository: AIConversationRepository? = nil
+    ) {
         self.context = context
         saveContext = save ?? { try $0.save() }
         highlightRepository = HighlightRepository(context: context, save: save)
+        self.conversationRepository = conversationRepository
     }
 
     func add(_ book: BookRecord) throws {
@@ -107,6 +113,7 @@ final class BookRepository {
 
     func delete(_ book: BookRecord) throws {
         try highlightRepository.deleteHighlights(for: book.id, save: false)
+        try conversationRepository?.deleteConversations(for: book.id, save: false)
         context.delete(book)
         do {
             try saveContext(context)

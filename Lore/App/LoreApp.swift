@@ -8,7 +8,13 @@ struct LoreApp: App {
 
     init() {
         do {
-            container = try ModelContainer(for: BookRecord.self, ReadingSessionRecord.self, HighlightRecord.self)
+            container = try ModelContainer(
+                for: BookRecord.self,
+                ReadingSessionRecord.self,
+                HighlightRecord.self,
+                AIConversationRecord.self,
+                AIMessageRecord.self
+            )
             fileStore = try BookFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)
             try sessions.recoverOpenSessions(now: .now)
@@ -22,7 +28,11 @@ struct LoreApp: App {
             if ProcessInfo.processInfo.arguments.contains("-statisticsPreview") {
                 StatisticsScreen(state: .loaded(StatisticsPreviewData.snapshot))
             } else {
-                let books = BookRepository(context: container.mainContext)
+                let conversations = AIConversationRepository(context: container.mainContext)
+                let books = BookRepository(
+                    context: container.mainContext,
+                    conversationRepository: conversations
+                )
                 let sessions = ReadingSessionRepository(context: container.mainContext)
                 AppRootView(
                     initialTab: ProcessInfo.processInfo.arguments.contains("-statisticsTab") ? .statistics : .home,

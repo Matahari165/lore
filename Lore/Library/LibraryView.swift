@@ -83,7 +83,7 @@ struct LibraryView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 DailyGoalProgressView(state: dailyGoalState)
-                if let book = model.resumableBook { resumeSection(book) }
+                if !model.resumableBooks.isEmpty { resumeSection(model.resumableBooks) }
                 bookGrid(title: "Ajouts récents", books: model.recentlyImportedBooks)
             }
             .padding(.horizontal, LoreTheme.pageMargin).padding(.bottom, 32)
@@ -122,25 +122,59 @@ struct LibraryView: View {
         .background(LoreTheme.canvas)
     }
 
-    private func resumeSection(_ book: BookRecord) -> some View {
+    private func resumeSection(_ books: [BookRecord]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Reprendre").font(.title3.weight(.semibold))
-            Button { Task { await model.open(book) } } label: {
-                HStack(spacing: 18) {
-                    BookCoverView(book: book).frame(width: 92)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(book.title).font(.headline).foregroundStyle(LoreTheme.ink).lineLimit(2)
-                        if let author = book.author { Text(author).font(.subheadline).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1) }
-                        if let progression = book.lastProgression { Text(progression, format: .percent.precision(.fractionLength(0))).font(.caption.weight(.medium)).foregroundStyle(LoreTheme.secondaryInk) }
+            ForEach(books) { book in
+                Button { Task { await model.open(book) } } label: {
+                    HStack(spacing: 14) {
+                        BookCoverView(book: book).frame(width: 72)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(book.title).font(.headline).foregroundStyle(LoreTheme.ink).lineLimit(2)
+                            if let author = book.author {
+                                Text(author).font(.subheadline).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1)
+                            }
+                            if let progression = book.lastProgression {
+                                Text("Progression \(progression, format: .percent.precision(.fractionLength(0)))")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(LoreTheme.secondaryInk)
+                            }
+                            if let activityDate = model.recentActivityDate(for: book) {
+                                Text("Dernière lecture \(activityDate, format: .dateTime.day().month(.abbreviated).year())")
+                                    .font(.caption2)
+                                    .foregroundStyle(LoreTheme.secondaryInk)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if model.openingBookID == book.id { ProgressView() }
+                        else {
+                            Image(systemName: "play.fill")
+                                .font(.headline)
+                                .foregroundStyle(LoreTheme.ink)
+                                .frame(width: 44, height: 44)
+                                .background(LoreTheme.ink.opacity(0.08), in: Circle())
+                        }
                     }
-                    Spacer(minLength: 8)
-                    if model.openingBookID == book.id { ProgressView() }
-                    else { Image(systemName: "play.fill").font(.headline).foregroundStyle(LoreTheme.ink).frame(width: 44, height: 44).background(LoreTheme.ink.opacity(0.08), in: Circle()) }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Reprendre \(book.title)")
+                .accessibilityValue(resumeAccessibilityValue(for: book))
             }
-            .buttonStyle(.plain).accessibilityLabel("Reprendre \(book.title)")
         }
+    }
+
+    private func resumeAccessibilityValue(for book: BookRecord) -> String {
+        var details: [String] = []
+        if let author = book.author { details.append(author) }
+        if let progression = book.lastProgression {
+            details.append("progression \(progression.formatted(.percent.precision(.fractionLength(0))))")
+        }
+        if let date = model.recentActivityDate(for: book) {
+            details.append("dernière lecture \(date.formatted(.dateTime.day().month().year()))")
+        }
+        return details.joined(separator: ", ")
     }
 
     private func bookGrid(title: String, books: [BookRecord]) -> some View {

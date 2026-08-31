@@ -493,27 +493,7 @@ private struct StatisticsBookCover: View {
     let book: StatisticsBookSummary
 
     var body: some View {
-        Group {
-            if let data = book.coverData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    LoreTheme.ink
-                    Text(book.title.prefix(1).uppercased())
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(LoreTheme.canvas)
-                }
-            }
-        }
-        .aspectRatio(2 / 3, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous)
-                .stroke(LoreTheme.hairline, lineWidth: 0.5)
-        }
-        .accessibilityHidden(true)
+        BookCoverView(coverData: book.coverData, title: book.title)
     }
 }
 

@@ -35,30 +35,12 @@ struct LoreAIAdvancedPromptBuilderTests {
         }
     }
 
-    @Test func flashcardsBoundCountAndRequestExactNumber() throws {
-        let prompt = try builder.flashcards(for: .init(
-            title: "Livre",
-            readText: "Notions lues",
-            cardCount: 4
-        ))
-
-        #expect(prompt.developer.contains("exactement 4 cartes"))
-        #expect(throws: LoreAIError.invalidFlashcardCount) {
-            try builder.flashcards(for: .init(title: "Livre", readText: "Texte", cardCount: 13))
-        }
-    }
-
-    @Test func allAdvancedPromptsUseOnlyTheSuppliedReadContext() throws {
-        let characters = try builder.charactersAndConcepts(for: .init(
-            title: "Livre", chapterTitles: ["Un"], readText: "Personnage et notion"
-        ))
+    @Test func endingPromptUsesOnlyTheSuppliedReadContext() throws {
         let ending = try builder.endingDiscussion(for: .init(
             title: "Livre", readText: "Fin fournie", lastReadPositionDescription: "Fin"
         ))
 
-        #expect(characters.developer.contains("contexte lu"))
         #expect(ending.developer.contains("dernière position fournie"))
-        #expect(characters.user.contains("Personnage et notion"))
         #expect(ending.user.contains("Fin fournie"))
     }
 }

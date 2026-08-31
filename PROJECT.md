@@ -69,7 +69,7 @@ Permettre une boucle de lecture complète et simple :
 - Boutique de livres.
 - Comptes multiples et fonctions sociales.
 - Questions sur tout le livre.
-- Interface complète pour les résumés de chapitres, personnages/concepts et flashcards. *(Contrats et prompts prêts.)*
+- Interface générale de discussion avec le livre, incluant les résumés de chapitres et les questions sur le texte lu. *(Architecture validée ; interface à construire.)*
 - Recommandations avancées.
 - Interface complète de discussion et analyse de fin de livre. *(Contrat et prompt prêts.)*
 - Séries de jours et statistiques complexes.
@@ -160,9 +160,12 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
 - L’icône de Lore conserve uniquement le trait violet minimaliste formant un `L` plié dans Icon Composer : remplissage `none`, ombre désactivée et couche PNG RGBA transparente. Le matériau Liquid Glass reste appliqué au groupe ; iOS 26 peut toutefois ajouter son masque ou son arrière-plan système aux variantes irrégulières.
+- Les couvertures utilisent un cadre portrait commun et `scaledToFit` afin de rester entières, quelles que soient leurs proportions d’origine.
+- L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
-- Les services IA avancés couvrent le résumé de chapitre, les questions sur le texte lu, les personnages/concepts, les flashcards et la discussion de fin. Leur mise à disposition dans l’interface se fait progressivement après validation de chaque contexte anti-spoiler.
+- La prochaine surface IA est une conversation unique avec chaque livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
+- Lorsqu’un livre est explicitement terminé, l’utilisateur autorise Lore à sélectionner et envoyer à OpenAI des extraits pertinents provenant de l’ensemble du livre pour l’analyse finale. L’EPUB complet n’est pas envoyé en un seul bloc et aucun envoi ne se déclenche automatiquement.
 
 ## Décisions nécessitant une consultation
 
