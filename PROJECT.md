@@ -33,11 +33,14 @@ Permettre une boucle de lecture complète et simple :
 
 ### Lecteur
 
+- Navigation tactile : tiers gauche pour revenir, tiers droit pour avancer et tiers central pour afficher les commandes, adaptée au sens de lecture du livre.
 - Navigation par chapitres.
 - Réglages de police, taille du texte, interligne et thème clair ou sombre.
 - Reprise au passage exact.
 - Progression en pourcentage et par chapitres.
-- Création, modification et suppression de surlignages et de notes.
+- Sélection lisible en thème sombre avec les actions Copier, Surligner, Traduire et Définition.
+- Création et suppression de surlignages persistants, consultables depuis le lecteur avec retour direct au passage.
+- Création, modification et suppression de notes.
 - Mesure automatique du temps de lecture actif.
 - Arrêt du compteur lorsque l’application passe en arrière-plan ou après une période d’inactivité.
 
@@ -45,6 +48,7 @@ Permettre une boucle de lecture complète et simple :
 
 - Temps lu aujourd’hui, cette semaine et ce mois.
 - Calendrier des jours de lecture.
+- Objectif quotidien configurable en minutes, avec progression et confirmation lorsqu’il est atteint.
 - Historique visuel avec les couvertures.
 - Dates de début et de fin d’un livre.
 - Note personnelle sur 10.
@@ -70,7 +74,7 @@ Permettre une boucle de lecture complète et simple :
 - Flashcards.
 - Recommandations avancées.
 - Discussion et analyse globale de fin de livre.
-- Objectifs, séries de jours et statistiques complexes.
+- Séries de jours et statistiques complexes.
 
 ## Définition de terminé de la V1
 
@@ -81,9 +85,13 @@ La V1 est terminée lorsque :
 - le livre reste disponible après redémarrage ;
 - la lecture et la navigation entre chapitres fonctionnent ;
 - les réglages visuels sont conservés ;
+- les touches sur les tiers gauche et droit changent de page sans gêner la sélection du texte ;
 - la reprise revient au même passage ;
-- les surlignages et notes peuvent être créés, modifiés et supprimés ;
+- la sélection reste lisible en mode sombre et expose Copier, Surligner, Traduire et Définition ;
+- les surlignages peuvent être créés, retrouvés, ouverts et supprimés ;
+- les notes peuvent être créées, modifiées et supprimées ;
 - le temps actif est mesuré sans compter l’arrière-plan ni une longue inactivité ;
+- un objectif quotidien peut être défini et son état est calculé à partir du temps actif ;
 - les statistiques journalières et hebdomadaires correspondent aux sessions enregistrées ;
 - les statistiques mensuelles, le calendrier de lecture et l'historique avec couvertures correspondent aux sessions enregistrées ;
 - les dates de début et de fin d'un livre sont conservées correctement ;
@@ -137,11 +145,15 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - L’écran de lancement est la bibliothèque ; l’action « Reprendre » y reste visible lorsqu’une position de lecture existe.
 - Les préférences de lecture de la V1 sont globales : elles s’appliquent à tous les livres. Le lecteur utilise des valeurs par défaut sûres si elles sont absentes ou illisibles.
 - Le compteur passe en inactivité après 2 minutes sans interaction de lecture. Tourner une page, faire défiler le contenu ou agir sur un passage relance l’activité ; ouvrir les réglages ou revenir simplement au premier plan ne compte pas comme lecture.
+- L’objectif quotidien est global, facultatif, exprimé en minutes et borné de 5 à 180 minutes. Sa progression utilise les sessions locales exactes ; seul l’affichage est arrondi.
 - Les durées sont conservées avec leur précision réelle ; seul l’affichage utilisateur est arrondi en minutes.
 - Les statistiques utilisent le fuseau local de l’iPhone et une semaine commençant le lundi.
 - La date de début d’un livre correspond à sa première session réelle. La date de fin est enregistrée lorsque le livre est explicitement marqué comme terminé.
 - La note personnelle est un entier de 0 à 10.
 - Le lecteur utilise Liquid Glass natif pour ses commandes flottantes. Les réglages essentiels sont disponibles dans un panneau rapide, puis dans une page complète.
+- En mode paginé, les tiers gauche et droit du contenu changent de page ; le tiers central contrôle l’affichage des commandes. Le sens est inversé automatiquement pour un livre écrit de droite à gauche.
+- Les surlignages sont privés et locaux. Ils conservent le Locator Readium complet, le texte sélectionné, la date et la couleur afin de revenir au passage exact.
+- Le menu de sélection du lecteur conserve les outils système Copier, Traduire et Définition, puis ajoute Surligner.
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
 - L’icône de Lore est une page pliée minimaliste formant un `L` ivoire sur fond bleu nuit.
