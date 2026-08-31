@@ -75,6 +75,8 @@ Dernière mise à jour : 31 août 2026
 - Un appui long sur un passage surligné prépare une discussion IA avec ce passage. Les dix étoiles de notation tiennent sur une seule ligne.
 - Le lecteur propose des marges horizontales et verticales globales, ainsi qu’un vocabulaire local exportable avec retour au passage exact. La sélection temporaire sombre utilise un cyan clair opaque et des poignées assorties.
 - Un livre peut être retiré de Reprendre sans perdre sa progression. L’ouverture ne redécode plus la couverture et utilise une animation de page qui grandit depuis le bas, avec respect de Réduire les animations.
+- La section sous Hier est désormais limitée aux trois derniers livres réellement terminés. Les barres d’objectif et de lecture sont épaissies ; la progression du lecteur devient blanche en thème sombre.
+- L’animation d’ouverture et de fermeture prend la position globale de la pochette touchée comme origine, puis agrandit la surface Readium jusqu’au plein écran.
 
 ## En cours
 

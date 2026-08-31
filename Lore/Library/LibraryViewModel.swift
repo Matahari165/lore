@@ -57,6 +57,7 @@ final class LibraryViewModel {
         let readingStage: LoreAIReadingStage
         let conversationRepository: AIConversationRepository?
         let session: ReaderSessionController
+        let sourceFrame: CGRect?
 
         init(
             id: UUID,
@@ -64,6 +65,7 @@ final class LibraryViewModel {
             author: String? = nil,
             readingStage: LoreAIReadingStage = .inProgress,
             conversationRepository: AIConversationRepository? = nil,
+            sourceFrame: CGRect? = nil,
             session: ReaderSessionController
         ) {
             self.id = id
@@ -71,6 +73,7 @@ final class LibraryViewModel {
             self.author = author
             self.readingStage = readingStage
             self.conversationRepository = conversationRepository
+            self.sourceFrame = sourceFrame
             self.session = session
         }
     }
@@ -98,6 +101,7 @@ final class LibraryViewModel {
     private(set) var yesterdayReadingSummaryState: YesterdayReadingSummaryState = .noReading
     private(set) var lastReconciliationReport: ImportReconciliationReport?
     private var latestSessionActivityByBookID: [UUID: Date] = [:]
+    private var coverFramesByBookID: [UUID: CGRect] = [:]
     private var yesterdayActivity: YesterdayActivity?
 
     init(
@@ -177,16 +181,20 @@ final class LibraryViewModel {
     }
 
     var recentlyViewedBooks: [BookRecord] {
-        Array(books.compactMap { book -> (BookRecord, Date)? in
-            guard let activity = recentActivityDate(for: book) else { return nil }
-            return (book, activity)
-        }
+        Array(books.filter { $0.readingStatus == .finished }
         .sorted { lhs, rhs in
-            if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
-            return lhs.0.id.uuidString < rhs.0.id.uuidString
+            let left = lhs.finishedAt ?? .distantPast
+            let right = rhs.finishedAt ?? .distantPast
+            if left != right { return left > right }
+            return lhs.id.uuidString < rhs.id.uuidString
         }
         .prefix(3)
-        .map(\.0))
+        )
+    }
+
+    func recordCoverFrame(_ frame: CGRect, for bookID: UUID) {
+        guard frame.width > 0, frame.height > 0 else { return }
+        coverFramesByBookID[bookID] = frame
     }
 
     var yesterdayRecapRequestID: String {
@@ -276,6 +284,7 @@ final class LibraryViewModel {
                 author: book.author,
                 readingStage: book.readingStatus.loreAIStage,
                 conversationRepository: conversationRepository,
+                sourceFrame: coverFramesByBookID[book.id],
                 session: session
             )
         } catch {

@@ -167,6 +167,8 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les EPUB importés et les données de lecture restent actuellement dans le stockage privé local de Lore ; aucune synchronisation iCloud des fichiers ou des modèles SwiftData n’est encore activée.
 - Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
 - Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
+- La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.
+- L’animation du lecteur utilise la position réelle de la pochette touchée comme origine et rejoint ensuite le plein écran.
 - Les marges horizontales et verticales sont des préférences globales du lecteur, comme la typographie et l’interligne.
 - L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.

@@ -238,7 +238,7 @@ struct LibraryView: View {
                 HStack(spacing: 10) {
                     Button { Task { await model.open(book) } } label: {
                         HStack(spacing: 14) {
-                            BookCoverView(book: book).frame(width: 72)
+                            trackedCover(book, width: 72)
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(book.title).font(.headline).foregroundStyle(LoreTheme.ink).lineLimit(2)
                                 if let author = book.author {
@@ -321,7 +321,7 @@ struct LibraryView: View {
 
     private func recentlyViewedSection(_ books: [BookRecord]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Derniers livres vus")
+            Text("Derniers livres lus")
                 .font(.title3.weight(.semibold))
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: 3),
@@ -330,7 +330,7 @@ struct LibraryView: View {
             ) {
                 ForEach(books) { book in
                     Button { Task { await model.open(book) } } label: {
-                        BookCoverView(book: book)
+                        trackedCover(book)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Ouvrir \(book.title)")
@@ -343,7 +343,7 @@ struct LibraryView: View {
     private func bookButton(_ book: BookRecord) -> some View {
         Button { Task { await model.open(book) } } label: {
             VStack(alignment: .leading, spacing: 7) {
-                BookCoverView(book: book)
+                trackedCover(book)
                     .overlay {
                         if model.openingBookID == book.id {
                             LoreTheme.canvas.opacity(0.68)
@@ -418,6 +418,16 @@ struct LibraryView: View {
         « \(pending.highlight.text) »
         """
         discussionBook = pending.book
+    }
+
+    private func trackedCover(_ book: BookRecord, width: CGFloat? = nil) -> some View {
+        BookCoverView(book: book)
+            .frame(width: width)
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                model.recordCoverFrame(frame, for: book.id)
+            }
     }
 }
 

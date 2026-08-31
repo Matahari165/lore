@@ -55,8 +55,7 @@ struct DailyGoalProgressView: View {
                     .monospacedDigit()
             }
 
-            ProgressView(value: progress.visualFraction)
-                .tint(LoreTheme.ink)
+            LoreProgressBar(value: progress.visualFraction, height: 8)
 
             Text(progress.isReached ? "Objectif atteint" : "Encore \(progress.displayedRemainingMinutes) min")
                 .font(.caption)

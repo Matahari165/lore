@@ -35,21 +35,27 @@ struct ReaderScreen: View {
     }
 
     var body: some View {
-        ZStack {
-            readerBackground
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                readerBackground
+                    .ignoresSafeArea()
 
-            ReaderView(session: presentation.session)
+                ReaderView(session: presentation.session)
 
-            if showsControls {
-                controls
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+                if showsControls {
+                    controls
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleEffect(
+                x: presentationScale(in: geometry).width,
+                y: presentationScale(in: geometry).height,
+                anchor: .center
+            )
+            .offset(presentationOffset(in: geometry))
+            .opacity(readerPresentationState.opacity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scaleEffect(readerPresentationState.scale, anchor: .bottom)
-        .offset(y: readerPresentationState.verticalOffset)
-        .opacity(readerPresentationState.opacity)
         .preferredColorScheme(preferences.appearance == .dark ? .dark : .light)
         .statusBarHidden(!showsControls)
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
@@ -140,10 +146,11 @@ struct ReaderScreen: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        ProgressView(value: min(max(progression, 0), 1))
-                            .progressViewStyle(.linear)
-                            .tint(.accentColor)
-                            .frame(maxWidth: .infinity)
+                        LoreProgressBar(
+                            value: progression,
+                            fill: preferences.appearance == .dark ? .white : LoreTheme.ink,
+                            height: 7
+                        )
                         Text(progression, format: .percent.precision(.fractionLength(0)))
                             .font(.caption.monospacedDigit().weight(.medium))
                             .contentTransition(.numericText())
@@ -330,20 +337,24 @@ struct ReaderScreen: View {
             }
         }
 
-        var scale: CGFloat {
-            switch self {
-            case .appearing, .closing: 0.14
-            case .visible: 1
-            }
-        }
+    }
 
-        var verticalOffset: CGFloat {
-            switch self {
-            case .appearing, .closing: 44
-            case .visible: 0
-            }
+    private func presentationScale(in geometry: GeometryProxy) -> CGSize {
+        guard readerPresentationState != .visible, let source = presentation.sourceFrame else {
+            return CGSize(width: 1, height: 1)
         }
+        return CGSize(
+            width: max(0.08, source.width / max(geometry.size.width, 1)),
+            height: max(0.08, source.height / max(geometry.size.height, 1))
+        )
+    }
 
+    private func presentationOffset(in geometry: GeometryProxy) -> CGSize {
+        guard readerPresentationState != .visible, let source = presentation.sourceFrame else {
+            return CGSize(width: 0, height: readerPresentationState == .visible ? 0 : 44)
+        }
+        let container = geometry.frame(in: .global)
+        return CGSize(width: source.midX - container.midX, height: source.midY - container.midY)
     }
 
     private var readerBackground: Color {
