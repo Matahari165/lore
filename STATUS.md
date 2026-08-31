@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 30 août 2026
+Dernière mise à jour : 31 août 2026
 
 ## Terminé
 
@@ -11,7 +11,7 @@ Dernière mise à jour : 30 août 2026
 - Organisation initiale du travail et responsabilités des agents formalisées dans `AGENTS.md`.
 - Périmètre de la V1 validé et consigné dans `PROJECT.md`.
 - Dépôt Git initialisé sur la branche `chore/project-foundation`.
-- Appareil de référence confirmé : iPhone 13, avec iOS 17 comme version minimale.
+- Appareil de référence confirmé : iPhone 13, avec iOS 26 comme version minimale.
 - Quatre conversations spécialisées actives et isolées : iOS, EPUB/données/iCloud, UI/UX et QA.
 - Architecture locale du premier parcours arrêtée : SwiftUI, SwiftData, fichiers privés dans Application Support et Readium Swift Toolkit 3.11.
 - Projet Xcode iPhone créé et première implémentation locale ajoutée : import depuis Fichiers, copie atomique, métadonnées et couverture, bibliothèque, lecteur et sauvegarde du Locator complet.
@@ -34,15 +34,19 @@ Dernière mise à jour : 30 août 2026
 - Les commandes du lecteur utilisent les événements de toucher Readium et des barres limitées au haut et au bas de l’écran afin de préserver la sélection native et les gestes de pagination.
 - Les tests de préférences, bornes, traduction Readium, sommaire et navigation ont été ajoutés et leur cible compile ; leur exécution reste bloquée par le lanceur XCTest du simulateur.
 - Le contrat de données de l’écran Statistiques est raccordé aux vraies sessions et aux livres : totaux exacts, jours de lecture du mois, historique en cours/terminé avec couverture, première session réelle, fin explicite et note entière 0–10. L’interface reste dans son lot séparé.
+- La navigation comporte trois onglets synchronisés autour d’un seul état : Accueil, Bibliothèque et Statistiques.
+- L’Accueil présente la reprise et les ajouts récents. La Bibliothèque permet la recherche, les filtres Tous / À lire / En cours / Terminés et le tri par ajout, titre, auteur ou progression, ascendant ou descendant.
+- Le sélecteur Fichiers accepte plusieurs EPUB ; les imports sont traités séquentiellement, les succès partiels sont conservés et les erreurs sont récapitulées fichier par fichier.
+- Le lecteur utilise Liquid Glass natif pour des commandes flottantes discrètes, avec réglages rapides puis page complète, réduction des animations/transparence et progression réactive.
+- L’icône détaillée a été remplacée par une page pliée minimaliste formant un `L`.
+- La compilation intégrée de l’application et de sa cible de tests réussit avec Xcode 26.6 et iOS Simulator 26.5.
+- Le nouvel Accueil et la barre des trois onglets ont été vérifiés visuellement sur le simulateur `Lore iPhone 13`, en mode sombre.
 
 ## En cours
 
-- Vérification réelle du parcours import → lecture → fermeture → reprise dans un simulateur iPhone 13 ou sur appareil.
-- Vérification visuelle et accessibilité au format `390 × 844`.
-- Développement parallèle de la prochaine tranche : réglages et sommaire du lecteur par IOS / ARCHITECTURE APPLE.
-- Développement parallèle du timer actif, des sessions et des agrégations locales par EPUB / DONNÉES / ICLOUD.
-- Conception et implémentation du premier écran Historique & statistiques par UI / UX LECTURE.
-- Diagnostic du clone de tests Xcode et préparation de la matrice de régression par QA / REVIEW.
+- Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
+- Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
+- Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 
 ## À faire
 

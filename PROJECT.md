@@ -23,9 +23,12 @@ Permettre une boucle de lecture complète et simple :
 
 ### Bibliothèque
 
-- Import de fichiers EPUB sans protection DRM depuis l’app Fichiers.
+- Import simultané d’un ou plusieurs fichiers EPUB sans protection DRM depuis l’app Fichiers.
 - Affichage de la couverture, du titre et de l’auteur.
 - Statuts : à lire, en cours et terminé.
+- Trois onglets principaux : Accueil, Bibliothèque et Statistiques.
+- Recherche et tri par ajout, titre, auteur ou progression, dans les deux ordres.
+- Filtres de catégorie : tous, à lire, en cours et terminés.
 - Conservation de la bibliothèque après fermeture de l’application.
 
 ### Lecteur
@@ -109,7 +112,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - EPUB sans DRM uniquement dans la V1.
 - Un EPUB n’a pas de nombre de pages fixe : la référence principale est le pourcentage et les chapitres lus.
 - Interface lisible, accessible et optimisée pour 390 × 844.
-- Version minimale : iOS 17, compatible avec l'iPhone 13 utilisé pour Lore.
+- Version minimale : iOS 26, correspondant à l'iPhone 13 utilisé pour Lore.
 - Fonctionnement utile même sans connexion, sauf fonction IA externe éventuelle.
 - Aucun service payant, déploiement ou envoi de données externe sans autorisation explicite.
 - Pas de complexité ou de dépendance sans bénéfice clair.
@@ -119,7 +122,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Nom du projet : Lore.
 - Produit personnel, sans comptes multiples.
 - Développement iPhone en premier ; Mac reporté.
-- Appareil de référence : iPhone 13 ; version minimale : iOS 17.
+- Appareil de référence : iPhone 13 ; version minimale : iOS 26.
 - Boucle principale de V1 : importer, lire, reprendre, annoter et mesurer.
 - Progression fondée sur le pourcentage et les chapitres, pas sur un nombre de pages fixe.
 - Synchronisation via iCloud.
@@ -138,6 +141,10 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les statistiques utilisent le fuseau local de l’iPhone et une semaine commençant le lundi.
 - La date de début d’un livre correspond à sa première session réelle. La date de fin est enregistrée lorsque le livre est explicitement marqué comme terminé.
 - La note personnelle est un entier de 0 à 10.
+- Le lecteur utilise Liquid Glass natif pour ses commandes flottantes. Les réglages essentiels sont disponibles dans un panneau rapide, puis dans une page complète.
+- La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
+- Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
+- L’icône de Lore est une page pliée minimaliste formant un `L` ivoire sur fond bleu nuit.
 
 ## Décisions nécessitant une consultation
 
