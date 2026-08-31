@@ -1,5 +1,5 @@
 {
-  "fill" : "system-dark",
+  "fill" : "none",
   "groups" : [
     {
       "layers" : [
@@ -9,7 +9,7 @@
         }
       ],
       "shadow" : {
-        "kind" : "neutral",
+        "kind" : "none",
         "opacity" : 0.5
       },
       "translucency" : {

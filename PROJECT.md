@@ -159,7 +159,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le résumé quotidien porte uniquement sur le jour civil précédent, utilise les premier et dernier Locator enregistrés et n’est présenté qu’une fois par livre pendant la journée locale.
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
-- L’icône de Lore conserve le trait violet minimaliste formant un `L` plié et utilise désormais le matériau Liquid Glass d’Icon Composer sur un fond système sombre, d’après le rendu validé.
+- L’icône de Lore conserve uniquement le trait violet minimaliste formant un `L` plié dans Icon Composer : remplissage `none`, ombre désactivée et couche PNG RGBA transparente. Le matériau Liquid Glass reste appliqué au groupe ; iOS 26 peut toutefois ajouter son masque ou son arrière-plan système aux variantes irrégulières.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
 - Les services IA avancés couvrent le résumé de chapitre, les questions sur le texte lu, les personnages/concepts, les flashcards et la discussion de fin. Leur mise à disposition dans l’interface se fait progressivement après validation de chaque contexte anti-spoiler.
