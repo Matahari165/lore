@@ -53,6 +53,32 @@ struct ReaderPreferencesTests {
         #expect(preferences.publisherStyles == nil)
     }
 
+    @Test func quickFontAdjustmentsUseStableStepsAndRespectBounds() {
+        var preferences = ReaderPreferences.default
+
+        preferences.adjustFontSize(by: 1)
+        #expect(preferences.fontSize == 1.1)
+
+        preferences.adjustFontSize(by: 100)
+        #expect(preferences.fontSize == ReaderPreferences.fontSizeRange.upperBound)
+
+        preferences.adjustFontSize(by: -100)
+        #expect(preferences.fontSize == ReaderPreferences.fontSizeRange.lowerBound)
+    }
+
+    @Test func resetRestoresEveryReaderPreference() {
+        var preferences = ReaderPreferences(
+            fontSize: 1.7,
+            typeface: .sansSerif,
+            lineHeight: 1.8,
+            appearance: .dark
+        )
+
+        preferences.reset()
+
+        #expect(preferences == .default)
+    }
+
     @Test func chapterTreeKeepsDepthFallbackTitlesAndUniqueStructuralIDs() {
         let repeatedHref = "chapter.xhtml"
         let chapters = ReaderChapter.flatten([

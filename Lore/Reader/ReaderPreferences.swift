@@ -2,6 +2,10 @@ import Foundation
 import ReadiumNavigator
 
 struct ReaderPreferences: Codable, Equatable, Sendable {
+    static let fontSizeRange = 0.8 ... 2.0
+    static let fontSizeStep = 0.1
+    static let lineHeightRange = 1.0 ... 2.0
+
     enum Typeface: String, Codable, CaseIterable, Sendable {
         case publisher
         case serif
@@ -40,8 +44,17 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
     var appearance: Appearance = .light
 
     mutating func normalize() {
-        fontSize = fontSize.clamped(to: 0.8 ... 2.0)
-        lineHeight = lineHeight?.clamped(to: 1.0 ... 2.0)
+        fontSize = fontSize.clamped(to: Self.fontSizeRange)
+        lineHeight = lineHeight?.clamped(to: Self.lineHeightRange)
+    }
+
+    mutating func adjustFontSize(by steps: Int) {
+        fontSize += Double(steps) * Self.fontSizeStep
+        normalize()
+    }
+
+    mutating func reset() {
+        self = .default
     }
 
     var readiumValue: EPUBPreferences {

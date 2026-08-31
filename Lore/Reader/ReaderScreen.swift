@@ -4,9 +4,16 @@ struct ReaderScreen: View {
     let presentation: LibraryViewModel.ReaderPresentation
     let onRequestClose: @MainActor () async -> Void
 
-    @State private var showsControls = true
+    @State private var showsControls = false
+    @State private var showsQuickPreferences = false
+    @State private var showsAllPreferences = false
     @State private var presentedPanel: Panel?
     @State private var preferences: ReaderPreferences
+    @State private var progression: Double
+    @Namespace private var glassNamespace
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     init(
         presentation: LibraryViewModel.ReaderPresentation,
@@ -15,6 +22,7 @@ struct ReaderScreen: View {
         self.presentation = presentation
         self.onRequestClose = onRequestClose
         _preferences = State(initialValue: presentation.session.preferences)
+        _progression = State(initialValue: presentation.session.currentProgression)
     }
 
     var body: some View {
@@ -22,7 +30,8 @@ struct ReaderScreen: View {
             ReaderView(session: presentation.session)
 
             if showsControls {
-                controls.transition(.opacity)
+                controls
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
             }
         }
         .preferredColorScheme(preferences.appearance == .dark ? .dark : .light)
@@ -32,50 +41,85 @@ struct ReaderScreen: View {
         .interactiveDismissDisabled(true)
         .onAppear {
             presentation.session.setTapHandler {
-                withAnimation(.easeOut(duration: 0.18)) { showsControls.toggle() }
+                animateChrome {
+                    showsControls.toggle()
+                    if !showsControls { showsQuickPreferences = false }
+                }
             }
+            presentation.session.setProgressionHandler { progression = $0 }
         }
-        .onDisappear { presentation.session.setTapHandler(nil) }
+        .onDisappear {
+            presentation.session.setTapHandler(nil)
+            presentation.session.setProgressionHandler(nil)
+        }
         .sheet(item: $presentedPanel) { panel in
             switch panel {
             case .chapters:
                 ReaderChaptersSheet(chapters: presentation.session.chapters, onSelect: openChapter)
-            case .preferences:
-                ReaderPreferencesSheet(preferences: $preferences, onChange: applyPreferences)
             }
+        }
+        .fullScreenCover(isPresented: $showsAllPreferences) {
+            ReaderPreferencesPage(preferences: $preferences, onChange: applyPreferences)
         }
     }
 
     private var controls: some View {
         VStack {
-            HStack(spacing: 12) {
-                controlButton("Fermer le lecteur", systemImage: "chevron.down") { closeReader() }
+            HStack(spacing: 8) {
+                controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
                 Text(presentation.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote.weight(.medium))
                     .lineLimit(1)
                 Spacer(minLength: 8)
             }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .readerGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous), reduceTransparency: reduceTransparency)
+            .padding(.horizontal, 12)
+
             Spacer()
-            HStack(spacing: 20) {
-                controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
-                controlButton("Réglages de lecture", systemImage: "textformat.size") {
-                    presentedPanel = .preferences
+
+            VStack(spacing: 10) {
+                if showsQuickPreferences {
+                    ReaderQuickPreferences(
+                        preferences: $preferences,
+                        reduceTransparency: reduceTransparency,
+                        onChange: applyPreferences,
+                        onShowAll: {
+                            animateChrome { showsQuickPreferences = false }
+                            showsAllPreferences = true
+                        }
+                    )
+                    .glassEffectID("reader-quick-preferences", in: glassNamespace)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                }
+
+                GlassEffectContainer(spacing: 12) {
+                    HStack(spacing: 4) {
+                        progressLabel
+                        Divider().frame(height: 20)
+                        controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
+                        controlButton("Réglages de lecture", systemImage: "textformat") {
+                            animateChrome { showsQuickPreferences.toggle() }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 52)
+                    .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency, interactive: true)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
         }
         .foregroundStyle(.primary)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(alignment: .top) { barMaterial }
-        .background(alignment: .bottom) { barMaterial }
+        .padding(.vertical, 8)
     }
 
-    private var barMaterial: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .frame(height: 64)
-            .ignoresSafeArea(edges: .horizontal)
+    private var progressLabel: some View {
+        Text(progression, format: .percent.precision(.fractionLength(0)))
+            .font(.caption.monospacedDigit().weight(.medium))
+            .contentTransition(.numericText())
+            .frame(minWidth: 52, minHeight: 44)
+            .accessibilityLabel("Progression")
     }
 
     private func controlButton(
@@ -89,6 +133,14 @@ struct ReaderScreen: View {
                 .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityLabel(label)
+    }
+
+    private func animateChrome(_ changes: () -> Void) {
+        if reduceMotion {
+            changes()
+        } else {
+            withAnimation(.easeOut(duration: 0.2), changes)
+        }
     }
 
     private func applyPreferences(_ newValue: ReaderPreferences) {
@@ -114,12 +166,74 @@ struct ReaderScreen: View {
 
     private enum Panel: String, Identifiable {
         case chapters
-        case preferences
         var id: String { rawValue }
     }
 }
 
-private struct ReaderPreferencesSheet: View {
+private struct ReaderQuickPreferences: View {
+    @Binding var preferences: ReaderPreferences
+    let reduceTransparency: Bool
+    let onChange: (ReaderPreferences) -> Void
+    let onShowAll: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                preferenceButton("Réduire la taille du texte", title: "A−") {
+                    preferences.adjustFontSize(by: -1)
+                    commit()
+                }
+                Text(preferences.fontSize, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption.monospacedDigit())
+                    .frame(minWidth: 48)
+                    .accessibilityLabel("Taille du texte")
+                preferenceButton("Augmenter la taille du texte", title: "A+") {
+                    preferences.adjustFontSize(by: 1)
+                    commit()
+                }
+                Divider().frame(height: 20)
+                preferenceButton("Thème clair", systemImage: "sun.max", selected: preferences.appearance == .light) {
+                    preferences.appearance = .light
+                    commit()
+                }
+                preferenceButton("Thème sombre", systemImage: "moon", selected: preferences.appearance == .dark) {
+                    preferences.appearance = .dark
+                    commit()
+                }
+            }
+            Button("Tous les réglages", systemImage: "slider.horizontal.3", action: onShowAll)
+                .font(.footnote.weight(.medium))
+                .frame(minHeight: 44)
+        }
+        .padding(8)
+        .readerGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous), reduceTransparency: reduceTransparency)
+    }
+
+    private func preferenceButton(
+        _ label: String,
+        title: String? = nil,
+        systemImage: String? = nil,
+        selected: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if let title { Text(title) }
+                else if let systemImage { Image(systemName: systemImage) }
+            }
+            .font(.body.weight(.medium))
+            .frame(minWidth: 44, minHeight: 44)
+            .background(selected ? Color.primary.opacity(0.12) : .clear, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func commit() { onChange(preferences) }
+}
+
+private struct ReaderPreferencesPage: View {
     @Binding var preferences: ReaderPreferences
     let onChange: (ReaderPreferences) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -130,7 +244,7 @@ private struct ReaderPreferencesSheet: View {
                 Section("Texte") {
                     HStack {
                         Button("Réduire la taille du texte", systemImage: "textformat.size.smaller") {
-                            preferences.fontSize = max(0.8, preferences.fontSize - 0.1)
+                            preferences.adjustFontSize(by: -1)
                             commit()
                         }
                         .labelStyle(.iconOnly)
@@ -141,7 +255,7 @@ private struct ReaderPreferencesSheet: View {
                             .accessibilityLabel("Taille du texte, \(Int((preferences.fontSize * 100).rounded())) pour cent")
                         Spacer()
                         Button("Augmenter la taille du texte", systemImage: "textformat.size.larger") {
-                            preferences.fontSize = min(2.0, preferences.fontSize + 0.1)
+                            preferences.adjustFontSize(by: 1)
                             commit()
                         }
                         .labelStyle(.iconOnly)
@@ -166,7 +280,7 @@ private struct ReaderPreferencesSheet: View {
                         Slider(value: Binding(
                             get: { preferences.lineHeight ?? 1.4 },
                             set: { preferences.lineHeight = $0 }
-                        ), in: 1.0 ... 2.0, step: 0.1)
+                        ), in: ReaderPreferences.lineHeightRange, step: 0.1)
                         .onChange(of: preferences.lineHeight) { _, _ in commit() }
                         if preferences.lineHeight != nil {
                             Button("Utiliser l’interligne du livre") {
@@ -186,8 +300,15 @@ private struct ReaderPreferencesSheet: View {
                     .pickerStyle(.segmented)
                     .onChange(of: preferences.appearance) { _, _ in commit() }
                 }
+
+                Section {
+                    Button("Réinitialiser les réglages", role: .destructive) {
+                        preferences.reset()
+                        commit()
+                    }
+                }
             }
-            .navigationTitle("Lecture")
+            .navigationTitle("Réglages de lecture")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -195,10 +316,25 @@ private struct ReaderPreferencesSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
     }
 
     private func commit() { onChange(preferences) }
+}
+
+private extension View {
+    @ViewBuilder
+    func readerGlass<S: Shape>(
+        in shape: S,
+        reduceTransparency: Bool,
+        interactive: Bool = false
+    ) -> some View {
+        if reduceTransparency {
+            background(Color(uiColor: .systemBackground).opacity(0.96), in: shape)
+                .overlay(shape.stroke(Color.primary.opacity(0.16), lineWidth: 0.5))
+        } else {
+            glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        }
+    }
 }
 
 private struct ReaderChaptersSheet: View {

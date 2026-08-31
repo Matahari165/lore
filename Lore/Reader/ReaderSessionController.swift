@@ -144,6 +144,15 @@ final class ReaderSessionController {
         navigatorDelegate?.onTap = handler
     }
 
+    func setProgressionHandler(_ handler: (@MainActor (Double) -> Void)?) {
+        navigatorDelegate?.onProgressionChange = handler
+        handler?(currentProgression)
+    }
+
+    var currentProgression: Double {
+        locationProvider.currentLocation?.locations.totalProgression ?? 0
+    }
+
     @discardableResult
     func go(to chapter: ReaderChapter) async -> Bool {
         await readerController?.go(to: chapter.link, options: .animated) ?? false
@@ -215,6 +224,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     private let onError: @MainActor (Error) -> Void
     private var previousLocation: Locator?
     var onTap: (@MainActor () -> Void)?
+    var onProgressionChange: (@MainActor (Double) -> Void)?
 
     init(
         positionController: ReadingPositionController,
@@ -228,6 +238,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
 
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         positionController.record(locator)
+        onProgressionChange?(locator.locations.totalProgression ?? 0)
         defer { previousLocation = locator }
         guard let previousLocation, previousLocation != locator else { return }
         do {
@@ -238,6 +249,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     }
 
     func navigator(_ navigator: Navigator, didJumpTo locator: Locator) {
+        onProgressionChange?(locator.locations.totalProgression ?? 0)
         do {
             try readingActivity.recordReadingInteraction()
         } catch {

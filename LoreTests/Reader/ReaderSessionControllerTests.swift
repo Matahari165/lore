@@ -105,6 +105,18 @@ struct ReaderSessionControllerTests {
         #expect(controller.openedLinks.map(\.href) == ["chapter.xhtml"])
     }
 
+    @Test func progressionSubscriptionImmediatelyPublishesCurrentLocator() {
+        let session = ReaderSessionController(
+            locationProvider: LocationProviderSpy(locator: makeLocator(0.42)),
+            positionController: PositionManagerSpy()
+        )
+        var received: [Double] = []
+
+        session.setProgressionHandler { received.append($0) }
+
+        #expect(received == [0.42])
+    }
+
     private func makeLocator(_ progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
