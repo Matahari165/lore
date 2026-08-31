@@ -69,6 +69,25 @@ struct BookRepositoryTests {
         #expect(try repository.books().isEmpty)
     }
 
+    @Test func derivesPersistentReadingCategoriesFromSavedProgressAndCompletion() {
+        let unread = BookRecord(title: "Unread", relativeFilePath: "unread.epub")
+        let active = BookRecord(
+            title: "Active",
+            relativeFilePath: "active.epub",
+            lastLocatorJSON: Data("{}".utf8),
+            lastProgression: 0.25
+        )
+        let finished = BookRecord(
+            title: "Finished",
+            relativeFilePath: "finished.epub",
+            finishedAt: Date(timeIntervalSince1970: 10)
+        )
+
+        #expect(unread.readingStatus == .toRead)
+        #expect(active.readingStatus == .inProgress)
+        #expect(finished.readingStatus == .finished)
+    }
+
     private func makeRepository() throws -> RepositoryFixture {
         try RepositoryFixture()
     }

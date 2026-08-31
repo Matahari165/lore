@@ -60,6 +60,26 @@ final class BookRecord {
         get { BookImportState(rawValue: importStateRawValue) ?? .recoveryRequired }
         set { importStateRawValue = newValue.rawValue }
     }
+
+    var readingStatus: BookReadingStatus {
+        if finishedAt != nil { return .finished }
+        if lastLocatorJSON != nil || (lastProgression ?? 0) > 0 { return .inProgress }
+        return .toRead
+    }
+}
+
+enum BookReadingStatus: String, CaseIterable, Sendable {
+    case toRead
+    case inProgress
+    case finished
+
+    var title: String {
+        switch self {
+        case .toRead: "À lire"
+        case .inProgress: "En cours"
+        case .finished: "Terminés"
+        }
+    }
 }
 
 enum BookImportState: String, Codable, Sendable {

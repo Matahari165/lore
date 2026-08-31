@@ -2,20 +2,18 @@ import SwiftUI
 
 struct AppRootView: View {
     enum Tab: Hashable {
+        case home
         case library
         case statistics
     }
 
     @State private var selectedTab: Tab
+    @State private var libraryModel: LibraryViewModel
 
-    let bookRepository: BookRepository
-    let sessionRepository: ReadingSessionRepository
     let statisticsAdapter: StatisticsDataAdapter
-    let fileStore: BookFileStore
-    let publicationService: ReadiumPublicationService
 
     init(
-        initialTab: Tab = .library,
+        initialTab: Tab = .home,
         bookRepository: BookRepository,
         sessionRepository: ReadingSessionRepository,
         statisticsAdapter: StatisticsDataAdapter,
@@ -23,20 +21,29 @@ struct AppRootView: View {
         publicationService: ReadiumPublicationService
     ) {
         _selectedTab = State(initialValue: initialTab)
-        self.bookRepository = bookRepository
-        self.sessionRepository = sessionRepository
+        _libraryModel = State(initialValue: LibraryViewModel(
+            repository: bookRepository,
+            sessionRepository: sessionRepository,
+            fileStore: fileStore,
+            publicationService: publicationService
+        ))
         self.statisticsAdapter = statisticsAdapter
-        self.fileStore = fileStore
-        self.publicationService = publicationService
     }
 
     var body: some View {
+        @Bindable var libraryModel = libraryModel
+
         TabView(selection: $selectedTab) {
             LibraryView(
-                repository: bookRepository,
-                sessionRepository: sessionRepository,
-                fileStore: fileStore,
-                publicationService: publicationService
+                mode: .home,
+                model: libraryModel
+            )
+            .tabItem { Label("Accueil", systemImage: "house") }
+            .tag(Tab.home)
+
+            LibraryView(
+                mode: .library,
+                model: libraryModel
             )
             .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
             .tag(Tab.library)
@@ -49,5 +56,26 @@ struct AppRootView: View {
             .tag(Tab.statistics)
         }
         .loreCanvas()
+        .alert("Importation terminée", isPresented: Binding(
+            get: { libraryModel.importSummary != nil },
+            set: { if !$0 { libraryModel.importSummary = nil } }
+        )) {
+            Button("OK", role: .cancel) { libraryModel.importSummary = nil }
+        } message: {
+            Text(libraryModel.importSummary?.message ?? "")
+        }
+        .alert("Impossible de continuer", isPresented: Binding(
+            get: { libraryModel.errorMessage != nil },
+            set: { if !$0 { libraryModel.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { libraryModel.errorMessage = nil }
+        } message: {
+            Text(libraryModel.errorMessage ?? "")
+        }
+        .fullScreenCover(item: $libraryModel.readerPresentation) { presentation in
+            ReaderScreen(presentation: presentation) {
+                await libraryModel.closeReader()
+            }
+        }
     }
 }

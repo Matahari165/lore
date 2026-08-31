@@ -25,7 +25,7 @@ struct LoreApp: App {
                 let books = BookRepository(context: container.mainContext)
                 let sessions = ReadingSessionRepository(context: container.mainContext)
                 AppRootView(
-                    initialTab: ProcessInfo.processInfo.arguments.contains("-statisticsTab") ? .statistics : .library,
+                    initialTab: ProcessInfo.processInfo.arguments.contains("-statisticsTab") ? .statistics : .home,
                     bookRepository: books,
                     sessionRepository: sessions,
                     statisticsAdapter: StatisticsDataAdapter(context: container.mainContext),
