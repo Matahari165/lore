@@ -29,6 +29,7 @@ enum StatisticsPreviewData {
                 progress: 0.42,
                 startedAt: date(2026, 7, 19),
                 finishedAt: nil,
+                readingYear: nil,
                 rating: nil
             ),
             StatisticsBookSummary(
@@ -39,6 +40,7 @@ enum StatisticsPreviewData {
                 progress: 0.18,
                 startedAt: date(2026, 8, 7),
                 finishedAt: nil,
+                readingYear: nil,
                 rating: nil
             )
         ],
@@ -51,6 +53,7 @@ enum StatisticsPreviewData {
                 progress: 1,
                 startedAt: date(2026, 8, 3),
                 finishedAt: date(2026, 8, 24),
+                readingYear: 2026,
                 rating: 9
             )
         ]

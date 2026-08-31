@@ -6,6 +6,7 @@ struct StatisticsScreen: View {
     var dailyGoalState: DailyGoalState = .disabled
     var onRetry: () -> Void = {}
     var onOpenLibrary: () -> Void = {}
+    var onOpenActivityChart: () -> Void = {}
     var onChangeMonth: (Int) -> Void = { _ in }
     var onSelectBook: (StatisticsBookSummary) -> Void = { _ in }
 
@@ -19,6 +20,7 @@ struct StatisticsScreen: View {
                     StatisticsContent(
                         snapshot: snapshot,
                         dailyGoalState: dailyGoalState,
+                        onOpenActivityChart: onOpenActivityChart,
                         onChangeMonth: onChangeMonth,
                         onSelectBook: onSelectBook
                     )
@@ -28,8 +30,15 @@ struct StatisticsScreen: View {
                     errorContent(message)
                 }
             }
-            .navigationTitle("Activité")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("Activité")
+                        .font(.title2.weight(.bold))
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
         }
         .loreCanvas()
     }
@@ -55,7 +64,7 @@ struct StatisticsScreen: View {
 
     private var emptyContent: some View {
         VStack(spacing: 16) {
-            DailyGoalProgressView(state: dailyGoalState)
+            DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
                 .padding(.horizontal, LoreTheme.pageMargin)
             ContentUnavailableView {
                 Label("Aucune lecture enregistrée", systemImage: "clock")
@@ -87,13 +96,14 @@ struct StatisticsScreen: View {
 private struct StatisticsContent: View {
     let snapshot: StatisticsSnapshot
     let dailyGoalState: DailyGoalState
+    let onOpenActivityChart: () -> Void
     let onChangeMonth: (Int) -> Void
     let onSelectBook: (StatisticsBookSummary) -> Void
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                DailyGoalProgressView(state: dailyGoalState)
+                DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
                 StatisticsMetrics(
                     today: snapshot.todayDuration,
                     week: snapshot.weekDuration,
@@ -106,6 +116,11 @@ private struct StatisticsContent: View {
                     onChangeMonth: onChangeMonth
                 )
 
+                FinishedBooksSinceYearStart(
+                    books: snapshot.finishedBooks,
+                    onSelectBook: onSelectBook
+                )
+
                 if !snapshot.inProgressBooks.isEmpty {
                     StatisticsBookList(
                         title: "En cours",
@@ -114,12 +129,6 @@ private struct StatisticsContent: View {
                     )
                 }
 
-                if !snapshot.finishedBooks.isEmpty {
-                    FinishedBooksArchive(
-                        books: snapshot.finishedBooks,
-                        onSelectBook: onSelectBook
-                    )
-                }
             }
             .padding(.horizontal, LoreTheme.pageMargin)
             .padding(.bottom, 32)
@@ -128,87 +137,50 @@ private struct StatisticsContent: View {
     }
 }
 
-private struct FinishedBooksArchive: View {
+private struct FinishedBooksSinceYearStart: View {
     let books: [StatisticsBookSummary]
     let onSelectBook: (StatisticsBookSummary) -> Void
-    @State private var selectedYear: Int?
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 74, maximum: 96), spacing: 16, alignment: .top)
-    ]
-
-    private var calendar: Calendar { .autoupdatingCurrent }
-
-    private var availableYears: [Int] {
-        Set(books.compactMap { book in
-            book.finishedAt.map { calendar.component(.year, from: $0) }
-        }).sorted(by: >)
-    }
-
-    private var displayedGroups: [(year: Int, books: [StatisticsBookSummary])] {
-        availableYears.compactMap { year in
-            guard selectedYear == nil || selectedYear == year else { return nil }
-            let matches = books.filter { book in
-                book.finishedAt.map { calendar.component(.year, from: $0) == year } ?? false
+    private var booksReadSinceJanuary2026: [StatisticsBookSummary] {
+        let calendar = Calendar.autoupdatingCurrent
+        return books
+            .filter { book in
+                let year = book.readingYear
+                    ?? book.finishedAt.map { calendar.component(.year, from: $0) }
+                return (year ?? 0) >= 2026
             }
-            return matches.isEmpty ? nil : (year, matches)
-        }
+            .sorted { ($0.finishedAt ?? .distantPast) > ($1.finishedAt ?? .distantPast) }
     }
 
+    @ViewBuilder
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Livres terminés")
+        if !booksReadSinceJanuary2026.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Livres lus depuis janvier 2026")
                     .font(.title3.weight(.semibold))
-                Spacer()
-                Menu {
-                    Button("Toutes les années") { selectedYear = nil }
-                    ForEach(availableYears, id: \.self) { year in
-                        Button(String(year)) { selectedYear = year }
-                    }
-                } label: {
-                    Label(selectedYear.map(String.init) ?? "Toutes", systemImage: "calendar")
-                        .font(.subheadline.weight(.medium))
-                }
-                .accessibilityLabel("Filtrer les livres terminés par année")
-                .accessibilityValue(selectedYear.map(String.init) ?? "Toutes les années")
-            }
+                    .accessibilityAddTraits(.isHeader)
 
-            ForEach(displayedGroups, id: \.year) { group in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(String(group.year))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(LoreTheme.secondaryInk)
-                        .accessibilityAddTraits(.isHeader)
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
-                        ForEach(group.books) { book in
-                            Button { onSelectBook(book) } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    StatisticsBookCover(book: book)
-                                    Text(book.title)
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(LoreTheme.ink)
-                                        .lineLimit(2)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(archiveAccessibilityLabel(for: book))
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                    ForEach(booksReadSinceJanuary2026) { book in
+                        Button { onSelectBook(book) } label: {
+                            StatisticsBookCover(book: book)
+                                .frame(width: 88)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(coverAccessibilityLabel(for: book))
                     }
                 }
             }
         }
     }
 
-    private func archiveAccessibilityLabel(for book: StatisticsBookSummary) -> String {
+    private func coverAccessibilityLabel(for book: StatisticsBookSummary) -> String {
         var values = [book.title]
         if let author = book.author { values.append(author) }
         if let date = book.finishedAt {
-            values.append("Terminé le \(date.formatted(.dateTime.day().month(.wide).year()))")
+            values.append("Lu le \(date.formatted(.dateTime.day().month(.wide).year()))")
         }
-        if let rating = book.rating { values.append("Note \(rating) sur 10") }
         return values.joined(separator: ", ")
     }
 }
@@ -529,7 +501,7 @@ private struct BookListPlaceholder: View {
     }
 }
 
-private enum StatisticsFormat {
+enum StatisticsFormat {
     static func duration(_ interval: TimeInterval) -> String {
         let minutes = max(0, Int((interval / 60).rounded()))
         let hours = minutes / 60

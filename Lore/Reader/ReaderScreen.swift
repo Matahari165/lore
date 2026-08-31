@@ -15,6 +15,7 @@ struct ReaderScreen: View {
     @State private var aiExplanation: ReaderAIExplanationState?
     @State private var aiRecap: ReaderAIRecapState?
     @State private var showsDiscussion = false
+    @State private var readerPresentationState: ReaderPresentationState = .appearing
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,6 +35,8 @@ struct ReaderScreen: View {
     var body: some View {
         ZStack {
             ReaderView(session: presentation.session)
+                .opacity(readerPresentationState.opacity)
+                .scaleEffect(readerPresentationState.scale)
 
             if showsControls {
                 controls
@@ -65,6 +68,7 @@ struct ReaderScreen: View {
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
         }
+        .onAppear(perform: animateReaderEntrance)
         .sheet(item: $presentedPanel) { panel in
             switch panel {
             case .chapters:
@@ -113,18 +117,37 @@ struct ReaderScreen: View {
 
     private var controls: some View {
         VStack {
-            HStack(spacing: 8) {
-                Text(presentation.title)
-                    .font(.footnote.weight(.medium))
-                    .lineLimit(1)
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(presentation.title)
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
+                        ProgressView(value: min(max(progression, 0), 1))
+                            .progressViewStyle(.linear)
+                            .tint(.accentColor)
+                            .frame(maxWidth: .infinity)
+                        Text(progression, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption.monospacedDigit().weight(.medium))
+                            .contentTransition(.numericText())
+                            .frame(minWidth: 40, alignment: .trailing)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Progression de lecture")
+                    .accessibilityValue(Text(progression, format: .percent.precision(.fractionLength(0))))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 Spacer(minLength: 8)
-                controlButton("Discuter avec le livre", systemImage: "text.bubble") {
+                controlButton("Discuter avec le livre", systemImage: "sparkles") {
                     showsDiscussion = true
                 }
                 controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
             }
             .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .readerGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous), reduceTransparency: reduceTransparency)
             .padding(.horizontal, 12)
 
@@ -195,6 +218,23 @@ struct ReaderScreen: View {
         }
     }
 
+    private func animateReaderEntrance() {
+        guard readerPresentationState == .appearing else { return }
+        guard !reduceMotion else {
+            readerPresentationState = .visible
+            return
+        }
+
+        // The full-screen cover owns the large transition. This short inner
+        // fade/scale keeps the Readium web view from appearing as a hard cut
+        // once the cover has settled.
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.28)) {
+                readerPresentationState = .visible
+            }
+        }
+    }
+
     private func applyPreferences(_ newValue: ReaderPreferences) {
         do {
             try presentation.session.updatePreferences(newValue)
@@ -222,12 +262,53 @@ struct ReaderScreen: View {
     }
 
     private func closeReader() {
-        Task { await onRequestClose() }
+        guard readerPresentationState != .closing else { return }
+        guard !reduceMotion else {
+            Task { await onRequestClose() }
+            return
+        }
+
+        withAnimation(.easeIn(duration: 0.18)) {
+            readerPresentationState = .closing
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            await onRequestClose()
+
+            // If closing failed (for example, a pending Locator could not be
+            // saved), keep the reader usable instead of leaving it invisible.
+            if readerPresentationState == .closing {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    readerPresentationState = .visible
+                }
+            }
+        }
     }
 
     private enum Panel: String, Identifiable {
         case chapters, highlights
         var id: String { rawValue }
+    }
+
+    private enum ReaderPresentationState: Equatable {
+        case appearing
+        case visible
+        case closing
+
+        var opacity: Double {
+            switch self {
+            case .appearing, .closing: 0
+            case .visible: 1
+            }
+        }
+
+        var scale: CGFloat {
+            switch self {
+            case .appearing, .closing: 0.985
+            case .visible: 1
+            }
+        }
     }
 }
 

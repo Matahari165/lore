@@ -8,19 +8,30 @@ struct LibraryView: View {
     let model: LibraryViewModel
     let dailyGoalState: DailyGoalState
     let onOpenSettings: () -> Void
+    let onOpenActivityChart: (() -> Void)?
+    /// Optional hand-off to the reader for a selected highlight. The library
+    /// still presents the complete local list when no reader route is supplied.
+    let onOpenHighlight: ((BookRecord, ReaderHighlight) -> Void)?
     @State private var presentsImporter = false
     @State private var discussionBook: BookRecord?
+    @State private var completionBook: BookRecord?
+    @State private var highlightsBook: BookRecord?
+    @State private var selectedHighlights: [ReaderHighlight] = []
 
     init(
         mode: Mode = .library,
         model: LibraryViewModel,
         dailyGoalState: DailyGoalState = .disabled,
-        onOpenSettings: @escaping () -> Void = {}
+        onOpenSettings: @escaping () -> Void = {},
+        onOpenActivityChart: (() -> Void)? = nil,
+        onOpenHighlight: ((BookRecord, ReaderHighlight) -> Void)? = nil
     ) {
         self.mode = mode
         self.model = model
         self.dailyGoalState = dailyGoalState
         self.onOpenSettings = onOpenSettings
+        self.onOpenActivityChart = onOpenActivityChart
+        self.onOpenHighlight = onOpenHighlight
     }
 
     var body: some View {
@@ -31,9 +42,14 @@ struct LibraryView: View {
                 else if mode == .home { homeContent }
                 else { libraryContent }
             }
-            .navigationTitle(mode == .home ? "Accueil" : "Bibliothèque")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text(mode == .home ? "Accueil" : "Bibliothèque")
+                        .font(.title2.weight(.bold))
+                        .accessibilityAddTraits(.isHeader)
+                }
                 if mode == .home {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Réglages", systemImage: "gearshape", action: onOpenSettings)
@@ -68,6 +84,24 @@ struct LibraryView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $completionBook) { book in
+            BookCompletionView(book: book) { rating, readingYear in
+                model.finish(book, rating: rating, readingYear: readingYear)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $highlightsBook) { book in
+            LibraryHighlightsView(
+                book: book,
+                highlights: selectedHighlights,
+                onOpenHighlight: onOpenHighlight.map { callback in
+                    { highlight in callback(book, highlight) }
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [UTType(filenameExtension: "epub") ?? .data], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
         }
@@ -76,7 +110,7 @@ struct LibraryView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             if mode == .home {
-                DailyGoalProgressView(state: dailyGoalState)
+                DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
                     .padding(.horizontal, LoreTheme.pageMargin)
             }
             ContentUnavailableView {
@@ -93,8 +127,9 @@ struct LibraryView: View {
     private var homeContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                DailyGoalProgressView(state: dailyGoalState)
+                DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
                 if !model.resumableBooks.isEmpty { resumeSection(model.resumableBooks) }
+                YesterdayReadingSummaryView(summary: model.yesterdayReadingSummary)
                 bookGrid(title: "Ajouts récents", books: model.recentlyImportedBooks)
             }
             .padding(.horizontal, LoreTheme.pageMargin).padding(.bottom, 32)
@@ -151,12 +186,6 @@ struct LibraryView: View {
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(LoreTheme.secondaryInk)
                                 }
-                                if let activityDate = model.recentActivityDate(for: book) {
-                                    Text("Dernière lecture \(activityDate, format: .dateTime.day().month(.abbreviated).year())")
-                                        .font(.caption2)
-                                        .foregroundStyle(LoreTheme.secondaryInk)
-                                        .lineLimit(1)
-                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             if model.openingBookID == book.id { ProgressView() }
@@ -173,13 +202,7 @@ struct LibraryView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Reprendre \(book.title)")
                     .accessibilityValue(resumeAccessibilityValue(for: book))
-
-                    Button("Discuter avec le livre", systemImage: "text.bubble") {
-                        discussionBook = book
-                    }
-                    .labelStyle(.iconOnly)
-                    .frame(width: 44, height: 44)
-                    .accessibilityHint("Ouvre la discussion attachée à ce livre")
+                    .contextMenu { bookContextMenu(for: book) }
                 }
             }
         }
@@ -191,66 +214,81 @@ struct LibraryView: View {
         if let progression = book.lastProgression {
             details.append("progression \(progression.formatted(.percent.precision(.fractionLength(0))))")
         }
-        if let date = model.recentActivityDate(for: book) {
-            details.append("dernière lecture \(date.formatted(.dateTime.day().month().year()))")
-        }
         return details.joined(separator: ", ")
     }
 
     private func bookGrid(title: String, books: [BookRecord]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title).font(.title3.weight(.semibold))
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 18)], alignment: .leading, spacing: 24) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: 3),
+                alignment: .leading,
+                spacing: 24
+            ) {
                 ForEach(books) { book in bookButton(book) }
             }
         }
     }
 
     private func bookButton(_ book: BookRecord) -> some View {
-        ZStack(alignment: .topTrailing) {
-            Button { Task { await model.open(book) } } label: {
-                VStack(alignment: .leading, spacing: 7) {
-                    BookCoverView(book: book)
-                        .overlay {
-                            if model.openingBookID == book.id {
-                                LoreTheme.canvas.opacity(0.68)
-                                ProgressView()
-                            }
+        Button { Task { await model.open(book) } } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                BookCoverView(book: book)
+                    .overlay {
+                        if model.openingBookID == book.id {
+                            LoreTheme.canvas.opacity(0.68)
+                            ProgressView()
                         }
-                    Text(book.title).font(.subheadline.weight(.semibold)).foregroundStyle(LoreTheme.ink).lineLimit(2)
-                    if let author = book.author { Text(author).font(.caption).foregroundStyle(LoreTheme.secondaryInk).lineLimit(1) }
-                    Text(book.readingStatus.title).font(.caption2.weight(.medium)).foregroundStyle(LoreTheme.secondaryInk)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
-            .contextMenu {
-                if book.readingStatus == .finished {
-                    Button("Marquer comme non terminé", systemImage: "arrow.uturn.backward") {
-                        model.setFinished(false, for: book)
                     }
-                } else {
-                    Button("Marquer comme lu", systemImage: "checkmark.circle") {
-                        model.setFinished(true, for: book)
+                // Fixed label slots prevent a long title or a missing author
+                // from changing the height of a grid row.
+                Text(book.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(LoreTheme.ink)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .topLeading)
+                Group {
+                    if let author = book.author {
+                        Text(author)
+                            .font(.caption)
+                            .foregroundStyle(LoreTheme.secondaryInk)
+                            .lineLimit(1)
+                    } else {
+                        Color.clear
                     }
                 }
-
-                Button("Discuter avec le livre", systemImage: "text.bubble") {
-                    discussionBook = book
-                }
+                .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
+                Text(book.readingStatus.title)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(LoreTheme.secondaryInk)
+                    .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+        .contextMenu { bookContextMenu(for: book) }
+    }
 
-            Button("Discuter avec le livre", systemImage: "text.bubble") {
-                discussionBook = book
+    @ViewBuilder
+    private func bookContextMenu(for book: BookRecord) -> some View {
+        if book.readingStatus == .finished {
+            Button("Marquer comme non terminé", systemImage: "arrow.uturn.backward") {
+                model.setFinished(false, for: book)
             }
-            .labelStyle(.iconOnly)
-            .font(.headline)
-            .foregroundStyle(LoreTheme.ink)
-            .frame(width: 44, height: 44)
-            .background(.thinMaterial, in: Circle())
-            .padding(6)
-            .accessibilityHint("Ouvre la discussion attachée à ce livre")
+        } else {
+            Button("Marquer comme lu", systemImage: "checkmark.circle") {
+                completionBook = book
+            }
+        }
+
+        Button("Passages surlignés", systemImage: "highlighter") {
+            selectedHighlights = model.highlights(for: book)
+            highlightsBook = book
+        }
+
+        Button("Discuter avec le livre", systemImage: "sparkles") {
+            discussionBook = book
         }
     }
 }

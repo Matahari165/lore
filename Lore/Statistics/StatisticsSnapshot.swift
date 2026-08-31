@@ -19,6 +19,29 @@ struct ReadingDaySummary: Identifiable, Sendable, Equatable {
     var id: Date { date }
 }
 
+/// A single local-calendar bucket used by the reading activity chart.
+/// Duration stays in seconds so the view can choose the appropriate display unit.
+struct ReadingActivityPoint: Identifiable, Sendable, Equatable {
+    let date: Date
+    let duration: TimeInterval
+
+    var id: Date { date }
+}
+
+enum ReadingActivityChartRange: String, CaseIterable, Identifiable, Sendable {
+    case week
+    case month
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .week: "Semaine"
+        case .month: "Mois"
+        }
+    }
+}
+
 struct StatisticsBookSummary: Identifiable, Sendable, Equatable {
     let id: UUID
     let title: String
@@ -28,6 +51,8 @@ struct StatisticsBookSummary: Identifiable, Sendable, Equatable {
     /// Date de la première session réelle, calculée depuis les sessions persistées.
     let startedAt: Date?
     let finishedAt: Date?
+    /// Année choisie par l’utilisateur lors de la validation de la lecture.
+    let readingYear: Int?
     /// Note entière comprise entre 0 et 10.
     let rating: Int?
 }

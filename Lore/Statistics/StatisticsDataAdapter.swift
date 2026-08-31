@@ -47,6 +47,7 @@ final class StatisticsDataAdapter {
                 progress: book.lastProgression,
                 startedAt: firstSessions[book.id] ?? nil,
                 finishedAt: book.finishedAt,
+                readingYear: book.readingYear,
                 rating: book.rating
             )
         }
@@ -76,6 +77,46 @@ final class StatisticsDataAdapter {
                 .filter { $0.finishedAt != nil }
                 .sorted { ($0.finishedAt ?? .distantPast) > ($1.finishedAt ?? .distantPast) }
         )
+    }
+
+    /// Returns one point for every local calendar day in the requested range.
+    /// The adapter owns the aggregation so chart views never reinterpret sessions.
+    func activityPoints(
+        range: ReadingActivityChartRange,
+        containing now: Date,
+        calendar: Calendar = .autoupdatingCurrent,
+        inactivityTimeout: TimeInterval = ReadingActivityPolicy.defaultInactivityTimeout
+    ) throws -> [ReadingActivityPoint] {
+        var localCalendar = calendar
+        localCalendar.firstWeekday = 2
+
+        let interval: DateInterval?
+        switch range {
+        case .week:
+            interval = localCalendar.dateInterval(of: .weekOfYear, for: now)
+        case .month:
+            interval = localCalendar.dateInterval(of: .month, for: now)
+        }
+        guard let interval else { throw StatisticsDataAdapterError.invalidCalendar }
+
+        let sessions = try context.fetch(FetchDescriptor<ReadingSessionRecord>())
+        var points: [ReadingActivityPoint] = []
+        var start = interval.start
+        while start < interval.end,
+              let end = localCalendar.date(byAdding: .day, value: 1, to: start) {
+            let day = DateInterval(start: start, end: min(end, interval.end))
+            points.append(ReadingActivityPoint(
+                date: start,
+                duration: ReadingSessionDuration.total(
+                    sessions,
+                    in: day,
+                    now: now,
+                    inactivityTimeout: inactivityTimeout
+                )
+            ))
+            start = end
+        }
+        return points
     }
 
     private func readingDays(

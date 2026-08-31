@@ -93,6 +93,7 @@ final class LibraryViewModel {
     var sort: Sort = .recent
     var sortAscending = false
     var importSummary: ImportSummary?
+    private(set) var yesterdayReadingSummary: String?
     private(set) var lastReconciliationReport: ImportReconciliationReport?
     private var latestSessionActivityByBookID: [UUID: Date] = [:]
 
@@ -161,7 +162,9 @@ final class LibraryViewModel {
     }
 
     var recentlyImportedBooks: [BookRecord] {
-        Array(books.sorted { $0.importedAt > $1.importedAt }.prefix(4))
+        // Two complete rows keep the home screen useful on iPhone while still
+        // respecting the actual number of imported books.
+        Array(books.sorted { $0.importedAt > $1.importedAt }.prefix(6))
     }
 
     var visibleBooks: [BookRecord] {
@@ -268,10 +271,12 @@ final class LibraryViewModel {
     func reload() {
         do {
             books = try repository.books()
-            latestSessionActivityByBookID = try sessionRepository.sessions().reduce(into: [:]) { latest, session in
+            let sessions = try sessionRepository.sessions()
+            latestSessionActivityByBookID = sessions.reduce(into: [:]) { latest, session in
                 guard session.lastActivityAt > (latest[session.bookID] ?? .distantPast) else { return }
                 latest[session.bookID] = session.lastActivityAt
             }
+            yesterdayReadingSummary = makeYesterdaySummary(from: sessions)
         } catch {
             present(error)
         }
@@ -286,7 +291,49 @@ final class LibraryViewModel {
         }
     }
 
+    func finish(_ book: BookRecord, rating: Int?, readingYear: Int) {
+        do {
+            try repository.finish(bookID: book.id, rating: rating, readingYear: readingYear)
+            reload()
+        } catch {
+            present(error)
+        }
+    }
+
+    func highlights(for book: BookRecord) -> [ReaderHighlight] {
+        do {
+            return try repository.highlights(for: book.id)
+        } catch {
+            present(error)
+            return []
+        }
+    }
+
     private func present(_ error: Error) {
         errorMessage = (error as? LocalizedError)?.errorDescription ?? "Une erreur inattendue est survenue."
+    }
+
+    private func makeYesterdaySummary(from sessions: [ReadingSessionRecord]) -> String? {
+        let calendar = Calendar.autoupdatingCurrent
+        let today = calendar.startOfDay(for: .now)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return nil }
+        let interval = DateInterval(start: yesterday, end: today)
+        let matching = sessions.filter { session in
+            let end = session.endedAt ?? session.lastActivityAt
+            return session.startedAt < interval.end && end > interval.start
+        }
+        guard !matching.isEmpty else { return nil }
+
+        let duration = matching.reduce(0.0) { total, session in
+            let start = max(session.startedAt, interval.start)
+            let end = min(session.endedAt ?? session.lastActivityAt, interval.end)
+            return total + max(0, end.timeIntervalSince(start))
+        }
+        let titles = Set(matching.compactMap { session in
+            books.first(where: { $0.id == session.bookID })?.title
+        }).sorted()
+        let minutes = max(1, Int((duration / 60).rounded()))
+        guard !titles.isEmpty else { return "Vous avez lu \(minutes) min hier." }
+        return "Vous avez lu \(minutes) min hier dans " + titles.joined(separator: ", ") + "."
     }
 }

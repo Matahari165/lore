@@ -4,6 +4,8 @@ import SwiftUI
 struct StatisticsDashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: StatisticsDashboardModel
+    @State private var showsActivityChart = false
+    let adapter: StatisticsDataAdapter
     let dailyGoalModel: DailyReadingGoalModel
     let refreshRevision: Int
     let onOpenLibrary: () -> Void
@@ -15,6 +17,7 @@ struct StatisticsDashboardView: View {
         onOpenLibrary: @escaping () -> Void
     ) {
         _model = State(initialValue: StatisticsDashboardModel(adapter: adapter))
+        self.adapter = adapter
         self.dailyGoalModel = dailyGoalModel
         self.refreshRevision = refreshRevision
         self.onOpenLibrary = onOpenLibrary
@@ -26,6 +29,7 @@ struct StatisticsDashboardView: View {
             dailyGoalState: dailyGoalModel.state,
             onRetry: model.load,
             onOpenLibrary: onOpenLibrary,
+            onOpenActivityChart: { showsActivityChart = true },
             onChangeMonth: model.changeMonth
         )
         .onAppear(perform: model.load)
@@ -42,6 +46,11 @@ struct StatisticsDashboardView: View {
             } else if case .failed = state {
                 dailyGoalModel.markProgressUnavailable()
             }
+        }
+        .sheet(isPresented: $showsActivityChart) {
+            ReadingActivityChartView(adapter: adapter)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

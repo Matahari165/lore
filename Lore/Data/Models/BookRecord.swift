@@ -17,6 +17,10 @@ final class BookRecord {
     var locatorSchemaVersion: Int?
     var finishedAt: Date?
     var rating: Int?
+    /// Calendar year in which the user completed the book. Kept separate from
+    /// `finishedAt` so imported/restored completion dates do not redefine the
+    /// user's reading-year metadata.
+    var readingYear: Int?
     var importStateRawValue: String = BookImportState.ready.rawValue
     var stagingToken: UUID?
 
@@ -35,6 +39,7 @@ final class BookRecord {
         locatorSchemaVersion: Int? = nil,
         finishedAt: Date? = nil,
         rating: Int? = nil,
+        readingYear: Int? = nil,
         importState: BookImportState = .ready,
         stagingToken: UUID? = nil
     ) {
@@ -52,6 +57,7 @@ final class BookRecord {
         self.locatorSchemaVersion = locatorSchemaVersion
         self.finishedAt = finishedAt
         self.rating = rating
+        self.readingYear = readingYear
         importStateRawValue = importState.rawValue
         self.stagingToken = stagingToken
     }

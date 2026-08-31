@@ -134,6 +134,39 @@ final class BookRepository {
             throw error
         }
     }
+
+    /// Completes a book and stores the user's review metadata atomically.
+    /// `rating` is optional so the user can explicitly choose to skip a note,
+    /// while `readingYear` remains required for a completed reading record.
+    func finish(
+        bookID: UUID,
+        rating: Int?,
+        readingYear: Int,
+        at date: Date = .now
+    ) throws {
+        guard let book = try book(id: bookID) else { throw BookRepositoryError.bookNotFound }
+        guard rating.map({ (0...10).contains($0) }) ?? true else {
+            throw BookRepositoryError.invalidRating
+        }
+        guard (1...9_999).contains(readingYear) else {
+            throw BookRepositoryError.invalidReadingYear
+        }
+
+        let previousFinishedAt = book.finishedAt
+        let previousRating = book.rating
+        let previousReadingYear = book.readingYear
+        book.finishedAt = previousFinishedAt ?? date
+        book.rating = rating
+        book.readingYear = readingYear
+        do {
+            try saveContext(context)
+        } catch {
+            book.finishedAt = previousFinishedAt
+            book.rating = previousRating
+            book.readingYear = previousReadingYear
+            throw error
+        }
+    }
 }
 
 extension BookRepository: HighlightStoring {
@@ -156,8 +189,17 @@ private extension String {
 
 enum BookRepositoryError: LocalizedError, Equatable {
     case bookNotFound
+    case invalidRating
+    case invalidReadingYear
 
     var errorDescription: String? {
-        "Le livre demandé n’existe plus dans la bibliothèque."
+        switch self {
+        case .bookNotFound:
+            "Le livre demandé n’existe plus dans la bibliothèque."
+        case .invalidRating:
+            "La note doit être comprise entre 0 et 10."
+        case .invalidReadingYear:
+            "L’année de lecture n’est pas valide."
+        }
     }
 }

@@ -58,6 +58,10 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    LabeledContent("Modèle utilisé", value: OpenAIResponsesConfiguration.model)
+                        .accessibilityLabel("Modèle d’intelligence artificielle")
+                        .accessibilityValue(OpenAIResponsesConfiguration.model)
+
                     LabeledContent("État") {
                         Label(
                             aiKeyModel.isConfigured ? "Configurée" : "Non configurée",

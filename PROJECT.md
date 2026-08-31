@@ -161,6 +161,9 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
 - L’icône de Lore conserve uniquement le trait violet minimaliste formant un `L` plié dans Icon Composer : remplissage `none`, ombre désactivée et couche PNG RGBA transparente. Le matériau Liquid Glass reste appliqué au groupe ; iOS 26 peut toutefois ajouter son masque ou son arrière-plan système aux variantes irrégulières.
 - Les couvertures utilisent un cadre portrait commun et `scaledToFit` afin de rester entières, quelles que soient leurs proportions d’origine.
+- Les listes principales utilisent trois colonnes de largeur identique et des zones de texte de hauteur fixe afin de conserver des rangées parfaitement alignées.
+- La fin explicite d’un livre demande une note entière sur 10 et une année de lecture ; cette année détermine son classement dans l’archive annuelle.
+- Les deux publications EPUB les plus récemment ouvertes restent temporairement en mémoire afin d’accélérer leur réouverture, sans modifier le fichier ni la position Readium persistée.
 - L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.

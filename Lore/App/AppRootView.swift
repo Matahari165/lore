@@ -12,6 +12,7 @@ struct AppRootView: View {
     @State private var libraryModel: LibraryViewModel
     @State private var dailyGoalModel: DailyReadingGoalModel
     @State private var presentsSettings = false
+    @State private var presentsActivityChart = false
     @State private var statisticsRevision = 0
 
     let statisticsAdapter: StatisticsDataAdapter
@@ -50,7 +51,8 @@ struct AppRootView: View {
                 mode: .home,
                 model: libraryModel,
                 dailyGoalState: dailyGoalModel.state,
-                onOpenSettings: { presentsSettings = true }
+                onOpenSettings: { presentsSettings = true },
+                onOpenActivityChart: { presentsActivityChart = true }
             )
             .tabItem { Label("Accueil", systemImage: "house") }
             .tag(Tab.home)
@@ -85,6 +87,11 @@ struct AppRootView: View {
                 reloadDailyGoal()
                 return count
             }
+        }
+        .sheet(isPresented: $presentsActivityChart) {
+            ReadingActivityChartView(adapter: statisticsAdapter)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .alert("Importation terminée", isPresented: Binding(
             get: { libraryModel.importSummary != nil },

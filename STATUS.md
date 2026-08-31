@@ -63,6 +63,12 @@ Dernière mise à jour : 31 août 2026
 - L’écran Discussion est maintenant accessible depuis le lecteur, l’Accueil et la Bibliothèque. Il conserve l’historique local, affiche le contexte utilisé, rend le Markdown et propose résumé, question libre et discussion de fin.
 - La barre des trois onglets se réduit au défilement vers le bas et réapparaît en remontant. Les titres Accueil, Bibliothèque et Activité sont alignés avec leurs actions afin de supprimer l’espace supérieur perdu.
 - Le logo transparent a encore été agrandi et épaissi, sans fond, halo ni ombre.
+- Les couvertures utilisent maintenant des rangées fixes de trois éléments avec des zones de titre, auteur et statut de hauteur identique. L’Accueil affiche jusqu’à six ajouts récents et la reprise n’affiche plus la date de dernière lecture.
+- Un appui long sur une pochette ouvre les passages surlignés, l’évaluation de fin ou la discussion IA. La fin d’un livre demande une note entière sur 10 avec dix étoiles et l’année de lecture.
+- Le lecteur justifie le texte, conserve en mémoire les deux dernières publications ouvertes pour accélérer les réouvertures et anime son apparition/sa fermeture en respectant Réduire les animations. Son panneau supérieur affiche la progression et son pourcentage.
+- L’Accueil affiche sous Reprendre un bilan local du temps et des livres lus la veille. Un toucher sur l’objectif ouvre un graphique réel des minutes de la semaine ou du mois.
+- Les statistiques affichent sous le calendrier les seules couvertures déclarées lues depuis 2026. Les réglages indiquent le modèle IA exact `gpt-5.6-luna`.
+- L’icône de discussion visible sur les pochettes a été supprimée ; l’action reste disponible par appui long avec une icône d’étincelles. Le `L` de l’icône d’application est blanc, légèrement agrandi et sans arrière-plan dans l’asset fourni.
 
 ## En cours
 
@@ -70,6 +76,7 @@ Dernière mise à jour : 31 août 2026
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
 - Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
+- Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 
 ## À faire

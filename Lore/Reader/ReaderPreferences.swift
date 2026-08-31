@@ -64,6 +64,9 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
             imageFilter: appearance == .dark ? .darken : nil,
             lineHeight: lineHeight,
             publisherStyles: lineHeight == nil ? nil : false,
+            // Lore is a focused reading surface: paragraphs use the full
+            // measure of the page instead of inheriting uneven publisher CSS.
+            textAlign: .justify,
             theme: appearance.readiumValue
         )
     }

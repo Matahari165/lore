@@ -3,6 +3,19 @@ import SwiftUI
 struct DailyGoalProgressView: View {
     let state: DailyGoalState
     var showsDisabledState = true
+    /// Optional navigation hook used by Accueil and Statistiques. Keeping it
+    /// optional preserves the compact, non-interactive presentation elsewhere.
+    var onTap: (() -> Void)?
+
+    init(
+        state: DailyGoalState,
+        showsDisabledState: Bool = true,
+        onTap: (() -> Void)? = nil
+    ) {
+        self.state = state
+        self.showsDisabledState = showsDisabledState
+        self.onTap = onTap
+    }
 
     var body: some View {
         switch state {
@@ -19,7 +32,15 @@ struct DailyGoalProgressView: View {
                 .foregroundStyle(LoreTheme.secondaryInk)
                 .accessibilityLabel("Objectif indisponible. \(message)")
         case let .active(progress):
-            progressContent(progress)
+            if let onTap {
+                Button(action: onTap) {
+                    progressContent(progress)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Affiche les minutes de lecture par jour")
+            } else {
+                progressContent(progress)
+            }
         }
     }
 
