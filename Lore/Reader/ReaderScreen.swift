@@ -10,6 +10,7 @@ struct ReaderScreen: View {
     @State private var presentedPanel: Panel?
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
+    @State private var highlights: [ReaderHighlight]
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -23,6 +24,7 @@ struct ReaderScreen: View {
         self.onRequestClose = onRequestClose
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
+        _highlights = State(initialValue: presentation.session.highlights)
     }
 
     var body: some View {
@@ -47,15 +49,23 @@ struct ReaderScreen: View {
                 }
             }
             presentation.session.setProgressionHandler { progression = $0 }
+            presentation.session.setHighlightChangeHandler { highlights = $0 }
         }
         .onDisappear {
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
+            presentation.session.setHighlightChangeHandler(nil)
         }
         .sheet(item: $presentedPanel) { panel in
             switch panel {
             case .chapters:
                 ReaderChaptersSheet(chapters: presentation.session.chapters, onSelect: openChapter)
+            case .highlights:
+                ReaderHighlightsSheet(
+                    highlights: highlights,
+                    onSelect: openHighlight,
+                    onDelete: presentation.session.deleteHighlight
+                )
             }
         }
         .fullScreenCover(isPresented: $showsAllPreferences) {
@@ -99,6 +109,7 @@ struct ReaderScreen: View {
                         progressLabel
                         Divider().frame(height: 20)
                         controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
+                        controlButton("Surlignages", systemImage: "highlighter") { presentedPanel = .highlights }
                         controlButton("Réglages de lecture", systemImage: "textformat") {
                             animateChrome { showsQuickPreferences.toggle() }
                         }
@@ -160,13 +171,91 @@ struct ReaderScreen: View {
         }
     }
 
+    private func openHighlight(_ highlight: ReaderHighlight) {
+        Task {
+            if await presentation.session.go(to: highlight) {
+                presentedPanel = nil
+                showsControls = false
+            }
+        }
+    }
+
     private func closeReader() {
         Task { await onRequestClose() }
     }
 
     private enum Panel: String, Identifiable {
-        case chapters
+        case chapters, highlights
         var id: String { rawValue }
+    }
+}
+
+private struct ReaderHighlightsSheet: View {
+    let highlights: [ReaderHighlight]
+    let onSelect: (ReaderHighlight) -> Void
+    let onDelete: (ReaderHighlight) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var pendingDeletion: ReaderHighlight?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if highlights.isEmpty {
+                    ContentUnavailableView(
+                        "Aucun surlignage",
+                        systemImage: "highlighter",
+                        description: Text("Sélectionnez un passage puis touchez Surligner.")
+                    )
+                } else {
+                    List(highlights) { highlight in
+                        HStack(spacing: 8) {
+                            Button { onSelect(highlight) } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(highlight.text)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(4)
+                                    Text(highlight.createdAt, format: .dateTime.day().month().year())
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityHint("Revient au passage surligné")
+
+                            Button("Supprimer", systemImage: "trash", role: .destructive) {
+                                pendingDeletion = highlight
+                            }
+                            .buttonStyle(.borderless)
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: 44, minHeight: 44)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Surlignages")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+            .confirmationDialog(
+                "Supprimer ce surlignage ?",
+                isPresented: Binding(
+                    get: { pendingDeletion != nil },
+                    set: { if !$0 { pendingDeletion = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Supprimer", role: .destructive) {
+                    guard let highlight = pendingDeletion else { return }
+                    onDelete(highlight)
+                    pendingDeletion = nil
+                }
+                Button("Annuler", role: .cancel) { pendingDeletion = nil }
+            }
+        }
     }
 }
 

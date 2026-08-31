@@ -1,14 +1,17 @@
 import Foundation
+import ReadiumShared
 import SwiftData
 
 @MainActor
 final class BookRepository {
     private let context: ModelContext
     private let saveContext: (ModelContext) throws -> Void
+    private let highlightRepository: HighlightRepository
 
     init(context: ModelContext, save: ((ModelContext) throws -> Void)? = nil) {
         self.context = context
         saveContext = save ?? { try $0.save() }
+        highlightRepository = HighlightRepository(context: context, save: save)
     }
 
     func add(_ book: BookRecord) throws {
@@ -103,8 +106,28 @@ final class BookRepository {
     }
 
     func delete(_ book: BookRecord) throws {
+        try highlightRepository.deleteHighlights(for: book.id, save: false)
         context.delete(book)
-        try saveContext(context)
+        do {
+            try saveContext(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+}
+
+extension BookRepository: HighlightStoring {
+    func highlights(for bookID: UUID) throws -> [ReaderHighlight] {
+        try highlightRepository.highlights(for: bookID)
+    }
+
+    func addHighlight(bookID: UUID, locator: Locator, text: String, color: HighlightColor) throws -> ReaderHighlight {
+        try highlightRepository.addHighlight(bookID: bookID, locator: locator, text: text, color: color)
+    }
+
+    func deleteHighlight(id: UUID, bookID: UUID) throws {
+        try highlightRepository.deleteHighlight(id: id, bookID: bookID)
     }
 }
 

@@ -147,6 +147,10 @@ private final class ReaderControllerSpy: EPUBReaderControlling {
         openedLinks.append(link)
         return true
     }
+
+    func go(to locator: Locator, options: NavigatorGoOptions) async -> Bool {
+        return true
+    }
 }
 
 @MainActor

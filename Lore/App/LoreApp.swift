@@ -8,7 +8,7 @@ struct LoreApp: App {
 
     init() {
         do {
-            container = try ModelContainer(for: BookRecord.self, ReadingSessionRecord.self)
+            container = try ModelContainer(for: BookRecord.self, ReadingSessionRecord.self, HighlightRecord.self)
             fileStore = try BookFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)
             try sessions.recoverOpenSessions(now: .now)

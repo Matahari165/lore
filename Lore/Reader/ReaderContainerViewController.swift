@@ -32,4 +32,8 @@ final class ReaderContainerViewController: UIViewController {
         ])
         navigator.didMove(toParent: self)
     }
+
+    @objc func highlightSelection(_ sender: Any?) {
+        session.highlightCurrentSelection()
+    }
 }
