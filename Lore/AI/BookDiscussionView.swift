@@ -473,6 +473,22 @@ struct BookDiscussionView: View {
             do {
                 let context = await makeContext(question: value, history: previousMessages)
                 contextCharacters = context.excerpts.reduce(0) { $0 + $1.text.count }
+                if let summaryScope = context.summaryScope, context.excerpts.isEmpty {
+                    let answer = insufficientContextMessage(for: summaryScope)
+                    if let conversationRepository {
+                        _ = try conversationRepository.appendTurn(
+                            bookID: bookID,
+                            question: value,
+                            answer: answer,
+                            frontierProgression: context.readFrontierProgression,
+                            frontierDescription: context.readFrontierDescription
+                        )
+                    }
+                    messages.append(LoreAIChatMessage(role: .user, text: value))
+                    messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+                    scopeWarning = "Aucun texte du livre n’a été envoyé pour cette réponse."
+                    return
+                }
                 if stage != .notStarted, context.excerpts.isEmpty {
                     scopeWarning = "Aucun extrait n’est disponible pour ce tour. Lore indiquera quand le texte ne suffit pas."
                 }
@@ -519,9 +535,21 @@ struct BookDiscussionView: View {
             readFrontierDescription: initialProgression.map {
                 "Progression connue : \($0.formatted(.percent.precision(.fractionLength(0))))"
             },
+            summaryScope: LoreAISummaryIntentRouter().route(question),
             history: history,
             question: question
         )
+    }
+
+    private func insufficientContextMessage(for scope: LoreAISummaryScope) -> String {
+        switch scope {
+        case .currentChapter:
+            "Je n’ai pas accès au chapitre ouvert depuis cet écran. Ouvrez la discussion depuis le lecteur pour le résumer sans dépasser votre progression."
+        case .yesterday:
+            "Je n’ai pas de bornes de lecture locales suffisantes pour résumer hier sans risquer d’inclure un autre passage."
+        case .sinceLastSession:
+            "Lore ne conserve pas encore les positions de début et de fin de chaque session. Je ne peux donc pas résumer cette session précisément sans approximation."
+        }
     }
 
     private func deleteHistory() {

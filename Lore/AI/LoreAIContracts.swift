@@ -94,6 +94,12 @@ struct LoreAIChatMessage: Equatable, Codable, Sendable {
     }
 }
 
+enum LoreAISummaryScope: String, Equatable, Sendable {
+    case currentChapter
+    case yesterday
+    case sinceLastSession
+}
+
 /// Un fragment sélectionné localement. Pour une analyse de fin, l'appelant
 /// doit fournir plusieurs fragments bornés et non l'EPUB comme un seul bloc.
 struct LoreAIChatExcerpt: Equatable, Sendable {
@@ -118,6 +124,7 @@ struct LoreAIChatContext: Equatable, Sendable {
     let readFrontierDescription: String?
     let excerpts: [LoreAIChatExcerpt]
     let fullBookAccessGranted: Bool
+    let summaryScope: LoreAISummaryScope?
     let history: [LoreAIChatMessage]
     let question: String
 
@@ -131,6 +138,7 @@ struct LoreAIChatContext: Equatable, Sendable {
         readFrontierDescription: String? = nil,
         excerpts: [LoreAIChatExcerpt] = [],
         fullBookAccessGranted: Bool = false,
+        summaryScope: LoreAISummaryScope? = nil,
         history: [LoreAIChatMessage] = [],
         question: String
     ) {
@@ -143,6 +151,7 @@ struct LoreAIChatContext: Equatable, Sendable {
         self.readFrontierDescription = readFrontierDescription
         self.excerpts = excerpts
         self.fullBookAccessGranted = fullBookAccessGranted
+        self.summaryScope = summaryScope
         self.history = history
         self.question = question
     }
