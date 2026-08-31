@@ -17,6 +17,7 @@ final class ReaderSessionController {
     private let selectionContextExtractor: ReadiumSelectionContextExtractor
     private let recapContextExtractor: ReadiumReadingRecapContextExtractor
     private let recapEngine: DailyReadingRecapEngine?
+    private let qualifiedLocatorBox: QualifiedLocatorBox
     private let locationProvider: any ReaderLocationProviding
     private let readerController: (any EPUBReaderControlling)?
     private let positionController: any ReadingPositionManaging
@@ -105,6 +106,8 @@ final class ReaderSessionController {
         progressionLocator = { progression in
             await publication.locate(progression: progression)
         }
+        let qualifiedLocatorBox = QualifiedLocatorBox(initialLocation)
+        self.qualifiedLocatorBox = qualifiedLocatorBox
 
         let positionController = ReadingPositionController(
             bookID: bookID,
@@ -137,7 +140,8 @@ final class ReaderSessionController {
         let delegate = ReaderNavigatorDelegate(
             positionController: positionController,
             readingActivity: readingActivity,
-            onQualifiedLocation: { [weak recapEngine] locator in
+            onQualifiedLocation: { [weak recapEngine, weak qualifiedLocatorBox] locator in
+                qualifiedLocatorBox?.locator = locator
                 guard let recapEngine else { return }
                 do {
                     try recapEngine.recordCheckpoint(
@@ -201,6 +205,7 @@ final class ReaderSessionController {
         selectionContextExtractor = ReadiumSelectionContextExtractor()
         recapContextExtractor = ReadiumReadingRecapContextExtractor()
         recapEngine = nil
+        qualifiedLocatorBox = QualifiedLocatorBox(locationProvider.currentLocation)
         self.locationProvider = locationProvider
         readerController = locationProvider as? any EPUBReaderControlling
         self.positionController = positionController
@@ -363,31 +368,60 @@ final class ReaderSessionController {
     ) async -> LoreAIChatContext? {
         guard let bookID, let publication else { return nil }
 
-        let currentLocation = locationProvider.currentLocation
+        let summaryScope = LoreAISummaryIntentRouter().route(question)
+        // Seule une position restaurée ou issue d'une interaction de lecture
+        // qualifiée peut ouvrir du contexte. Un simple saut reste insuffisant.
+        let currentLocation = qualifiedLocatorBox.locator
         var excerpts: [LoreAIChatExcerpt] = []
         var chapterTitle = currentLocation?.title
         var frontierDescription: String?
         let frontierProgression = currentLocation?.locations.totalProgression
 
-        if stage != .notStarted, let currentLocation {
-            let firstLocation: Locator = if let firstLink = publication.readingOrder.first,
+        if stage != .notStarted {
+            let requestedInterval: (Locator, Locator, String)? = try? await {
+                switch summaryScope {
+                case .yesterday:
+                    guard let recapEngine,
+                          let window = try recapEngine.previousDayWindow(for: bookID, at: .now)
+                    else { return nil }
+                    return (
+                        try LocatorPersistenceCodec.decode(window.firstLocator.storedLocator).locator,
+                        try LocatorPersistenceCodec.decode(window.lastLocator.storedLocator).locator,
+                        "Portion lue hier"
+                    )
+                case .currentChapter:
+                    guard let currentLocation else { return nil }
+                    guard let link = publication.readingOrder.first(where: {
+                        $0.url().isEquivalentTo(currentLocation.href)
+                    }), let start = await publication.locate(link) else { return nil }
+                    return (start, currentLocation, "Chapitre courant déjà lu")
+                case .sinceLastSession:
+                    // Les sessions enregistrent aujourd'hui leur durée, pas un Locator de départ.
+                    // Refuser l'approximation évite d'inclure une autre session ou du texte futur.
+                    return nil
+                case nil:
+                    guard let currentLocation else { return nil }
+                    let start: Locator = if let firstLink = publication.readingOrder.first,
                                             let located = await publication.locate(firstLink) {
-                located
-            } else {
-                currentLocation
-            }
+                        located
+                    } else { currentLocation }
+                    return (start, currentLocation, "Texte lu jusqu’à la position actuelle")
+                }
+            }()
 
-            if let extracted = try? await recapContextExtractor.extract(
+            if let requestedInterval, let extracted = try? await recapContextExtractor.extract(
                 from: publication,
-                firstLocator: firstLocation,
-                lastLocator: currentLocation
+                firstLocator: requestedInterval.0,
+                lastLocator: requestedInterval.1
             ) {
-                chapterTitle = currentLocation.title ?? extracted.chapterTitles.last
+                chapterTitle = requestedInterval.1.title ?? extracted.chapterTitles.last
                 frontierDescription = extracted.lastReadPositionDescription
                 excerpts = [LoreAIChatExcerpt(
                     text: extracted.excerpt,
-                    sourceDescription: "Texte lu jusqu’à la position actuelle",
-                    progression: frontierProgression
+                    sourceDescription: requestedInterval.2,
+                    progression: summaryScope == .yesterday
+                        ? nil
+                        : requestedInterval.1.locations.totalProgression
                 )]
             }
         }
@@ -406,6 +440,7 @@ final class ReaderSessionController {
             // dedicated, user-confirmed extractor is wired, the current
             // Locator remains the only source of text after the end as well.
             fullBookAccessGranted: false,
+            summaryScope: summaryScope,
             history: history,
             question: question
         )
@@ -665,6 +700,15 @@ final class ReaderSessionController {
             onError(error)
             throw error
         }
+    }
+}
+
+@MainActor
+private final class QualifiedLocatorBox {
+    var locator: Locator?
+
+    init(_ locator: Locator?) {
+        self.locator = locator
     }
 }
 

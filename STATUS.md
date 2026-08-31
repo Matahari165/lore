@@ -96,6 +96,7 @@ Dernière mise à jour : 4 septembre 2026
 - Le lecteur passe au Liquid Glass : boutons en verre, curseur de progression en verre remonté sous la vidéo, pastille de volume en verre avec icônes alignées et plus d’air autour, en-tête supprimé avec bouton Fermer flottant sur la vidéo. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Ajustements d’après photo : grande marge au-dessus de la vidéo, boutons ±15 s et vitesse en petits ronds de verre, volume visible uniquement en grande fenêtre. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Finitions d’après photo : ±15 s espacés du bouton Lecture, croix de fermeture retirée (fermeture par glissement, action vocale conservée), coins de la vidéo assortis à la fenêtre, pastille du volume assortie au curseur. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
+- Discussion route maintenant les demandes naturelles de résumé du chapitre courant, de la lecture d’hier et de la dernière session. Le chapitre et la veille utilisent des Locators locaux bornés ; une session sans bornes précises produit une réponse locale explicite, sans envoyer de texte ni approximer.
 
 ## En cours
 
@@ -109,6 +110,7 @@ Dernière mise à jour : 4 septembre 2026
 - Vérification réelle de l’import et de la reprise d’un MP4 dans l’appareil Fichiers puis sur le simulateur ; la compilation de la nouvelle tranche réussit, mais un test de lecture réel reste à faire.
 - Vérification sur iPhone du son podcast (piste audio connue, volume > 0, hors puis en mode silencieux), de l’interruption (appel simulé) et du nouveau visuel du lecteur à `390 × 844` (bouton visible, titre unique, curseur, −15/+15 s).
 - Vérification sur iPhone de la poursuite de lecture écran verrouillé : le son continue, le titre et les commandes apparaissent sur l’écran verrouillé, et la position est retrouvée au retour dans Lore.
+- Résumés naturels : la compilation complète de Lore et LoreTests réussit avec Xcode 26.6 / iOS Simulator 26.5. L’exécution ciblée des nouveaux tests reste bloquée avant tout résultat dans le lanceur XCTest et a été interrompue après deux minutes.
 
 ## À faire
 

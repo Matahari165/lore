@@ -105,6 +105,36 @@ final class DailyReadingRecapEngine {
         ))
     }
 
+    /// Retourne les bornes locales exactes de la veille pour une demande explicite
+    /// dans le chat, indépendamment de l'affichage automatique déjà effectué.
+    func previousDayWindow(for bookID: UUID, at now: Date) throws -> ReadingRecapWindow? {
+        let today = calendar.startOfDay(for: now)
+        guard let previousDay = calendar.date(byAdding: .day, value: -1, to: today),
+              let previousDayEnd = calendar.date(byAdding: .day, value: 1, to: previousDay)
+        else { return nil }
+        let dayInterval = DateInterval(start: previousDay, end: previousDayEnd)
+        let overlaps = try loadSessions(bookID).compactMap { session -> DateInterval? in
+            let effectiveEnd = session.endedAt
+                ?? session.lastActivityAt.addingTimeInterval(inactivityTimeout)
+            let start = max(session.startedAt, dayInterval.start)
+            let end = min(effectiveEnd, dayInterval.end)
+            return end > start ? DateInterval(start: start, end: end) : nil
+        }
+        guard let firstActivityAt = overlaps.map(\.start).min(),
+              let lastActivityAt = overlaps.map(\.end).max(),
+              let checkpoint = try store.checkpoint(for: bookID, localDayStart: previousDay)
+        else { return nil }
+        return ReadingRecapWindow(
+            bookID: bookID,
+            localDayInterval: dayInterval,
+            firstActivityAt: firstActivityAt,
+            lastActivityAt: lastActivityAt,
+            exactReadingDuration: overlaps.reduce(0) { $0 + $1.duration },
+            firstLocator: checkpoint.firstLocator,
+            lastLocator: checkpoint.lastLocator
+        )
+    }
+
     /// Un échec ne bloque pas une nouvelle tentative. Un succès ou une fermeture volontaire
     /// évite toute nouvelle proposition pour ce livre pendant la même journée locale.
     /// Concrètement : `.failed` ne marque rien (`markShown` est un no-op), donc le résumé

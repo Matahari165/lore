@@ -200,6 +200,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les checkpoints de récapitulatif (premier Locator immuable, dernier Locator mobile) sont enregistrés localement dès la première ouverture du jour, sans réseau. Un résumé de veille en échec (hors-ligne, erreur IA) n’est jamais mis en cache ni marqué comme vu : il reste réessayable via « Réessayer » à la prochaine connexion.
 - Les résumés de veille réussis sont conservés 30 jours par jour civil local (`home-ai-recap-v2`, migration `v1` lue puis supprimée) et consultables via `recapHistory()` du plus récent au plus ancien. Le bloc « Hier » affiche le texte intégral extensible (replié 6 lignes, « Voir plus / Voir moins ») avec navigation Jour précédent / Jour suivant jusqu’à 30 jours.
 - L’intervalle du résumé de veille couvre tout le texte entre le premier Locator du jour et le dernier Locator du jour, ressources intermédiaires incluses, arrêté au dernier passage lu sans spoiler.
+- Les demandes naturelles de résumé restent dans Discussion : Lore reconnaît le chapitre courant, la lecture d’hier et la dernière session en français ou en anglais. Il extrait seulement l’intervalle local prouvé, omet l’ancien historique pour ces résumés et répond sans appel IA lorsque les bornes sont insuffisantes.
 
 ## Décisions nécessitant une consultation
 
