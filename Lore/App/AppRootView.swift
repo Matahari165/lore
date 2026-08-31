@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AppRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     enum Tab: Hashable {
         case home
         case library
@@ -9,6 +10,8 @@ struct AppRootView: View {
 
     @State private var selectedTab: Tab
     @State private var libraryModel: LibraryViewModel
+    @State private var dailyGoalModel: DailyReadingGoalModel
+    @State private var presentsSettings = false
 
     let statisticsAdapter: StatisticsDataAdapter
 
@@ -18,7 +21,8 @@ struct AppRootView: View {
         sessionRepository: ReadingSessionRepository,
         statisticsAdapter: StatisticsDataAdapter,
         fileStore: BookFileStore,
-        publicationService: ReadiumPublicationService
+        publicationService: ReadiumPublicationService,
+        dailyGoalStore: any DailyReadingGoalStore = UserDefaultsDailyReadingGoalStore()
     ) {
         _selectedTab = State(initialValue: initialTab)
         _libraryModel = State(initialValue: LibraryViewModel(
@@ -27,6 +31,7 @@ struct AppRootView: View {
             fileStore: fileStore,
             publicationService: publicationService
         ))
+        _dailyGoalModel = State(initialValue: DailyReadingGoalModel(store: dailyGoalStore))
         self.statisticsAdapter = statisticsAdapter
     }
 
@@ -36,7 +41,9 @@ struct AppRootView: View {
         TabView(selection: $selectedTab) {
             LibraryView(
                 mode: .home,
-                model: libraryModel
+                model: libraryModel,
+                dailyGoalState: dailyGoalModel.state,
+                onOpenSettings: { presentsSettings = true }
             )
             .tabItem { Label("Accueil", systemImage: "house") }
             .tag(Tab.home)
@@ -50,12 +57,21 @@ struct AppRootView: View {
 
             StatisticsDashboardView(
                 adapter: statisticsAdapter,
+                dailyGoalModel: dailyGoalModel,
                 onOpenLibrary: { selectedTab = .library }
             )
             .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
             .tag(Tab.statistics)
         }
         .loreCanvas()
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            reloadDailyGoal()
+        }
+        .onChange(of: selectedTab) { _, _ in reloadDailyGoal() }
+        .sheet(isPresented: $presentsSettings, onDismiss: reloadDailyGoal) {
+            SettingsView(model: dailyGoalModel)
+        }
         .alert("Importation terminée", isPresented: Binding(
             get: { libraryModel.importSummary != nil },
             set: { if !$0 { libraryModel.importSummary = nil } }
@@ -72,10 +88,21 @@ struct AppRootView: View {
         } message: {
             Text(libraryModel.errorMessage ?? "")
         }
-        .fullScreenCover(item: $libraryModel.readerPresentation) { presentation in
+        .fullScreenCover(item: $libraryModel.readerPresentation, onDismiss: reloadDailyGoal) { presentation in
             ReaderScreen(presentation: presentation) {
                 await libraryModel.closeReader()
             }
+        }
+    }
+
+    private func reloadDailyGoal() {
+        dailyGoalModel.reload()
+        do {
+            dailyGoalModel.updateTodayDuration(
+                try statisticsAdapter.snapshot(containing: .now).todayDuration
+            )
+        } catch {
+            dailyGoalModel.markProgressUnavailable()
         }
     }
 }

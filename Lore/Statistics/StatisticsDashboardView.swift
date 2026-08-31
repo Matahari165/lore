@@ -2,22 +2,43 @@ import Observation
 import SwiftUI
 
 struct StatisticsDashboardView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: StatisticsDashboardModel
+    let dailyGoalModel: DailyReadingGoalModel
     let onOpenLibrary: () -> Void
 
-    init(adapter: StatisticsDataAdapter, onOpenLibrary: @escaping () -> Void) {
+    init(
+        adapter: StatisticsDataAdapter,
+        dailyGoalModel: DailyReadingGoalModel,
+        onOpenLibrary: @escaping () -> Void
+    ) {
         _model = State(initialValue: StatisticsDashboardModel(adapter: adapter))
+        self.dailyGoalModel = dailyGoalModel
         self.onOpenLibrary = onOpenLibrary
     }
 
     var body: some View {
         StatisticsScreen(
             state: model.state,
+            dailyGoalState: dailyGoalModel.state,
             onRetry: model.load,
             onOpenLibrary: onOpenLibrary,
             onChangeMonth: model.changeMonth
         )
         .onAppear(perform: model.load)
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            model.load()
+        }
+        .onChange(of: model.state) { _, state in
+            if case let .loaded(snapshot) = state {
+                dailyGoalModel.updateTodayDuration(snapshot.todayDuration)
+            } else if case .empty = state {
+                dailyGoalModel.updateTodayDuration(0)
+            } else if case .failed = state {
+                dailyGoalModel.markProgressUnavailable()
+            }
+        }
     }
 }
 

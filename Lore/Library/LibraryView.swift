@@ -6,11 +6,20 @@ struct LibraryView: View {
 
     let mode: Mode
     let model: LibraryViewModel
+    let dailyGoalState: DailyGoalState
+    let onOpenSettings: () -> Void
     @State private var presentsImporter = false
 
-    init(mode: Mode = .library, model: LibraryViewModel) {
+    init(
+        mode: Mode = .library,
+        model: LibraryViewModel,
+        dailyGoalState: DailyGoalState = .disabled,
+        onOpenSettings: @escaping () -> Void = {}
+    ) {
         self.mode = mode
         self.model = model
+        self.dailyGoalState = dailyGoalState
+        self.onOpenSettings = onOpenSettings
     }
 
     var body: some View {
@@ -23,6 +32,13 @@ struct LibraryView: View {
             }
             .navigationTitle(mode == .home ? "Accueil" : "Bibliothèque")
             .toolbar {
+                if mode == .home {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Réglages", systemImage: "gearshape", action: onOpenSettings)
+                            .labelStyle(.iconOnly)
+                            .accessibilityHint("Configurer l’objectif quotidien")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Importer des EPUB", systemImage: "plus") { presentsImporter = true }
                         .disabled(model.isImporting)
@@ -47,19 +63,26 @@ struct LibraryView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(mode == .home ? "Votre prochaine lecture commence ici" : "Aucun livre", systemImage: "books.vertical")
-        } description: {
-            Text("Importez un ou plusieurs EPUB sans DRM depuis Fichiers.")
-        } actions: {
-            Button("Importer des EPUB") { presentsImporter = true }
-                .buttonStyle(.borderedProminent).foregroundStyle(LoreTheme.canvas).controlSize(.large)
+        VStack(spacing: 16) {
+            if mode == .home {
+                DailyGoalProgressView(state: dailyGoalState)
+                    .padding(.horizontal, LoreTheme.pageMargin)
+            }
+            ContentUnavailableView {
+                Label(mode == .home ? "Votre prochaine lecture commence ici" : "Aucun livre", systemImage: "books.vertical")
+            } description: {
+                Text("Importez un ou plusieurs EPUB sans DRM depuis Fichiers.")
+            } actions: {
+                Button("Importer des EPUB") { presentsImporter = true }
+                    .buttonStyle(.borderedProminent).foregroundStyle(LoreTheme.canvas).controlSize(.large)
+            }
         }
     }
 
     private var homeContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
+                DailyGoalProgressView(state: dailyGoalState)
                 if let book = model.resumableBook { resumeSection(book) }
                 bookGrid(title: "Ajouts récents", books: model.recentlyImportedBooks)
             }

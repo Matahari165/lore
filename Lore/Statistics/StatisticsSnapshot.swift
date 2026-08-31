@@ -32,7 +32,7 @@ struct StatisticsBookSummary: Identifiable, Sendable, Equatable {
     let rating: Int?
 }
 
-enum StatisticsScreenState: Sendable {
+enum StatisticsScreenState: Sendable, Equatable {
     case loading
     case loaded(StatisticsSnapshot)
     case empty

@@ -3,6 +3,7 @@ import UIKit
 
 struct StatisticsScreen: View {
     let state: StatisticsScreenState
+    var dailyGoalState: DailyGoalState = .disabled
     var onRetry: () -> Void = {}
     var onOpenLibrary: () -> Void = {}
     var onChangeMonth: (Int) -> Void = { _ in }
@@ -17,6 +18,7 @@ struct StatisticsScreen: View {
                 case let .loaded(snapshot):
                     StatisticsContent(
                         snapshot: snapshot,
+                        dailyGoalState: dailyGoalState,
                         onChangeMonth: onChangeMonth,
                         onSelectBook: onSelectBook
                     )
@@ -51,15 +53,19 @@ struct StatisticsScreen: View {
     }
 
     private var emptyContent: some View {
-        ContentUnavailableView {
-            Label("Aucune lecture enregistrée", systemImage: "clock")
-        } description: {
-            Text("Votre activité apparaîtra ici après une première session de lecture.")
-        } actions: {
-            Button("Ouvrir la bibliothèque", action: onOpenLibrary)
-                .buttonStyle(.borderedProminent)
-                .foregroundStyle(LoreTheme.canvas)
-                .controlSize(.large)
+        VStack(spacing: 16) {
+            DailyGoalProgressView(state: dailyGoalState)
+                .padding(.horizontal, LoreTheme.pageMargin)
+            ContentUnavailableView {
+                Label("Aucune lecture enregistrée", systemImage: "clock")
+            } description: {
+                Text("Votre activité apparaîtra ici après une première session de lecture.")
+            } actions: {
+                Button("Ouvrir la bibliothèque", action: onOpenLibrary)
+                    .buttonStyle(.borderedProminent)
+                    .foregroundStyle(LoreTheme.canvas)
+                    .controlSize(.large)
+            }
         }
     }
 
@@ -79,12 +85,14 @@ struct StatisticsScreen: View {
 
 private struct StatisticsContent: View {
     let snapshot: StatisticsSnapshot
+    let dailyGoalState: DailyGoalState
     let onChangeMonth: (Int) -> Void
     let onSelectBook: (StatisticsBookSummary) -> Void
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
+                DailyGoalProgressView(state: dailyGoalState)
                 StatisticsMetrics(
                     today: snapshot.todayDuration,
                     week: snapshot.weekDuration,
