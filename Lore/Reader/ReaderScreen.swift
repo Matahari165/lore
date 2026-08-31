@@ -91,6 +91,7 @@ struct ReaderScreen: View {
             case .vocabulary:
                 ReaderVocabularySheet(
                     items: vocabulary,
+                    currentBookID: presentation.id,
                     onSelect: openVocabularyItem,
                     onDelete: presentation.session.deleteVocabularyItem
                 )

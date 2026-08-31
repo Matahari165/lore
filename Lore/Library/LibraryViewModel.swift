@@ -505,11 +505,12 @@ final class LibraryViewModel {
         }
         guard !matching.isEmpty else { return nil }
 
-        let duration = matching.reduce(0.0) { total, session in
-            let start = max(session.startedAt, interval.start)
-            let end = min(session.endedAt ?? session.lastActivityAt, interval.end)
-            return total + max(0, end.timeIntervalSince(start))
-        }
+        let duration = ReadingSessionDuration.total(
+            matching,
+            in: interval,
+            now: today,
+            inactivityTimeout: ReadingActivityPolicy.defaultInactivityTimeout
+        )
         let titles = Set(matching.compactMap { session in
             books.first(where: { $0.id == session.bookID })?.title
         }).sorted()

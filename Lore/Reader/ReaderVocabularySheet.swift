@@ -3,6 +3,7 @@ import UIKit
 
 struct ReaderVocabularySheet: View {
     let items: [VocabularyItem]
+    let currentBookID: UUID
     let onSelect: (VocabularyItem) -> Void
     let onDelete: (VocabularyItem) -> Void
 
@@ -21,21 +22,15 @@ struct ReaderVocabularySheet: View {
                     )
                 } else {
                     List(items) { item in
-                        Button {
-                            onSelect(item)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(item.text)
-                                    .foregroundStyle(.primary)
-                                    .multilineTextAlignment(.leading)
-                                Text(item.createdAt, format: .dateTime.day().month().year())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        Group {
+                            if item.bookID == currentBookID {
+                                Button { onSelect(item) } label: { vocabularyLabel(item) }
+                                    .buttonStyle(.plain)
+                                    .accessibilityHint("Revient au passage d’origine")
+                            } else {
+                                vocabularyLabel(item)
                             }
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Revient au passage d’origine")
                         .swipeActions {
                             Button("Supprimer", systemImage: "trash", role: .destructive) {
                                 pendingDeletion = item
@@ -94,5 +89,17 @@ struct ReaderVocabularySheet: View {
             .sorted { $0.createdAt < $1.createdAt }
             .map(\.text)
             .joined(separator: "\n\n")
+    }
+
+    private func vocabularyLabel(_ item: VocabularyItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.text)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+            Text(item.createdAt, format: .dateTime.day().month().year())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 }

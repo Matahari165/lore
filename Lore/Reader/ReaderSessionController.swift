@@ -157,7 +157,7 @@ final class ReaderSessionController {
             onError(error)
         }
         do {
-            vocabulary = try vocabularyStore?.vocabulary(for: bookID) ?? []
+            vocabulary = try vocabularyStore?.allVocabulary() ?? []
         } catch {
             onError(error)
         }
@@ -439,9 +439,9 @@ final class ReaderSessionController {
     }
 
     func deleteVocabularyItem(_ item: VocabularyItem) {
-        guard let bookID, let vocabularyStore else { return }
+        guard let vocabularyStore else { return }
         do {
-            try vocabularyStore.deleteVocabulary(id: item.id, bookID: bookID)
+            try vocabularyStore.deleteVocabulary(id: item.id, bookID: item.bookID)
             vocabulary.removeAll { $0.id == item.id }
             vocabularyChangeHandler?(vocabulary)
         } catch {
@@ -451,6 +451,7 @@ final class ReaderSessionController {
 
     @discardableResult
     func go(to vocabularyItem: VocabularyItem) async -> Bool {
+        guard vocabularyItem.bookID == bookID else { return false }
         let didNavigate = await readerController?.go(to: vocabularyItem.locator, options: .animated) ?? false
         if didNavigate { await reinforceSelectionAppearance() }
         return didNavigate
@@ -588,7 +589,9 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
         selectionActivityPolicy.reset()
         positionController.record(locator)
         onProgressionChange?(locator.locations.totalProgression ?? 0)
-        if previousLocation?.href != locator.href { onContentStyleRefresh?() }
+        // Readium may rebuild the same resource after applying preferences.
+        // Reapply Lore's final CSS rule after every confirmed location update.
+        onContentStyleRefresh?()
         defer { previousLocation = locator }
         guard let previousLocation, previousLocation != locator else { return }
         do {
