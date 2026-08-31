@@ -33,12 +33,14 @@ Permettre une boucle de lecture complète et simple :
 
 ### Lecteur
 
-- Navigation tactile : tiers gauche pour revenir, tiers droit pour avancer et tiers central pour afficher les commandes, adaptée au sens de lecture du livre.
+- Un tap sur le contenu affiche ou masque les commandes sans tourner la page. La navigation reste assurée par le défilement, les gestes Readium et le sommaire.
 - Navigation par chapitres.
 - Réglages de police, taille du texte, interligne et thème clair ou sombre.
 - Reprise au passage exact.
 - Progression en pourcentage et par chapitres.
-- Sélection lisible en thème sombre avec les actions Copier, Surligner, Traduire et Définition.
+- Sélection cyan très contrastée en thème sombre avec les actions Copier, Surligner, Expliquer, Traduire et Définition.
+- Explication simple du passage sélectionné par l’IA avec un contexte borné dans le chapitre courant.
+- Résumé de la lecture de la veille à la première ouverture pertinente de la journée, sans répétition le même jour.
 - Création et suppression de surlignages persistants, consultables depuis le lecteur avec retour direct au passage.
 - Création, modification et suppression de notes.
 - Mesure automatique du temps de lecture actif.
@@ -66,10 +68,8 @@ Permettre une boucle de lecture complète et simple :
 - EPUB protégés par DRM, notamment les livres Apple Books protégés.
 - Boutique de livres.
 - Comptes multiples et fonctions sociales.
-- Explication d'un passage par l'intelligence artificielle.
 - Questions sur tout le livre.
 - Résumés automatiques de chapitres.
-- Rappel automatique de la session précédente.
 - Fiches de personnages et de concepts.
 - Flashcards.
 - Recommandations avancées.
@@ -85,9 +85,11 @@ La V1 est terminée lorsque :
 - le livre reste disponible après redémarrage ;
 - la lecture et la navigation entre chapitres fonctionnent ;
 - les réglages visuels sont conservés ;
-- les touches sur les tiers gauche et droit changent de page sans gêner la sélection du texte ;
+- un tap à gauche ou à droite ne tourne pas la page et sert seulement à afficher ou masquer les commandes ;
 - la reprise revient au même passage ;
-- la sélection reste lisible en mode sombre et expose Copier, Surligner, Traduire et Définition ;
+- la sélection reste lisible en mode sombre et expose Copier, Surligner, Expliquer, Traduire et Définition ;
+- l’explication IA utilise seulement le passage et un contexte borné, et reste désactivée sans clé ;
+- le résumé de la veille n’est proposé qu’une fois par livre et par jour local ;
 - les surlignages peuvent être créés, retrouvés, ouverts et supprimés ;
 - les notes peuvent être créées, modifiées et supprimées ;
 - le temps actif est mesuré sans compter l’arrière-plan ni une longue inactivité ;
@@ -109,7 +111,7 @@ La V1 est terminée lorsque :
 - **iCloud :** synchronise les données entre les appareils personnels.
 - **Moteur EPUB :** Readium Swift Toolkit 3.11 ouvre le livre et fournit le Locator stable utilisé pour reprendre la lecture.
 - **Mesure de lecture :** enregistre des sessions actives, puis calcule les statistiques à partir de ces sessions.
-- **IA :** module séparé afin de pouvoir choisir plus tard une solution locale ou externe sans reconstruire le lecteur.
+- **IA :** module séparé utilisant l’API Responses d’OpenAI avec `gpt-5.6-luna`, une clé conservée dans le trousseau de l’iPhone et `store: false`.
 
 Les choix techniques détaillés doivent privilégier les outils natifs Apple, la simplicité et l’absence de serveur quand il n’apporte pas de bénéfice nécessaire.
 
@@ -134,7 +136,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Boucle principale de V1 : importer, lire, reprendre, annoter et mesurer.
 - Progression fondée sur le pourcentage et les chapitres, pas sur un nombre de pages fixe.
 - Synchronisation via iCloud.
-- Toutes les fonctions IA sont reportées après le premier socle utilisable.
+- Le premier lot IA est intégré au lecteur : expliquer une sélection et résumer la lecture de la veille.
 - Premier parcours local isolé d’iCloud : import atomique d’un EPUB sans DRM, bibliothèque au lancement, lecture et reprise par Locator complet.
 - L’identité d’un EPUB local est le SHA-256 de ses octets ; un second import identique retourne le livre existant.
 - Les imports sont sérialisés et Readium valide la copie privée en staging avant sa promotion atomique.
@@ -151,16 +153,19 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La date de début d’un livre correspond à sa première session réelle. La date de fin est enregistrée lorsque le livre est explicitement marqué comme terminé.
 - La note personnelle est un entier de 0 à 10.
 - Le lecteur utilise Liquid Glass natif pour ses commandes flottantes. Les réglages essentiels sont disponibles dans un panneau rapide, puis dans une page complète.
-- En mode paginé, les tiers gauche et droit du contenu changent de page ; le tiers central contrôle l’affichage des commandes. Le sens est inversé automatiquement pour un livre écrit de droite à gauche.
+- Aucun tap gauche ou droit ne tourne les pages ; tout tap simple sur le contenu contrôle uniquement l’affichage des commandes.
 - Les surlignages sont privés et locaux. Ils conservent le Locator Readium complet, le texte sélectionné, la date et la couleur afin de revenir au passage exact.
-- Le menu de sélection du lecteur conserve les outils système Copier, Traduire et Définition, puis ajoute Surligner.
+- Le menu de sélection conserve Copier, Traduire et Définition, puis ajoute Surligner et Expliquer.
+- L’IA utilise exactement `gpt-5.6-luna` via l’API Responses, avec `store: false`. La clé n’est jamais incluse dans le code et reste dans le trousseau sécurisé de l’iPhone.
+- Une explication envoie uniquement le passage sélectionné et une fenêtre bornée du chapitre courant. Le résumé quotidien peut envoyer jusqu’à 18 000 caractères de la portion lue la veille.
+- Le résumé quotidien porte uniquement sur le jour civil précédent, utilise les premier et dernier Locator enregistrés et n’est présenté qu’une fois par livre pendant la journée locale.
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
 - L’icône de Lore est une page pliée minimaliste formant un `L` ivoire sur fond bleu nuit.
 
 ## Décisions nécessitant une consultation
 
-- Autoriser ou non l’envoi de passages à un service d’IA externe.
+- L’envoi volontaire d’un passage et de son contexte borné à OpenAI est autorisé lorsque la clé est configurée ; aucun texte n’est envoyé avant.
 - Budget mensuel maximal éventuel pour l’IA.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
 - Ajout, retrait ou changement important d’une fonction de la V1.

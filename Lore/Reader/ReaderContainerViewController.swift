@@ -36,4 +36,8 @@ final class ReaderContainerViewController: UIViewController {
     @objc func highlightSelection(_ sender: Any?) {
         session.highlightCurrentSelection()
     }
+
+    @objc func explainSelection(_ sender: Any?) {
+        session.explainCurrentSelection()
+    }
 }

@@ -11,6 +11,8 @@ struct ReaderScreen: View {
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
     @State private var highlights: [ReaderHighlight]
+    @State private var aiExplanation: ReaderAIExplanationState?
+    @State private var aiRecap: ReaderAIRecapState?
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,11 +52,16 @@ struct ReaderScreen: View {
             }
             presentation.session.setProgressionHandler { progression = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
+            presentation.session.setExplanationHandler { aiExplanation = $0 }
+            presentation.session.setRecapHandler { aiRecap = $0 }
+            presentation.session.requestDailyRecapIfEligible()
         }
         .onDisappear {
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)
+            presentation.session.setExplanationHandler(nil)
+            presentation.session.setRecapHandler(nil)
         }
         .sheet(item: $presentedPanel) { panel in
             switch panel {
@@ -70,6 +77,22 @@ struct ReaderScreen: View {
         }
         .fullScreenCover(isPresented: $showsAllPreferences) {
             ReaderPreferencesPage(preferences: $preferences, onChange: applyPreferences)
+        }
+        .sheet(item: $aiExplanation) { state in
+            ReaderAIExplanationSheet(state: state) {
+                presentation.session.cancelExplanation()
+                aiExplanation = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $aiRecap) { state in
+            ReaderAIRecapSheet(state: state) {
+                presentation.session.cancelDailyRecap()
+                aiRecap = nil
+            }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -187,6 +210,93 @@ struct ReaderScreen: View {
     private enum Panel: String, Identifiable {
         case chapters, highlights
         var id: String { rawValue }
+    }
+}
+
+private struct ReaderAIExplanationSheet: View {
+    let state: ReaderAIExplanationState
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text(state.selectedText)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(5)
+                        .accessibilityLabel("Passage sélectionné : \(state.selectedText)")
+
+                    switch state {
+                    case .loading:
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Explication en cours…")
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+                    case let .answer(_, text):
+                        Text(text)
+                            .font(.body)
+                            .textSelection(.enabled)
+                    case let .failure(_, message):
+                        ContentUnavailableView(
+                            "Explication indisponible",
+                            systemImage: "sparkles",
+                            description: Text(message)
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+            .navigationTitle("Expliquer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer", action: onClose)
+                }
+            }
+        }
+    }
+}
+
+private struct ReaderAIRecapSheet: View {
+    let state: ReaderAIRecapState
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch state {
+                case .loading:
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Résumé de votre lecture d’hier…")
+                    }
+                    .padding(20)
+                case let .answer(text):
+                    ScrollView {
+                        Text(text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(20)
+                            .textSelection(.enabled)
+                    }
+                case let .failure(message):
+                    ContentUnavailableView(
+                        "Résumé indisponible",
+                        systemImage: "clock.arrow.circlepath",
+                        description: Text(message)
+                    )
+                }
+            }
+            .navigationTitle("Hier, vous en étiez là")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer", action: onClose)
+                }
+            }
+        }
     }
 }
 

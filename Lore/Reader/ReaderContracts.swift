@@ -81,16 +81,10 @@ protocol EPUBReaderControlling: ReaderLocationProviding {
     func go(to link: Link, options: NavigatorGoOptions) async -> Bool
 }
 
-enum ReaderTapZone: Equatable {
-    case backward, chrome, forward
-
-    static func resolve(x: CGFloat, width: CGFloat, isRTL: Bool) -> ReaderTapZone {
-        guard width > 0 else { return .chrome }
-        let fraction = min(max(x / width, 0), 1)
-        if fraction < 1 / 3 { return isRTL ? .forward : .backward }
-        if fraction > 2 / 3 { return isRTL ? .backward : .forward }
-        return .chrome
-    }
+enum ReaderSelectionPalette {
+    /// Intentionally distinct from the persistent yellow highlight color.
+    static let background = "#66E3FF"
+    static let text = "#071018"
 }
 
 struct ReaderChapter: Identifiable, Sendable {

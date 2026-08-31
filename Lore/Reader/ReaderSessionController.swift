@@ -12,15 +12,22 @@ final class ReaderSessionController {
     private let publication: Publication?
     private let bookID: UUID?
     private let highlightStore: (any HighlightStoring)?
+    private let aiService: any LoreAIService
+    private let selectionContextExtractor: ReadiumSelectionContextExtractor
+    private let recapContextExtractor: ReadiumReadingRecapContextExtractor
+    private let recapEngine: DailyReadingRecapEngine?
     private let locationProvider: any ReaderLocationProviding
     private let readerController: (any EPUBReaderControlling)?
     private let positionController: any ReadingPositionManaging
     private let readingActivity: any ReadingActivityManaging
     private let preferencesStore: any ReaderPreferencesStoring
     private let navigatorDelegate: ReaderNavigatorDelegate?
-    private let directionalNavigationAdapter: DirectionalNavigationAdapter?
     private let onError: @MainActor (Error) -> Void
     private var highlightChangeHandler: (@MainActor ([ReaderHighlight]) -> Void)?
+    private var explanationHandler: (@MainActor (ReaderAIExplanationState) -> Void)?
+    private var recapHandler: (@MainActor (ReaderAIRecapState) -> Void)?
+    private var explanationTask: Task<Void, Never>?
+    private var recapTask: Task<Void, Never>?
     private(set) var highlights: [ReaderHighlight] = []
 
     static func make(
@@ -29,6 +36,7 @@ final class ReaderSessionController {
         publicationService: ReadiumPublicationService,
         progressStore: any ReaderProgressStore,
         readingActivity: any ReadingActivityManaging,
+        recapEngine: DailyReadingRecapEngine? = nil,
         onError: @escaping @MainActor (Error) -> Void = { _ in }
     ) async throws -> ReaderSessionController {
         let opened = try await publicationService.openEPUB(at: fileURL)
@@ -54,6 +62,7 @@ final class ReaderSessionController {
             preferences: preferences,
             preferencesStore: preferencesStore,
             chapters: chapters,
+            recapEngine: recapEngine,
             onError: onError
         )
         if restoration.requiresRewrite, let initialLocation = restoration.locator {
@@ -71,6 +80,7 @@ final class ReaderSessionController {
         preferences: ReaderPreferences,
         preferencesStore: any ReaderPreferencesStoring,
         chapters: [ReaderChapter],
+        recapEngine: DailyReadingRecapEngine? = nil,
         onError: @escaping @MainActor (Error) -> Void = { _ in }
     ) throws {
         self.publication = publication
@@ -80,6 +90,10 @@ final class ReaderSessionController {
         self.preferencesStore = preferencesStore
         self.chapters = chapters
         self.onError = onError
+        aiService = OpenAIResponsesClient()
+        selectionContextExtractor = ReadiumSelectionContextExtractor()
+        recapContextExtractor = ReadiumReadingRecapContextExtractor()
+        self.recapEngine = recapEngine
 
         let positionController = ReadingPositionController(
             bookID: bookID,
@@ -90,15 +104,16 @@ final class ReaderSessionController {
         self.readingActivity = readingActivity
 
         let highlightAction = EditingAction(title: "Surligner", action: #selector(ReaderContainerViewController.highlightSelection(_:)))
+        let explainAction = EditingAction(title: "Expliquer", action: #selector(ReaderContainerViewController.explainSelection(_:)))
         var cssProperties = CSSRSProperties()
-        cssProperties.selectionTextColor = CSSHexColor("#111111")
-        cssProperties.selectionBackgroundColor = CSSHexColor("#FFD54F")
+        cssProperties.selectionTextColor = CSSHexColor(ReaderSelectionPalette.text)
+        cssProperties.selectionBackgroundColor = CSSHexColor(ReaderSelectionPalette.background)
         let navigator = try EPUBNavigatorViewController(
             publication: publication,
             initialLocation: initialLocation,
             config: .init(
                 preferences: preferences.readiumValue,
-                editingActions: [.copy, .translate, .lookup, highlightAction],
+                editingActions: [.copy, highlightAction, explainAction, .translate, .lookup],
                 disablePageTurnsWhileScrolling: true,
                 readiumCSSRSProperties: cssProperties
             )
@@ -110,22 +125,22 @@ final class ReaderSessionController {
         let delegate = ReaderNavigatorDelegate(
             positionController: positionController,
             readingActivity: readingActivity,
-            isRTL: publication.metadata.readingProgression == .rtl,
+            onQualifiedLocation: { [weak recapEngine] locator in
+                guard let recapEngine else { return }
+                do {
+                    try recapEngine.recordCheckpoint(
+                        bookID: bookID,
+                        locator: try LocatorPersistenceCodec.encode(locator),
+                        at: .now
+                    )
+                } catch {
+                    onError(error)
+                }
+            },
             onError: onError
         )
         navigatorDelegate = delegate
         navigator.delegate = delegate
-
-        let directionalNavigationAdapter = DirectionalNavigationAdapter(
-            pointerPolicy: .init(
-                edges: .horizontal,
-                ignoreWhileScrolling: true,
-                horizontalEdgeThresholdPercent: 1 / 3
-            ),
-            animatedTransition: true
-        )
-        self.directionalNavigationAdapter = directionalNavigationAdapter
-        directionalNavigationAdapter.bind(to: navigator)
 
         do {
             highlights = try highlightStore?.highlights(for: bookID) ?? []
@@ -146,6 +161,10 @@ final class ReaderSessionController {
         publication = nil
         bookID = nil
         highlightStore = nil
+        aiService = OpenAIResponsesClient()
+        selectionContextExtractor = ReadiumSelectionContextExtractor()
+        recapContextExtractor = ReadiumReadingRecapContextExtractor()
+        recapEngine = nil
         self.locationProvider = locationProvider
         readerController = locationProvider as? any EPUBReaderControlling
         self.positionController = positionController
@@ -155,7 +174,6 @@ final class ReaderSessionController {
         self.chapters = chapters
         contentViewController = locationProvider.viewController
         navigatorDelegate = nil
-        directionalNavigationAdapter = nil
         self.onError = onError
     }
 
@@ -179,6 +197,103 @@ final class ReaderSessionController {
     func setHighlightChangeHandler(_ handler: (@MainActor ([ReaderHighlight]) -> Void)?) {
         highlightChangeHandler = handler
         handler?(highlights)
+    }
+
+    func setExplanationHandler(_ handler: (@MainActor (ReaderAIExplanationState) -> Void)?) {
+        explanationHandler = handler
+    }
+
+    func setRecapHandler(_ handler: (@MainActor (ReaderAIRecapState) -> Void)?) {
+        recapHandler = handler
+    }
+
+    func requestDailyRecapIfEligible(at now: Date = .now) {
+        guard let recapEngine, let bookID, let publication else { return }
+        do {
+            guard case let .eligible(window) = try recapEngine.eligibility(for: bookID, at: now) else { return }
+            let first = try LocatorPersistenceCodec.decode(window.firstLocator.storedLocator).locator
+            let last = try LocatorPersistenceCodec.decode(window.lastLocator.storedLocator).locator
+            recapHandler?(.loading)
+            recapTask?.cancel()
+            recapTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let context = try await recapContextExtractor.extract(
+                        from: publication,
+                        firstLocator: first,
+                        lastLocator: last
+                    )
+                    let answer = try await aiService.recap(PreviousReadingContext(
+                        title: context.title,
+                        author: context.author,
+                        chapterTitles: context.chapterTitles,
+                        excerpt: context.excerpt,
+                        lastReadPositionDescription: context.lastReadPositionDescription
+                    ))
+                    recapHandler?(.answer(answer))
+                    try recapEngine.markShown(for: bookID, at: now, completion: .delivered)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    recapHandler?(.failure(
+                        (error as? LocalizedError)?.errorDescription ?? "Le résumé est indisponible."
+                    ))
+                    try? recapEngine.markShown(for: bookID, at: now, completion: .failed)
+                }
+            }
+        } catch {
+            onError(error)
+        }
+    }
+
+    func explainCurrentSelection() {
+        guard
+            let navigator = readerController as? any SelectableNavigator,
+            let selection = navigator.currentSelection,
+            let publication
+        else { return }
+
+        let selectedText = selection.locator.text.highlight?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !selectedText.isEmpty else { return }
+        explanationHandler?(.loading(selectedText: selectedText))
+
+        explanationTask?.cancel()
+        explanationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let extracted = try await selectionContextExtractor.extract(
+                    from: publication,
+                    selection: selection.locator
+                )
+                let answer = try await aiService.explain(BookAIContext(
+                    title: extracted.title,
+                    author: extracted.author,
+                    chapterTitle: extracted.sectionTitle,
+                    textBefore: extracted.beforeText,
+                    selectedText: extracted.selectedText,
+                    textAfter: extracted.afterText
+                ))
+                explanationHandler?(.answer(selectedText: selectedText, text: answer))
+            } catch is CancellationError {
+                return
+            } catch {
+                explanationHandler?(.failure(
+                    selectedText: selectedText,
+                    message: (error as? LocalizedError)?.errorDescription ?? "L’explication est indisponible."
+                ))
+            }
+        }
+    }
+
+    func cancelExplanation() {
+        explanationTask?.cancel()
+        explanationTask = nil
+    }
+
+    func cancelDailyRecap() {
+        recapTask?.cancel()
+        recapTask = nil
     }
 
     func highlightCurrentSelection() {
@@ -312,21 +427,21 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     private let positionController: ReadingPositionController
     private let readingActivity: any ReadingActivityManaging
     private let onError: @MainActor (Error) -> Void
+    private let onQualifiedLocation: @MainActor (Locator) -> Void
     private var previousLocation: Locator?
     private var selectionActivityPolicy = SelectionActivityPolicy()
-    private let isRTL: Bool
     var onChromeTap: (@MainActor () -> Void)?
     var onProgressionChange: (@MainActor (Double) -> Void)?
 
     init(
         positionController: ReadingPositionController,
         readingActivity: any ReadingActivityManaging,
-        isRTL: Bool,
+        onQualifiedLocation: @escaping @MainActor (Locator) -> Void = { _ in },
         onError: @escaping @MainActor (Error) -> Void
     ) {
         self.positionController = positionController
         self.readingActivity = readingActivity
-        self.isRTL = isRTL
+        self.onQualifiedLocation = onQualifiedLocation
         self.onError = onError
     }
 
@@ -338,6 +453,8 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
         guard let previousLocation, previousLocation != locator else { return }
         do {
             try readingActivity.recordReadingInteraction()
+            onQualifiedLocation(previousLocation)
+            onQualifiedLocation(locator)
         } catch {
             onError(error)
         }
@@ -346,11 +463,9 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, didJumpTo locator: Locator) {
         selectionActivityPolicy.reset()
         onProgressionChange?(locator.locations.totalProgression ?? 0)
-        do {
-            try readingActivity.recordReadingInteraction()
-        } catch {
-            onError(error)
-        }
+        // Un saut par le sommaire ou vers un surlignage n'est pas une preuve
+        // que les chapitres intermédiaires ont été lus.
+        previousLocation = locator
     }
 
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
@@ -361,6 +476,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
         if selectionActivityPolicy.shouldRecord(selection.locator) {
             do {
                 try readingActivity.recordReadingInteraction()
+                onQualifiedLocation(selection.locator)
             } catch {
                 onError(error)
             }
@@ -369,9 +485,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     }
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
-        if ReaderTapZone.resolve(x: point.x, width: navigator.view.bounds.width, isRTL: isRTL) == .chrome {
-            onChromeTap?()
-        }
+        onChromeTap?()
     }
 }
 

@@ -61,6 +61,7 @@ final class LibraryViewModel {
     private let fileStore: BookFileStore
     private let publicationService: ReadiumPublicationService
     private let importService: BookImportService
+    private let recapEngine: DailyReadingRecapEngine
 
     var books: [BookRecord] = []
     var isImporting = false
@@ -84,6 +85,10 @@ final class LibraryViewModel {
         self.sessionRepository = sessionRepository
         self.fileStore = fileStore
         self.publicationService = publicationService
+        recapEngine = DailyReadingRecapEngine(
+            store: UserDefaultsReadingRecapStateStore(),
+            sessionRepository: sessionRepository
+        )
         importService = BookImportService(
             repository: repository,
             fileStore: fileStore,
@@ -188,6 +193,7 @@ final class LibraryViewModel {
                     store: sessionRepository,
                     onError: { [weak self] error in self?.present(error) }
                 ),
+                recapEngine: recapEngine,
                 onError: { [weak self] error in self?.present(error) }
             )
             readerPresentation = ReaderPresentation(id: book.id, title: book.title, session: session)

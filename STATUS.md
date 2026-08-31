@@ -7,7 +7,7 @@ Dernière mise à jour : 31 août 2026
 - Vision générale définie : une application personnelle de lecture EPUB, native Apple, centrée sur la lecture, le suivi et l'exploitation personnelle des livres.
 - Priorité produit fixée à l'iPhone, avec une conception de référence en `390 × 844`.
 - Périmètre initial organisé autour de la bibliothèque, du lecteur, de l'historique et des statistiques.
-- Le Mac et toutes les fonctions d'IA sont explicitement différés jusqu'à l'obtention d'un premier socle de lecture utilisable.
+- Le Mac reste différé ; le premier lot IA est désormais intégré au socle de lecture utilisable.
 - Organisation initiale du travail et responsabilités des agents formalisées dans `AGENTS.md`.
 - Périmètre de la V1 validé et consigné dans `PROJECT.md`.
 - Dépôt Git initialisé sur la branche `chore/project-foundation`.
@@ -42,16 +42,19 @@ Dernière mise à jour : 31 août 2026
 - La compilation intégrée de l’application et de sa cible de tests réussit avec Xcode 26.6 et iOS Simulator 26.5.
 - Le nouvel Accueil et la barre des trois onglets ont été vérifiés visuellement sur le simulateur `Lore iPhone 13`, en mode sombre.
 - Un objectif quotidien global et facultatif peut être défini entre 5 et 180 minutes depuis les réglages de l’Accueil. Sa progression exacte alimente un affichage compact dans Accueil et Statistiques, avec un état explicite lorsqu’il est atteint ou lorsque les données sont indisponibles.
-- En mode paginé, les tiers gauche et droit du lecteur changent de page avec l’adaptateur natif Readium ; le tiers central affiche les commandes. Le sens de lecture droite-vers-gauche est pris en compte et les taps sont ignorés pendant le défilement.
-- La sélection Readium utilise désormais un texte sombre sur fond jaune contrasté, y compris avec le thème sombre. Le menu conserve Copier, Traduire et Définition et ajoute Surligner.
+- Les taps gauche, centre et droit ne tournent plus les pages : ils affichent ou masquent uniquement les commandes. Le défilement, les gestes Readium et le sommaire restent disponibles.
+- La sélection active utilise un texte presque noir sur fond cyan vif, distinct du surlignage jaune persistant. Le menu conserve Copier, Traduire et Définition et ajoute Surligner et Expliquer.
+- Le client IA utilise l’API Responses avec le modèle exact `gpt-5.6-luna`, `store: false`, des délais bornés et une clé stockée dans le trousseau sécurisé. Aucun appel n’est effectué sans clé.
+- L’explication extrait localement le passage et une fenêtre bornée avant/après dans le chapitre courant. Le résumé quotidien utilise les Locator de la veille, s’arrête au dernier passage lu et n’est présenté qu’une fois par livre et par jour local.
+- Les réglages permettent d’enregistrer ou supprimer la clé sans l’afficher ni effectuer de requête de validation.
 - Les surlignages sont persistés localement par livre avec le Locator Readium complet, le texte, la date et la couleur. Ils sont restaurés dans le livre, consultables depuis le lecteur, ouvrables au passage exact et supprimables avec confirmation.
 - La suppression d’un livre supprime ses surlignages dans la même sauvegarde. Les échecs de suppression et les erreurs d’agrégation de l’objectif ne sont pas présentés comme des réussites ou des valeurs nulles.
-- La compilation finale de l’application et de sa cible de tests réussit après revue QA indépendante. La version signée est installée puis lancée sur l’iPhone 13 physique après déverrouillage.
+- La compilation finale de l’application et de sa cible de tests réussit après revue QA indépendante. La nouvelle version IA signée est installée sur l’iPhone 13 physique ; son lancement automatisé reste à confirmer une fois l’appareil déverrouillé.
 
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
-- Vérification réelle sur l’iPhone des taps gauche/droite, du menu de sélection, du contraste sombre, de la création puis du retour à un surlignage et de l’actualisation de l’objectif après lecture.
+- Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 
@@ -78,7 +81,7 @@ Dernière mise à jour : 31 août 2026
 - Régler la police, la taille, l'interligne, le fond et le mode sombre. *(Implémenté pour taille, sérif/sans sérif, interligne et thèmes clair/sombre ; vérification visuelle réelle restant à faire.)*
 - Mesurer le temps de lecture en évitant de compter une page laissée ouverte sans lecture réelle. *(Socle local implémenté ; validation réelle du timer restant à faire.)*
 - Vérifier la lisibilité, les gestes, l'accessibilité et les états de chargement ou d'erreur.
-- Vérifier sur appareil les zones gauche/centre/droite et leur coexistence avec la sélection de texte et le mode défilement. *(Implémenté et compilé ; preuve tactile réelle restante.)*
+- Vérifier sur appareil que tous les taps simples contrôlent seulement les commandes et coexistent avec la sélection et le défilement. *(Implémenté et compilé ; preuve tactile réelle restante.)*
 
 ### Phase 4 — Historique et statistiques essentielles
 
@@ -101,12 +104,11 @@ Dernière mise à jour : 31 août 2026
 - Gérer les conflits et les interruptions de synchronisation sans perdre de données.
 - Tester d'abord entre deux environnements iPhone avant d'étendre au Mac.
 
-### Plus tard — Hors première version
+### Plus tard — Après le premier lot IA
 
 - Application Mac complète.
 - Questions-réponses approfondies sur un livre.
 - Résumés de chapitres, personnages, concepts, flashcards et recommandations.
-- Rappel intelligent du contexte au début d'une session.
 - Analyse et discussion de fin de livre avec l'IA.
 
 ## Problèmes et risques connus
@@ -117,18 +119,19 @@ Dernière mise à jour : 31 août 2026
 - L’automatisation tactile du simulateur ne transmet pas les clics : l’ouverture du sélecteur Fichiers n’est donc pas encore prouvée. L’import après sélection, la lecture et la reprise ont été vérifiés avec des harnais temporaires appelant les composants de production, puis entièrement supprimés.
 - L’exécution des tests sur `Lore iPhone 13` reste bloquée avant le lancement du processus de tests (`waiting for workers to materialize`) ; la compilation du code et des tests réussit, mais leur exécution automatique n’est pas encore prouvée.
 - La première tentative de lancement sur l’iPhone a été refusée car l’appareil était verrouillé ; une seconde tentative après déverrouillage a réussi.
+- La version IA du 31 août est bien installée sur l’iPhone, mais sa tentative de lancement automatique a été refusée car l’appareil était verrouillé.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
-- L'analyse IA d'un livre complet peut être coûteuse, lente et limitée par les droits sur le contenu ; elle n'appartient pas à la première version.
+- L’analyse IA d’un livre complet reste hors périmètre ; seules des fenêtres bornées sont envoyées.
 
 ## Décisions en attente
 
-- Place future de l'IA : section principale ou outils intégrés au lecteur.
+- Budget mensuel maximal souhaité pour l’API OpenAI après les premiers essais réels.
 - Ordre détaillé entre annotations, statistiques enrichies et synchronisation iCloud après le lecteur essentiel.
 
 ## Prochaines étapes
 
-1. Tester dans la version déjà ouverte sur l’iPhone 13 les taps, la sélection sombre, les quatre actions du menu et le retour à un surlignage.
+1. Installer la nouvelle version sur l’iPhone 13 puis vérifier les taps, la sélection cyan, les cinq actions du menu et l’état IA sans clé.
 2. Définir un objectif quotidien, lire quelques minutes puis vérifier son actualisation dans Accueil et Statistiques.
 3. Stabiliser le lancement du clone de test Xcode, puis exécuter les tests sur `Lore iPhone 13`.
 4. Tester le parcours complet avec plusieurs EPUB légaux, dont un fichier invalide ou incomplet.
