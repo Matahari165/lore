@@ -80,6 +80,7 @@ Dernière mise à jour : 3 septembre 2026
 - Un quatrième onglet Podcasts est ajouté : import local de MP4, lecture audio/vidéo avec `AVPlayer`, détection des doublons par SHA-256 et sauvegarde de la position en secondes pour reprendre plus tard.
 - Le son du lecteur podcast est corrigé : session audio `.playback` (audible même en mode silencieux), volume/`isMuted` imposés, diagnostic de piste audio manquante, pause et sauvegarde sur interruption (appel/Siri). Compilation réussie sur simulateur iPhone 13 ; écoute réelle sur appareil restant à faire.
 - Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
+- La version corrigée (son + interface) est installée et lancée sur l’iPhone 13 (iOS 26.6) le 3 septembre 2026. Signature : équipe `4J7BXN697F`, profil du 30 août recopié dans `~/Library/MobileDevice/Provisioning Profiles/` (expire le 6 septembre 2026).
 
 ## En cours
 
