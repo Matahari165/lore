@@ -1,4 +1,5 @@
 import AVKit
+import MediaPlayer
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -237,7 +238,8 @@ struct PodcastPlayerView: View {
         }
         .padding(.leading, LoreTheme.pageMargin)
         .padding(.trailing, max(8, LoreTheme.pageMargin - 6))
-        .padding(.vertical, 2)
+        .padding(.top, 12)
+        .padding(.bottom, 2)
     }
 
     private var isFilenameRedundant: Bool {
@@ -260,20 +262,22 @@ struct PodcastPlayerView: View {
     @ViewBuilder
     private func playerContent(_ playerModel: PodcastPlayerModel) -> some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 VideoPlayer(player: playerModel.player)
                     .frame(maxWidth: .infinity)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .background(.black)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.top, 14)
+                    .padding(.top, 10)
                     .accessibilityLabel("Vidéo du podcast")
+
+                transportRow(playerModel)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(podcast.title)
                         .font(.title3.weight(.bold))
                         .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(4)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !isFilenameRedundant {
                         Text(podcast.originalFilename)
@@ -298,68 +302,18 @@ struct PodcastPlayerView: View {
                     HStack {
                         Text(PodcastTimeFormatter.string(from: playerModel.currentTime))
                         Spacer()
-                        Text(PodcastTimeFormatter.string(from: playerModel.duration))
+                        Text(PodcastTimeFormatter.remaining(from: playerModel.currentTime, total: playerModel.duration))
                     }
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(LoreTheme.secondaryInk)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(
-                        "Position \(PodcastTimeFormatter.string(from: playerModel.currentTime)) sur \(PodcastTimeFormatter.string(from: playerModel.duration))"
+                        "Position \(PodcastTimeFormatter.string(from: playerModel.currentTime)), reste \(PodcastTimeFormatter.remaining(from: playerModel.currentTime, total: playerModel.duration)) sur \(PodcastTimeFormatter.string(from: playerModel.duration)) au total"
                     )
                 }
 
-                HStack(spacing: 12) {
-                    Button {
-                        playerModel.seek(to: playerModel.currentTime - 15)
-                        playerModel.persist()
-                    } label: {
-                        Image(systemName: "gobackward.15")
-                            .font(.title3)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!playerModel.isReady)
-                    .accessibilityLabel("Reculer de 15 secondes")
-                    .accessibilityHint("Reprend 15 secondes plus tôt")
-
-                    Button {
-                        playerModel.togglePlayback()
-                    } label: {
-                        Label(
-                            playerModel.isPlaying ? "Pause" : (playerModel.currentTime > 1 ? "Reprendre" : "Écouter"),
-                            systemImage: playerModel.isPlaying ? "pause.fill" : "play.fill"
-                        )
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(LoreTheme.ink)
-                    .foregroundStyle(LoreTheme.canvas)
-                    .controlSize(.large)
-                    .disabled(!playerModel.isReady)
-                    .accessibilityHint("La position enregistrée est conservée automatiquement")
-
-                    Button {
-                        playerModel.seek(to: playerModel.currentTime + 15)
-                        playerModel.persist()
-                    } label: {
-                        Image(systemName: "goforward.15")
-                            .font(.title3)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!playerModel.isReady)
-                    .accessibilityLabel("Avancer de 15 secondes")
-                    .accessibilityHint("Saute 15 secondes")
-                }
-
-                Text("Position enregistrée automatiquement")
-                    .font(.caption)
-                    .foregroundStyle(LoreTheme.secondaryInk)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, -6)
+                volumeRow
+                    .padding(.top, 2)
 
                 if let error = playerModel.errorMessage {
                     Text(error)
@@ -371,6 +325,90 @@ struct PodcastPlayerView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func transportRow(_ playerModel: PodcastPlayerModel) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                playerModel.cyclePlaybackRate()
+            } label: {
+                Text(playerModel.playbackRateLabel)
+                    .font(.headline.monospacedDigit())
+                    .frame(width: 52, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!playerModel.isReady)
+            .accessibilityLabel("Vitesse de lecture")
+            .accessibilityValue(playerModel.playbackRateLabel)
+            .accessibilityHint("Toucher pour changer de vitesse")
+
+            Spacer(minLength: 0)
+
+            Button {
+                playerModel.seek(to: playerModel.currentTime - 15)
+                playerModel.persist()
+            } label: {
+                Image(systemName: "gobackward.15")
+                    .font(.title2)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!playerModel.isReady)
+            .accessibilityLabel("Reculer de 15 secondes")
+            .accessibilityHint("Reprend 15 secondes plus tôt")
+
+            Button {
+                playerModel.togglePlayback()
+            } label: {
+                Image(systemName: playerModel.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(LoreTheme.canvas)
+                    .frame(width: 64, height: 64)
+                    .background(LoreTheme.ink, in: Circle())
+                    .offset(x: playerModel.isPlaying ? 0 : 2)
+            }
+            .buttonStyle(.plain)
+            .disabled(!playerModel.isReady)
+            .accessibilityLabel(playerModel.isPlaying ? "Pause" : (playerModel.currentTime > 1 ? "Reprendre" : "Écouter"))
+            .accessibilityHint("La position est enregistrée automatiquement")
+
+            Button {
+                playerModel.seek(to: playerModel.currentTime + 15)
+                playerModel.persist()
+            } label: {
+                Image(systemName: "goforward.15")
+                    .font(.title2)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!playerModel.isReady)
+            .accessibilityLabel("Avancer de 15 secondes")
+            .accessibilityHint("Saute 15 secondes")
+
+            Spacer(minLength: 0)
+
+            PodcastRouteButton()
+                .frame(width: 44, height: 44)
+                .accessibilityLabel("Sortie audio")
+                .accessibilityHint("Choisir un appareil de diffusion, par exemple AirPlay")
+        }
+    }
+
+    private var volumeRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "speaker.fill")
+                .foregroundStyle(LoreTheme.secondaryInk)
+                .accessibilityHidden(true)
+            PodcastVolumeSlider()
+                .frame(height: 44)
+            Image(systemName: "speaker.wave.3.fill")
+                .foregroundStyle(LoreTheme.secondaryInk)
+                .accessibilityHidden(true)
+        }
+        .font(.callout)
     }
 
     private func loadPlayer() async {
@@ -408,7 +446,7 @@ private struct PodcastScrubber: View {
     var body: some View {
         GeometryReader { geometry in
             let trackHeight: CGFloat = 4
-            let thumbDiameter: CGFloat = 20
+            let thumbDiameter: CGFloat = 18
             let width = max(geometry.size.width - thumbDiameter, 1)
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: trackHeight / 2)
@@ -438,7 +476,7 @@ private struct PodcastScrubber: View {
                     }
             )
         }
-        .frame(height: 44)
+        .frame(height: 40)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Curseur de lecture")
         .accessibilityValue("\(PodcastTimeFormatter.string(from: displayed)) sur \(PodcastTimeFormatter.string(from: duration))")
@@ -454,6 +492,27 @@ private struct PodcastScrubber: View {
     }
 }
 
+private struct PodcastVolumeSlider: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView()
+        view.showsRouteButton = false
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+}
+
+private struct PodcastRouteButton: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView()
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
+
 private enum PodcastTimeFormatter {
     static func string(from seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "0:00" }
@@ -465,5 +524,11 @@ private enum PodcastTimeFormatter {
             return "\(hours):\(String(format: "%02d", minutes)):\(String(format: "%02d", remainingSeconds))"
         }
         return "\(minutes):\(String(format: "%02d", remainingSeconds))"
+    }
+
+    /// Temps restant affiché en négatif, comme dans l'application Podcasts d'Apple.
+    static func remaining(from current: Double, total: Double) -> String {
+        guard current.isFinite, total.isFinite, total > 0 else { return "-0:00" }
+        return "-" + string(from: max(total - current, 0))
     }
 }

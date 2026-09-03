@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import MediaPlayer
 import Observation
+import UIKit
 
 @MainActor
 @Observable
@@ -18,6 +19,9 @@ final class PodcastPlayerModel {
     private var lastPersistedPosition: Double
     private nonisolated(unsafe) var interruptionObserver: NSObjectProtocol?
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
+    private(set) var playbackRate: Float = 1.0
+    private var lockScreenArtist: String?
+    private var lockScreenArtwork: MPMediaItemArtwork?
 
     init(podcast: PodcastRecord, repository: PodcastRepository) {
         self.podcast = podcast
@@ -39,6 +43,8 @@ final class PodcastPlayerModel {
             if loadedDuration.isFinite, loadedDuration > 0 {
                 duration = loadedDuration
             }
+            lockScreenArtist = await Self.artistName(from: asset)
+            lockScreenArtwork = await Self.artwork(from: asset, duration: duration)
             // Diagnostic : présence d'une piste audio (non bloquant si absente).
             let audioTracks = try await asset.loadTracks(withMediaType: .audio)
             if audioTracks.isEmpty {
@@ -92,10 +98,30 @@ final class PodcastPlayerModel {
             activateSessionForPlayback()
             player.isMuted = false
             player.volume = 1.0
-            player.play()
+            player.rate = playbackRate
             isPlaying = true
         }
         updateNowPlaying()
+    }
+
+    /// Vitesses proposées, dans l'ordre : 1 → 1,25 → 1,5 → 1,75 → 2 → 1…
+    private static let availableRates: [Float] = [1, 1.25, 1.5, 1.75, 2]
+
+    func cyclePlaybackRate() {
+        guard isReady else { return }
+        let current = Self.availableRates.firstIndex(of: playbackRate) ?? 0
+        playbackRate = Self.availableRates[(current + 1) % Self.availableRates.count]
+        if isPlaying {
+            player.rate = playbackRate
+        }
+        updateNowPlaying()
+    }
+
+    var playbackRateLabel: String {
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = 2
+        formatter.minimumIntegerDigits = 1
+        return (formatter.string(from: NSNumber(value: playbackRate)) ?? "\(playbackRate)") + "×"
     }
 
     func seek(to seconds: Double) {
@@ -140,18 +166,58 @@ final class PodcastPlayerModel {
         remoteTargets = []
     }
 
-        // MARK: - Écran verrouillé
+    // MARK: - Écran verrouillé
+
+    /// Nom d'artiste intégré au fichier MP4, s'il existe.
+    private static func artistName(from asset: AVURLAsset) async -> String? {
+        guard let items = try? await asset.load(.commonMetadata) else { return nil }
+        for item in items where item.commonKey == .commonKeyArtist {
+            if let name = item.stringValue, !name.isEmpty {
+                return name
+            }
+        }
+        return nil
+    }
+
+    /// Pochette de l'écran verrouillé : image intégrée au fichier si présente,
+    /// sinon une image extraite de la vidéo.
+    private static func artwork(from asset: AVURLAsset, duration: Double) async -> MPMediaItemArtwork? {
+        if let items = try? await asset.load(.commonMetadata) {
+            for item in items where item.commonKey == .commonKeyArtwork {
+                if let data = item.dataValue, let image = UIImage(data: data) {
+                    return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                }
+            }
+        }
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 600, height: 600)
+        let safeDuration = max(duration, 1)
+        let position = min(max(safeDuration * 0.05, 1.0), 60.0)
+        if let result = try? await generator.image(at: CMTime(seconds: position, preferredTimescale: 600)) {
+            let image = UIImage(cgImage: result.image)
+            return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+        return nil
+    }
 
     /// Titre, durée et position affichés sur l'écran verrouillé et dans le centre de contrôle.
     /// Le système fait avancer le temps tout seul grâce au débit indiqué (1 en lecture, 0 en pause).
     private func updateNowPlaying() {
         guard isReady else { return }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+        var info: [String: Any] = [
             MPMediaItemPropertyTitle: podcast.title,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0,
         ]
+        if let lockScreenArtist {
+            info[MPMediaItemPropertyArtist] = lockScreenArtist
+        }
+        if let lockScreenArtwork {
+            info[MPMediaItemPropertyArtwork] = lockScreenArtwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
     /// Boutons Lecture/Pause/±15 s et curseur utilisables depuis l'écran verrouillé.
