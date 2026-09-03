@@ -1,6 +1,7 @@
 import AVKit
 import MediaPlayer
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct PodcastLibraryView: View {
@@ -245,21 +246,9 @@ struct PodcastPlayerView: View {
                     .frame(maxWidth: .infinity)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .background(.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
                     .padding(.top, 28)
                     .accessibilityLabel("Vidéo du podcast")
-                    .overlay(alignment: .topTrailing) {
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark")
-                                .font(.body.weight(.semibold))
-                                .frame(width: 40, height: 40)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.glass)
-                        .padding(10)
-                        .accessibilityLabel("Fermer le lecteur")
-                        .accessibilityHint("Met en pause et enregistre la position")
-                    }
 
                 VStack(spacing: 6) {
                     PodcastScrubber(
@@ -301,6 +290,7 @@ struct PodcastPlayerView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(podcast.title)
+                .accessibilityAction(named: Text("Fermer le lecteur")) { dismiss() }
 
                 if sheetHeight > 600 {
                     volumeRow
@@ -323,7 +313,7 @@ struct PodcastPlayerView: View {
     }
 
     private func transportRow(_ playerModel: PodcastPlayerModel) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 16) {
             Button {
                 playerModel.cyclePlaybackRate()
             } label: {
@@ -498,10 +488,29 @@ private struct PodcastVolumeSlider: UIViewRepresentable {
         let view = MPVolumeView()
         view.showsRouteButton = false
         view.backgroundColor = .clear
+        view.setVolumeThumbImage(Self.thumbImage(), for: .normal)
         return view
     }
 
     func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+
+    /// Pastille assortie au curseur de progression (bleu encre, clair en sombre),
+    /// à la place du gros bouton blanc par défaut.
+    private static func thumbImage() -> UIImage {
+        let diameter: CGFloat = 20
+        let color = UIColor { traits in
+            if traits.userInterfaceStyle == .dark {
+                UIColor(red: 231 / 255, green: 236 / 255, blue: 244 / 255, alpha: 1)
+            } else {
+                UIColor(red: 20 / 255, green: 35 / 255, blue: 59 / 255, alpha: 1)
+            }
+        }
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: diameter, height: diameter))
+        return renderer.image { _ in
+            color.setFill()
+            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: diameter, height: diameter)).fill()
+        }
+    }
 }
 
 private struct PodcastRouteButton: UIViewRepresentable {
