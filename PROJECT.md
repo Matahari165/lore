@@ -36,6 +36,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Import d’un ou plusieurs fichiers MP4 sans DRM depuis l’app Fichiers.
 - Copie privée dans `Application Support/Podcasts` et détection des doublons par SHA-256.
 - Lecture audio/vidéo locale avec une page dédiée.
+- La lecture audio continue lorsque l’iPhone est verrouillé ou que l’application passe en arrière-plan, avec le titre et les commandes (lecture, pause, ±15 s) sur l’écran verrouillé.
 - Sauvegarde automatique de la position pendant la lecture, à la pause, en arrière-plan et à la fermeture.
 - Reprise au même instant après fermeture ou le lendemain.
 
@@ -176,6 +177,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les deux publications EPUB les plus récemment ouvertes restent temporairement en mémoire afin d’accélérer leur réouverture, sans modifier le fichier ni la position Readium persistée.
 - Les EPUB importés et les données de lecture restent actuellement dans le stockage privé local de Lore ; aucune synchronisation iCloud des fichiers ou des modèles SwiftData n’est encore activée.
 - Les MP4 importés et leur position restent dans le stockage privé local de Lore. Le lecteur s’appuie sur `AVPlayer`, et la position est enregistrée en secondes ; aucune synchronisation iCloud des podcasts n’est encore activée.
+- La lecture des podcasts continue en arrière-plan grâce au mode audio (`UIBackgroundModes`) ; seule la fermeture du lecteur arrête la lecture. L’autorisation figure dans `Lore-Info.plist` à la racine, fusionné avec les réglages générés.
 - Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
 - Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
 - La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.

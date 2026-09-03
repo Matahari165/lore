@@ -81,6 +81,7 @@ Dernière mise à jour : 3 septembre 2026
 - Le son du lecteur podcast est corrigé : session audio `.playback` (audible même en mode silencieux), volume/`isMuted` imposés, diagnostic de piste audio manquante, pause et sauvegarde sur interruption (appel/Siri). Compilation réussie sur simulateur iPhone 13 ; écoute réelle sur appareil restant à faire.
 - Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
 - La version corrigée (son + interface) est installée et lancée sur l’iPhone 13 (iOS 26.6) le 3 septembre 2026. Signature : équipe `4J7BXN697F`, profil du 30 août recopié dans `~/Library/MobileDevice/Provisioning Profiles/` (expire le 6 septembre 2026).
+- La lecture des podcasts continue en arrière-plan et écran verrouillé (mode audio, commandes et titre sur l’écran verrouillé, position toujours sauvegardée). Version installée et lancée sur l’iPhone 13 ; test de verrouillage réel à confirmer par l’utilisateur.
 
 ## En cours
 
@@ -93,6 +94,7 @@ Dernière mise à jour : 3 septembre 2026
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 - Vérification réelle de l’import et de la reprise d’un MP4 dans l’appareil Fichiers puis sur le simulateur ; la compilation de la nouvelle tranche réussit, mais un test de lecture réel reste à faire.
 - Vérification sur iPhone du son podcast (piste audio connue, volume > 0, hors puis en mode silencieux), de l’interruption (appel simulé) et du nouveau visuel du lecteur à `390 × 844` (bouton visible, titre unique, curseur, −15/+15 s).
+- Vérification sur iPhone de la poursuite de lecture écran verrouillé : le son continue, le titre et les commandes apparaissent sur l’écran verrouillé, et la position est retrouvée au retour dans Lore.
 
 ## À faire
 
