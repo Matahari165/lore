@@ -82,6 +82,7 @@ Dernière mise à jour : 3 septembre 2026
 - Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
 - La version corrigée (son + interface) est installée et lancée sur l’iPhone 13 (iOS 26.6) le 3 septembre 2026. Signature : équipe `4J7BXN697F`, profil du 30 août recopié dans `~/Library/MobileDevice/Provisioning Profiles/` (expire le 6 septembre 2026).
 - La lecture des podcasts continue en arrière-plan et écran verrouillé (mode audio, commandes et titre sur l’écran verrouillé, position toujours sauvegardée). Version installée et lancée sur l’iPhone 13 ; test de verrouillage réel à confirmer par l’utilisateur.
+- Le lecteur reprend la présentation Apple Podcasts : gros bouton rond, vitesse 1 à 2×, ±15 s, temps restant négatif, volume et AirPlay, transport visible dès la demi-fenêtre. L’écran verrouillé affiche la pochette extraite de la vidéo et le nom. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 
 ## En cours
 
