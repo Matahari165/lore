@@ -85,6 +85,7 @@ Dernière mise à jour : 3 septembre 2026
 - Le lecteur reprend la présentation Apple Podcasts : gros bouton rond, vitesse 1 à 2×, ±15 s, temps restant négatif, volume et AirPlay, transport visible dès la demi-fenêtre. L’écran verrouillé affiche la pochette extraite de la vidéo et le nom. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Un plantage systématique à l’ouverture du lecteur (4 rapports `EXC_BREAKPOINT` du 3 septembre, 11 h 42 à 11 h 47) est corrigé : la fourniture de pochette et les 6 commandes d’écran verrouillé ne s’exécutent plus sur le mauvais fil. Version corrigée installée et lancée sur l’iPhone 13 ; nouvel essai par l’utilisateur en cours.
 - Le lecteur passe au Liquid Glass : boutons en verre, curseur de progression en verre remonté sous la vidéo, pastille de volume en verre avec icônes alignées et plus d’air autour, en-tête supprimé avec bouton Fermer flottant sur la vidéo. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
+- Ajustements d’après photo : grande marge au-dessus de la vidéo, boutons ±15 s et vitesse en petits ronds de verre, volume visible uniquement en grande fenêtre. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 
 ## En cours
 
