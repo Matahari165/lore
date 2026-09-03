@@ -212,10 +212,11 @@ struct PodcastPlayerView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active else { return }
-            playerModel?.pauseAndSave()
+            // Verrouillage ou arrière-plan : on enregistre la position sans couper le son.
+            playerModel?.savePositionOnly()
         }
         .onDisappear {
-            playerModel?.pauseAndSave()
+            playerModel?.teardown()
         }
     }
 

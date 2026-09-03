@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MediaPlayer
 import Observation
 
 @MainActor
@@ -16,6 +17,7 @@ final class PodcastPlayerModel {
     var errorMessage: String?
     private var lastPersistedPosition: Double
     private nonisolated(unsafe) var interruptionObserver: NSObjectProtocol?
+    private var remoteTargets: [(MPRemoteCommand, Any)] = []
 
     init(podcast: PodcastRecord, repository: PodcastRepository) {
         self.podcast = podcast
@@ -44,6 +46,7 @@ final class PodcastPlayerModel {
             }
             player.isMuted = false
             player.volume = 1.0
+            player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
             player.replaceCurrentItem(with: AVPlayerItem(asset: asset))
             let start = min(max(podcast.lastPositionSeconds, 0), max(duration, 0))
             currentTime = start
@@ -53,6 +56,8 @@ final class PodcastPlayerModel {
                 toleranceAfter: .zero
             )
             isReady = true
+            setupRemoteCommands()
+            updateNowPlaying()
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -67,6 +72,7 @@ final class PodcastPlayerModel {
             let shouldPersist = isPlaying || abs(currentTime - lastPersistedPosition) >= 0.5
             isPlaying = false
             player.pause()
+            updateNowPlaying()
             if shouldPersist { persist() }
         } else if isPlaying, abs(currentTime - lastPersistedPosition) >= 2 {
             persist()
@@ -89,6 +95,7 @@ final class PodcastPlayerModel {
             player.play()
             isPlaying = true
         }
+        updateNowPlaying()
     }
 
     func seek(to seconds: Double) {
@@ -96,6 +103,7 @@ final class PodcastPlayerModel {
         let target = min(max(seconds, 0), max(duration, 0))
         currentTime = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        updateNowPlaying()
     }
 
     func pauseAndSave() {
@@ -113,6 +121,101 @@ final class PodcastPlayerModel {
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    /// Verrouillage ou arrière-plan : enregistre la position sans couper le son.
+    func savePositionOnly() {
+        guard isReady else { return }
+        refresh()
+        persist()
+    }
+
+    /// Fermeture du lecteur : arrête la lecture et nettoie l'écran verrouillé.
+    func teardown() {
+        pauseAndSave()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        for (command, token) in remoteTargets {
+            command.removeTarget(token)
+        }
+        remoteTargets = []
+    }
+
+        // MARK: - Écran verrouillé
+
+    /// Titre, durée et position affichés sur l'écran verrouillé et dans le centre de contrôle.
+    /// Le système fait avancer le temps tout seul grâce au débit indiqué (1 en lecture, 0 en pause).
+    private func updateNowPlaying() {
+        guard isReady else { return }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+            MPMediaItemPropertyTitle: podcast.title,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+        ]
+    }
+
+    /// Boutons Lecture/Pause/±15 s et curseur utilisables depuis l'écran verrouillé.
+    private func setupRemoteCommands() {
+        guard remoteTargets.isEmpty else { return }
+        let center = MPRemoteCommandCenter.shared()
+
+        center.playCommand.isEnabled = true
+        center.pauseCommand.isEnabled = true
+        center.togglePlayPauseCommand.isEnabled = true
+        center.skipBackwardCommand.isEnabled = true
+        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipForwardCommand.isEnabled = true
+        center.skipForwardCommand.preferredIntervals = [15]
+        center.changePlaybackPositionCommand.isEnabled = true
+
+        remoteTargets = [
+            (center.playCommand, center.playCommand.addTarget { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.isReady, !self.isPlaying else { return }
+                    self.togglePlayback()
+                }
+                return .success
+            }),
+            (center.pauseCommand, center.pauseCommand.addTarget { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.isReady, self.isPlaying else { return }
+                    self.togglePlayback()
+                }
+                return .success
+            }),
+            (center.togglePlayPauseCommand, center.togglePlayPauseCommand.addTarget { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.isReady else { return }
+                    self.togglePlayback()
+                }
+                return .success
+            }),
+            (center.skipBackwardCommand, center.skipBackwardCommand.addTarget { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.isReady else { return }
+                    self.seek(to: self.currentTime - 15)
+                    self.persist()
+                }
+                return .success
+            }),
+            (center.skipForwardCommand, center.skipForwardCommand.addTarget { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.isReady else { return }
+                    self.seek(to: self.currentTime + 15)
+                    self.persist()
+                }
+                return .success
+            }),
+            (center.changePlaybackPositionCommand, center.changePlaybackPositionCommand.addTarget { [weak self] event in
+                Task { @MainActor in
+                    guard let self, self.isReady,
+                          let event = event as? MPChangePlaybackPositionCommandEvent else { return }
+                    self.seek(to: event.positionTime)
+                    self.persist()
+                }
+                return .success
+            }),
+        ]
     }
 
     // MARK: - Audio
