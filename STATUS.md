@@ -4,6 +4,12 @@ Dernière mise à jour : 3 septembre 2026
 
 ## Terminé
 
+- Format IA en puces imposé aux 6 prompts (explication, résumé veille, chat 3 stades, résumé chapitre, réponse question, discussion fin) : 5-6 puces max, phrases courtes, termes techniques expliqués simplement, ligne finale Idée essentielle / Où reprendre. `conciseRecap` aligné à 6 puces. Prompts seuls modifiés, envois inchangés.
+- Notifications objectif quotidien : bannière unique par jour local à l'atteinte + rappel 21 h replanifié tant que non atteint, textes avec durées uniquement, autorisation demandée une fois, délégué avant-plan. Build + 6 tests `DailyGoalNotificationTests` verts sur `Lore iPhone 13`.
+- Progression offline fiabilisée : checkpoint initial enregistré dès l'ouverture (même 1 page, même hors-ligne, 100 % local) + première observation `locationDidChange`. Échec résumé veille non bloquant, non mis en cache, réessayable via Réessayer une fois connecté.
+- Historique multi-jours : cache `home-ai-recap-v2` par jour (30 jours, purge à chaque sauvegarde, migration v1), `recapHistory()` + `availableDays()` engine, intervalle first→last vérifié (toutes ressources intermédiaires, arrêt au dernier Locator, suffixe 18 000 car. conservé). Tests `YesterdayReadingRecapCacheTests` (4) + `DailyReadingRecapEngineTests` étendus verts.
+- Bloc Hier lisible : `lineLimit(9)` supprimé, repli 6 lignes + Voir plus/moins 44×44, Markdown natif conservé, navigation Jour précédent/suivant jusqu'à 30 jours branchée sur `historyRecapState`, repli « Aucun résumé pour ce jour ». Compilation `Lore iPhone 13` réussie.
+
 - Vision générale définie : une application personnelle de lecture EPUB, native Apple, centrée sur la lecture, le suivi et l'exploitation personnelle des livres.
 - Priorité produit fixée à l'iPhone, avec une conception de référence en `390 × 844`.
 - Périmètre initial organisé autour de la bibliothèque, du lecteur, de l'historique et des statistiques.
