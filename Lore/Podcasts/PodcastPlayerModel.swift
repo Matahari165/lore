@@ -181,7 +181,9 @@ final class PodcastPlayerModel {
 
     /// Pochette de l'écran verrouillé : image intégrée au fichier si présente,
     /// sinon une image extraite de la vidéo.
-    private static func artwork(from asset: AVURLAsset, duration: Double) async -> MPMediaItemArtwork? {
+    /// Non isolée : le système appelle la fourniture d'image en arrière-plan,
+    /// ce qui planterait si elle héritait du fil principal.
+    private nonisolated static func artwork(from asset: AVURLAsset, duration: Double) async -> MPMediaItemArtwork? {
         if let items = try? await asset.load(.commonMetadata) {
             for item in items where item.commonKey == .commonKeyArtwork {
                 if let data = item.dataValue, let image = UIImage(data: data) {
@@ -235,28 +237,28 @@ final class PodcastPlayerModel {
         center.changePlaybackPositionCommand.isEnabled = true
 
         remoteTargets = [
-            (center.playCommand, center.playCommand.addTarget { [weak self] _ in
+            (center.playCommand, center.playCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.isReady, !self.isPlaying else { return }
                     self.togglePlayback()
                 }
                 return .success
             }),
-            (center.pauseCommand, center.pauseCommand.addTarget { [weak self] _ in
+            (center.pauseCommand, center.pauseCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.isReady, self.isPlaying else { return }
                     self.togglePlayback()
                 }
                 return .success
             }),
-            (center.togglePlayPauseCommand, center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            (center.togglePlayPauseCommand, center.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.isReady else { return }
                     self.togglePlayback()
                 }
                 return .success
             }),
-            (center.skipBackwardCommand, center.skipBackwardCommand.addTarget { [weak self] _ in
+            (center.skipBackwardCommand, center.skipBackwardCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.isReady else { return }
                     self.seek(to: self.currentTime - 15)
@@ -264,7 +266,7 @@ final class PodcastPlayerModel {
                 }
                 return .success
             }),
-            (center.skipForwardCommand, center.skipForwardCommand.addTarget { [weak self] _ in
+            (center.skipForwardCommand, center.skipForwardCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.isReady else { return }
                     self.seek(to: self.currentTime + 15)
@@ -272,11 +274,11 @@ final class PodcastPlayerModel {
                 }
                 return .success
             }),
-            (center.changePlaybackPositionCommand, center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            (center.changePlaybackPositionCommand, center.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
+                let position = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime
                 Task { @MainActor in
-                    guard let self, self.isReady,
-                          let event = event as? MPChangePlaybackPositionCommandEvent else { return }
-                    self.seek(to: event.positionTime)
+                    guard let self, self.isReady, let position else { return }
+                    self.seek(to: position)
                     self.persist()
                 }
                 return .success
