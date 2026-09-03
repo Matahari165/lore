@@ -21,7 +21,7 @@ final class PodcastPlayerModel {
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
     private(set) var playbackRate: Float = 1.0
     private var lockScreenArtist: String?
-    private var lockScreenArtwork: MPMediaItemArtwork?
+    private var lockScreenArtworkData: Data?
 
     init(podcast: PodcastRecord, repository: PodcastRepository) {
         self.podcast = podcast
@@ -44,7 +44,7 @@ final class PodcastPlayerModel {
                 duration = loadedDuration
             }
             lockScreenArtist = await Self.artistName(from: asset)
-            lockScreenArtwork = await Self.artwork(from: asset, duration: duration)
+            lockScreenArtworkData = await Self.artworkData(from: asset, duration: duration)
             // Diagnostic : présence d'une piste audio (non bloquant si absente).
             let audioTracks = try await asset.loadTracks(withMediaType: .audio)
             if audioTracks.isEmpty {
@@ -53,7 +53,13 @@ final class PodcastPlayerModel {
             player.isMuted = false
             player.volume = 1.0
             player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
-            player.replaceCurrentItem(with: AVPlayerItem(asset: asset))
+            let item = AVPlayerItem(asset: asset)
+            item.externalMetadata = Self.externalMetadata(
+                title: podcast.title,
+                artist: lockScreenArtist,
+                artworkData: lockScreenArtworkData
+            )
+            player.replaceCurrentItem(with: item)
             let start = min(max(podcast.lastPositionSeconds, 0), max(duration, 0))
             currentTime = start
             await player.seek(
@@ -179,15 +185,16 @@ final class PodcastPlayerModel {
         return nil
     }
 
-    /// Pochette de l'écran verrouillé : image intégrée au fichier si présente,
-    /// sinon une image extraite de la vidéo.
-    /// Non isolée : le système appelle la fourniture d'image en arrière-plan,
-    /// ce qui planterait si elle héritait du fil principal.
-    private nonisolated static func artwork(from asset: AVURLAsset, duration: Double) async -> MPMediaItemArtwork? {
+    /// Pochette brute (JPEG) pour l'écran verrouillé : image intégrée au fichier
+    /// si présente, sinon une image extraite de la vidéo.
+    /// Non isolée : le système lit ces données en arrière-plan.
+    private nonisolated static func artworkData(from asset: AVURLAsset, duration: Double) async -> Data? {
         if let items = try? await asset.load(.commonMetadata) {
             for item in items where item.commonKey == .commonKeyArtwork {
-                if let data = item.dataValue, let image = UIImage(data: data) {
-                    return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                if let data = item.dataValue,
+                   let image = UIImage(data: data),
+                   let jpeg = image.jpegData(compressionQuality: 0.85) {
+                    return jpeg
                 }
             }
         }
@@ -197,10 +204,46 @@ final class PodcastPlayerModel {
         let safeDuration = max(duration, 1)
         let position = min(max(safeDuration * 0.05, 1.0), 60.0)
         if let result = try? await generator.image(at: CMTime(seconds: position, preferredTimescale: 600)) {
-            let image = UIImage(cgImage: result.image)
-            return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            return UIImage(cgImage: result.image).jpegData(compressionQuality: 0.85)
         }
         return nil
+    }
+
+    /// Objet pochette pour le centre de notifications, construit hors du fil
+    /// principal car le système le lit en arrière-plan.
+    private nonisolated static func makeArtwork(data: Data) -> MPMediaItemArtwork? {
+        guard let image = UIImage(data: data) else { return nil }
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+
+    /// Métadonnées portées par l'élément lu lui-même : c'est par ce canal natif
+    /// que le système affiche le titre, le nom et la pochette sur l'écran
+    /// verrouillé, le centre de notifications et via AirPlay.
+    private nonisolated static func externalMetadata(title: String, artist: String?, artworkData: Data?) -> [AVMetadataItem] {
+        var items: [AVMetadataItem] = []
+        let titleItem = AVMutableMetadataItem()
+        titleItem.keySpace = .common
+        titleItem.key = AVMetadataKey.commonKeyTitle as NSString
+        titleItem.value = title as NSString
+        titleItem.locale = .current
+        items.append(titleItem)
+        if let artist, !artist.isEmpty {
+            let artistItem = AVMutableMetadataItem()
+            artistItem.keySpace = .common
+            artistItem.key = AVMetadataKey.commonKeyArtist as NSString
+            artistItem.value = artist as NSString
+            artistItem.locale = .current
+            items.append(artistItem)
+        }
+        if let artworkData {
+            let artworkItem = AVMutableMetadataItem()
+            artworkItem.keySpace = .common
+            artworkItem.key = AVMetadataKey.commonKeyArtwork as NSString
+            artworkItem.value = artworkData as NSData
+            artworkItem.dataType = "public.jpeg"
+            items.append(artworkItem)
+        }
+        return items
     }
 
     /// Titre, durée et position affichés sur l'écran verrouillé et dans le centre de contrôle.
@@ -216,8 +259,8 @@ final class PodcastPlayerModel {
         if let lockScreenArtist {
             info[MPMediaItemPropertyArtist] = lockScreenArtist
         }
-        if let lockScreenArtwork {
-            info[MPMediaItemPropertyArtwork] = lockScreenArtwork
+        if let lockScreenArtworkData, let artwork = Self.makeArtwork(data: lockScreenArtworkData) {
+            info[MPMediaItemPropertyArtwork] = artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
