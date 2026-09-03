@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 @main
 struct LoreApp: App {
@@ -22,6 +23,8 @@ struct LoreApp: App {
             podcastFileStore = try PodcastFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)
             try sessions.recoverOpenSessions(now: .now)
+            // Bannière + son même quand Lore est au premier plan (notifications d'objectif).
+            UNUserNotificationCenter.current().delegate = DailyGoalForegroundDelegate.shared
         } catch {
             fatalError("Impossible d’initialiser le stockage local : \(error)")
         }

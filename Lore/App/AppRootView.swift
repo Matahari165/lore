@@ -16,6 +16,9 @@ struct AppRootView: View {
     @State private var presentsActivityChart = false
     @State private var statisticsRevision = 0
     @State private var podcastModel: PodcastLibraryModel
+    @State private var goalNotifier = DailyGoalNotifier()
+    @State private var showsGoalNotificationPrompt = false
+    @State private var didPromptGoalNotifications = false
 
     let statisticsAdapter: StatisticsDataAdapter
     let sessionRepository: ReadingSessionRepository
@@ -135,6 +138,17 @@ struct AppRootView: View {
         } message: {
             Text(libraryModel.errorMessage ?? "")
         }
+        .alert("Notifications de lecture", isPresented: $showsGoalNotificationPrompt) {
+            Button("Activer") {
+                Task {
+                    await goalNotifier.requestAuthorizationIfNeeded()
+                    await refreshGoalNotifications()
+                }
+            }
+            Button("Plus tard", role: .cancel) {}
+        } message: {
+            Text("Lore vous prévient quand votre objectif quotidien est atteint et vous rappelle à 21 h s'il vous reste du temps. Les notifications ne contiennent que des durées, jamais vos livres.")
+        }
     }
 
     private func reloadDailyGoal() {
@@ -145,6 +159,44 @@ struct AppRootView: View {
             )
         } catch {
             dailyGoalModel.markProgressUnavailable()
+        }
+        handleGoalNotifications()
+    }
+
+    /// Déclencheur des notifications : appelé au lancement (tâche `scenePhase`),
+    /// au changement d'onglet, à la fermeture des réglages et après fermeture du lecteur.
+    private func handleGoalNotifications() {
+        switch dailyGoalModel.state {
+        case .active(let progress):
+            let targetMinutes = progress.targetMinutes
+            let readSeconds = progress.readSeconds
+            Task {
+                await refreshGoalNotifications(targetMinutes: targetMinutes, readSeconds: readSeconds)
+                guard !didPromptGoalNotifications else { return }
+                let status = await goalNotifier.authorizationStatus()
+                if status == .notDetermined {
+                    didPromptGoalNotifications = true
+                    showsGoalNotificationPrompt = true
+                }
+            }
+        case .disabled, .failed:
+            Task { await goalNotifier.cancelEveningReminder() }
+        }
+    }
+
+    private func refreshGoalNotifications(targetMinutes: Int? = nil, readSeconds: TimeInterval = 0) async {
+        if let targetMinutes {
+            await goalNotifier.refreshGoalState(targetMinutes: targetMinutes, todayDuration: readSeconds)
+            return
+        }
+        switch dailyGoalModel.state {
+        case .active(let progress):
+            await goalNotifier.refreshGoalState(
+                targetMinutes: progress.targetMinutes,
+                todayDuration: progress.readSeconds
+            )
+        case .disabled, .failed:
+            await goalNotifier.cancelEveningReminder()
         }
     }
 }
