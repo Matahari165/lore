@@ -2,15 +2,15 @@
 
 ## Vision
 
-Lore est une application personnelle de lecture, native sur iPhone puis sur Mac. Elle réunit une bibliothèque EPUB, un lecteur confortable, un historique de lecture, des statistiques fiables et une aide par intelligence artificielle.
+Lore est une application personnelle de lecture et d’écoute, native sur iPhone puis sur Mac. Elle réunit une bibliothèque EPUB, un espace Podcasts MP4, des lecteurs confortables, un historique de lecture, des statistiques fiables et une aide par intelligence artificielle.
 
 La priorité actuelle est l’iPhone. Le Mac viendra dans une version ultérieure.
 
 ## Objectif
 
-Permettre une boucle de lecture complète et simple :
+Permettre une boucle de lecture et d’écoute complète et simple :
 
-**Importer un EPUB → lire → reprendre exactement → annoter → suivre son activité.**
+**Importer un EPUB ou un MP4 → lire/écouter → reprendre exactement → suivre son activité.**
 
 ## Utilisateur
 
@@ -26,10 +26,18 @@ Permettre une boucle de lecture complète et simple :
 - Import simultané d’un ou plusieurs fichiers EPUB sans protection DRM depuis l’app Fichiers.
 - Affichage de la couverture, du titre et de l’auteur.
 - Statuts : à lire, en cours et terminé.
-- Trois onglets principaux : Accueil, Bibliothèque et Statistiques.
+- Quatre onglets principaux : Accueil, Bibliothèque, Statistiques et Podcasts.
 - Recherche et tri par ajout, titre, auteur ou progression, dans les deux ordres.
 - Filtres de catégorie : tous, à lire, en cours et terminés.
-- Conservation de la bibliothèque après fermeture de l’application.
+- Conservation de la bibliothèque après fermeture de l'application.
+
+### Podcasts
+
+- Import d’un ou plusieurs fichiers MP4 sans DRM depuis l’app Fichiers.
+- Copie privée dans `Application Support/Podcasts` et détection des doublons par SHA-256.
+- Lecture audio/vidéo locale avec une page dédiée.
+- Sauvegarde automatique de la position pendant la lecture, à la pause, en arrière-plan et à la fermeture.
+- Reprise au même instant après fermeture ou le lendemain.
 
 ### Lecteur
 
@@ -65,6 +73,8 @@ Permettre une boucle de lecture complète et simple :
 
 - Application Mac.
 - PDF et autres formats.
+- Flux RSS et téléchargement automatique de podcasts.
+- Synchronisation iCloud des fichiers MP4 et de leur progression, tant qu’elle n’a pas été testée sur deux appareils.
 - EPUB protégés par DRM, notamment les livres Apple Books protégés.
 - Boutique de livres.
 - Comptes multiples et fonctions sociales.
@@ -165,6 +175,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La fin explicite d’un livre demande une note entière sur 10 et une année de lecture ; cette année détermine son classement dans l’archive annuelle.
 - Les deux publications EPUB les plus récemment ouvertes restent temporairement en mémoire afin d’accélérer leur réouverture, sans modifier le fichier ni la position Readium persistée.
 - Les EPUB importés et les données de lecture restent actuellement dans le stockage privé local de Lore ; aucune synchronisation iCloud des fichiers ou des modèles SwiftData n’est encore activée.
+- Les MP4 importés et leur position restent dans le stockage privé local de Lore. Le lecteur s’appuie sur `AVPlayer`, et la position est enregistrée en secondes ; aucune synchronisation iCloud des podcasts n’est encore activée.
 - Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
 - Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
 - La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.

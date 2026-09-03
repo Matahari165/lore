@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 31 août 2026
+Dernière mise à jour : 3 septembre 2026
 
 ## Terminé
 
@@ -77,6 +77,7 @@ Dernière mise à jour : 31 août 2026
 - Un livre peut être retiré de Reprendre sans perdre sa progression. L’ouverture ne redécode plus la couverture et utilise une animation de page qui grandit depuis le bas, avec respect de Réduire les animations.
 - La section sous Hier est désormais limitée aux trois derniers livres réellement terminés. Les barres d’objectif et de lecture sont épaissies ; la progression du lecteur devient blanche en thème sombre.
 - L’animation d’ouverture et de fermeture prend la position globale de la pochette touchée comme origine, puis agrandit la surface Readium jusqu’au plein écran.
+- Un quatrième onglet Podcasts est ajouté : import local de MP4, lecture audio/vidéo avec `AVPlayer`, détection des doublons par SHA-256 et sauvegarde de la position en secondes pour reprendre plus tard.
 
 ## En cours
 
@@ -87,6 +88,7 @@ Dernière mise à jour : 31 août 2026
 - Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.
 - Profilage Énergie/CPU sur l’iPhone : l’audit statique soupçonne les sauvegardes SwiftData et la réécriture des checkpoints de récap lors du défilement, mais aucune mesure Instruments n’a encore été réalisée.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
+- Vérification réelle de l’import et de la reprise d’un MP4 dans l’appareil Fichiers puis sur le simulateur ; la compilation de la nouvelle tranche réussit, mais un test de lecture réel reste à faire.
 
 ## À faire
 

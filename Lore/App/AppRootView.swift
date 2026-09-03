@@ -6,6 +6,7 @@ struct AppRootView: View {
         case home
         case library
         case statistics
+        case podcasts
     }
 
     @State private var selectedTab: Tab
@@ -14,6 +15,7 @@ struct AppRootView: View {
     @State private var presentsSettings = false
     @State private var presentsActivityChart = false
     @State private var statisticsRevision = 0
+    @State private var podcastModel: PodcastLibraryModel
 
     let statisticsAdapter: StatisticsDataAdapter
     let sessionRepository: ReadingSessionRepository
@@ -27,6 +29,8 @@ struct AppRootView: View {
         fileStore: BookFileStore,
         publicationService: ReadiumPublicationService,
         conversationRepository: AIConversationRepository,
+        podcastRepository: PodcastRepository,
+        podcastFileStore: PodcastFileStore,
         dailyGoalStore: any DailyReadingGoalStore = UserDefaultsDailyReadingGoalStore()
     ) {
         _selectedTab = State(initialValue: initialTab)
@@ -38,6 +42,10 @@ struct AppRootView: View {
             conversationRepository: conversationRepository
         ))
         _dailyGoalModel = State(initialValue: DailyReadingGoalModel(store: dailyGoalStore))
+        _podcastModel = State(initialValue: PodcastLibraryModel(
+            repository: podcastRepository,
+            fileStore: podcastFileStore
+        ))
         self.statisticsAdapter = statisticsAdapter
         self.sessionRepository = sessionRepository
         self.conversationRepository = conversationRepository
@@ -73,6 +81,10 @@ struct AppRootView: View {
                 )
                 .tabItem { Label("Statistiques", systemImage: "chart.bar.xaxis") }
                 .tag(Tab.statistics)
+
+                PodcastLibraryView(model: podcastModel)
+                    .tabItem { Label("Podcasts", systemImage: "waveform") }
+                    .tag(Tab.podcasts)
             }
             .tabBarMinimizeBehavior(.onScrollDown)
             .loreCanvas()

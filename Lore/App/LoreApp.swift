@@ -5,6 +5,7 @@ import SwiftUI
 struct LoreApp: App {
     private let container: ModelContainer
     private let fileStore: BookFileStore
+    private let podcastFileStore: PodcastFileStore
 
     init() {
         do {
@@ -14,9 +15,11 @@ struct LoreApp: App {
                 HighlightRecord.self,
                 VocabularyRecord.self,
                 AIConversationRecord.self,
-                AIMessageRecord.self
+                AIMessageRecord.self,
+                PodcastRecord.self
             )
             fileStore = try BookFileStore()
+            podcastFileStore = try PodcastFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)
             try sessions.recoverOpenSessions(now: .now)
         } catch {
@@ -37,6 +40,7 @@ struct LoreApp: App {
                     vocabularyRepository: vocabulary
                 )
                 let sessions = ReadingSessionRepository(context: container.mainContext)
+                let podcasts = PodcastRepository(context: container.mainContext)
                 AppRootView(
                     initialTab: ProcessInfo.processInfo.arguments.contains("-statisticsTab") ? .statistics : .home,
                     bookRepository: books,
@@ -44,7 +48,9 @@ struct LoreApp: App {
                     statisticsAdapter: StatisticsDataAdapter(context: container.mainContext),
                     fileStore: fileStore,
                     publicationService: ReadiumPublicationService(),
-                    conversationRepository: conversations
+                    conversationRepository: conversations,
+                    podcastRepository: podcasts,
+                    podcastFileStore: podcastFileStore
                 )
             }
         }
