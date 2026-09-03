@@ -155,7 +155,13 @@ struct LibraryView: View {
                 DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
                 if !model.resumableBooks.isEmpty { resumeSection(model.resumableBooks) }
                 YesterdayReadingSummaryView(
-                    state: model.yesterdayReadingSummaryState,
+                    state: model.isShowingHistoryPastDay ? model.historyRecapState : model.yesterdayReadingSummaryState,
+                    dayTitle: model.historyDayTitle,
+                    isHistoryDay: model.isShowingHistoryPastDay,
+                    canGoPrevious: model.canGoToOlderHistoryDay,
+                    canGoNext: model.canGoToNewerHistoryDay,
+                    onPrevious: { model.showPreviousHistoryDay() },
+                    onNext: { model.showNextHistoryDay() },
                     onRetry: {
                         Task { await model.loadYesterdayAIRecapIfNeeded(force: true) }
                     },

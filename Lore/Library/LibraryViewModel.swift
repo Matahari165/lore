@@ -103,6 +103,10 @@ final class LibraryViewModel {
     private var latestSessionActivityByBookID: [UUID: Date] = [:]
     private var coverFramesByBookID: [UUID: CGRect] = [:]
     private var yesterdayActivity: YesterdayActivity?
+    // Historique multi-jours adossé à `YesterdayReadingRecapCache.recapHistory()`
+    // (dictionnaire par jour + fingerprint, 30 jours, migration v1 incluse).
+    // nil signifie « veille » ; toute autre valeur est un début de jour local.
+    var selectedHistoryDay: Date?
 
     init(
         repository: BookRepository,
@@ -199,6 +203,79 @@ final class LibraryViewModel {
 
     var yesterdayRecapRequestID: String {
         yesterdayActivity?.fingerprint ?? "no-reading-yesterday"
+    }
+
+    // MARK: - Navigation historique du bloc Hier
+
+    private var yesterdayStart: Date {
+        let calendar = Calendar.autoupdatingCurrent
+        let today = calendar.startOfDay(for: .now)
+        return calendar.date(byAdding: .day, value: -1, to: today) ?? today
+    }
+
+    var historyDayStart: Date {
+        selectedHistoryDay ?? yesterdayStart
+    }
+
+    var isShowingHistoryPastDay: Bool {
+        selectedHistoryDay != nil
+    }
+
+    var historyDayTitle: String {
+        let calendar = Calendar.autoupdatingCurrent
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "EEE d MMM"
+        var formatted = formatter.string(from: historyDayStart)
+        // « 1 sept. » devient « 1er sept. » comme dans l'exemple produit.
+        if calendar.component(.day, from: historyDayStart) == 1 {
+            formatted = formatted.replacingOccurrences(of: " 1 ", with: " 1er ")
+        }
+        if !isShowingHistoryPastDay {
+            return "Hier · \(formatted)"
+        }
+        return formatted
+    }
+
+    var canGoToNewerHistoryDay: Bool {
+        isShowingHistoryPastDay
+    }
+
+    var canGoToOlderHistoryDay: Bool {
+        // Fenêtre alignée sur le cache (30 jours max).
+        let calendar = Calendar.autoupdatingCurrent
+        let depth = calendar.dateComponents([.day], from: historyDayStart, to: yesterdayStart).day ?? 0
+        return depth < (YesterdayReadingRecapCache.maxKeptDays - 1)
+    }
+
+    /// État à afficher pour le jour sélectionné : veille = état live existant,
+    /// jour passé = résumé en cache (`recapHistory`) ou repli gracieux.
+    var historyRecapState: YesterdayReadingSummaryState {
+        guard isShowingHistoryPastDay else { return yesterdayReadingSummaryState }
+        let calendar = Calendar.autoupdatingCurrent
+        if let entry = yesterdayRecapCache.recapHistory().first(where: {
+            calendar.isDate($0.dayStart, inSameDayAs: historyDayStart)
+        }) {
+            return .available(activityLine: historyDayTitle, markdown: entry.markdown)
+        }
+        return .noReading
+    }
+
+    func showPreviousHistoryDay() {
+        let calendar = Calendar.autoupdatingCurrent
+        guard let previous = calendar.date(byAdding: .day, value: -1, to: historyDayStart) else { return }
+        selectedHistoryDay = previous
+    }
+
+    func showNextHistoryDay() {
+        let calendar = Calendar.autoupdatingCurrent
+        guard isShowingHistoryPastDay else { return }
+        guard let next = calendar.date(byAdding: .day, value: 1, to: historyDayStart) else { return }
+        if calendar.isDate(next, inSameDayAs: yesterdayStart) || next > yesterdayStart {
+            selectedHistoryDay = nil
+        } else {
+            selectedHistoryDay = next
+        }
     }
 
     var visibleBooks: [BookRecord] {
@@ -586,12 +663,12 @@ final class LibraryViewModel {
                 let sentence = source[range]
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !sentence.isEmpty { sentences.append(sentence) }
-                if sentences.count == 4 { stop = true }
+                if sentences.count == 5 { stop = true }
             }
             bullets = sentences.map { "- \($0)" }
         }
 
-        let shortBullets = bullets.prefix(4).map { line -> String in
+        let shortBullets = bullets.prefix(6).map { line -> String in
             let normalized = line
                 .replacingOccurrences(of: "•", with: "-")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
