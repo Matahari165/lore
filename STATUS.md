@@ -78,6 +78,8 @@ Dernière mise à jour : 3 septembre 2026
 - La section sous Hier est désormais limitée aux trois derniers livres réellement terminés. Les barres d’objectif et de lecture sont épaissies ; la progression du lecteur devient blanche en thème sombre.
 - L’animation d’ouverture et de fermeture prend la position globale de la pochette touchée comme origine, puis agrandit la surface Readium jusqu’au plein écran.
 - Un quatrième onglet Podcasts est ajouté : import local de MP4, lecture audio/vidéo avec `AVPlayer`, détection des doublons par SHA-256 et sauvegarde de la position en secondes pour reprendre plus tard.
+- Le son du lecteur podcast est corrigé : session audio `.playback` (audible même en mode silencieux), volume/`isMuted` imposés, diagnostic de piste audio manquante, pause et sauvegarde sur interruption (appel/Siri). Compilation réussie sur simulateur iPhone 13 ; écoute réelle sur appareil restant à faire.
+- Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
 
 ## En cours
 
@@ -89,6 +91,7 @@ Dernière mise à jour : 3 septembre 2026
 - Profilage Énergie/CPU sur l’iPhone : l’audit statique soupçonne les sauvegardes SwiftData et la réécriture des checkpoints de récap lors du défilement, mais aucune mesure Instruments n’a encore été réalisée.
 - Diagnostic du lanceur de tests Xcode, qui compile les tests mais ne les exécute toujours pas.
 - Vérification réelle de l’import et de la reprise d’un MP4 dans l’appareil Fichiers puis sur le simulateur ; la compilation de la nouvelle tranche réussit, mais un test de lecture réel reste à faire.
+- Vérification sur iPhone du son podcast (piste audio connue, volume > 0, hors puis en mode silencieux), de l’interruption (appel simulé) et du nouveau visuel du lecteur à `390 × 844` (bouton visible, titre unique, curseur, −15/+15 s).
 
 ## À faire
 

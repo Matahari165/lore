@@ -40,6 +40,7 @@ struct PodcastLibraryView: View {
                 fileStore: model.fileStore
             )
             .presentationDragIndicator(.visible)
+            .presentationDetents([.medium, .large])
         }
         .overlay {
             if model.isImporting {
@@ -178,26 +179,28 @@ struct PodcastPlayerView: View {
     @State private var loadError: String?
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            sheetHeader
+            Divider().overlay(LoreTheme.hairline)
             Group {
                 if let playerModel {
                     playerContent(playerModel)
                 } else if let loadError {
                     ContentUnavailableView("Lecture impossible", systemImage: "exclamationmark.triangle", description: Text(loadError))
+                        .padding(.top, 24)
                 } else {
                     ProgressView("Préparation du podcast…")
+                        .font(.callout)
+                        .foregroundStyle(LoreTheme.secondaryInk)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 48)
                 }
             }
             .padding(.horizontal, LoreTheme.pageMargin)
-            .navigationTitle(podcast.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Fermer") { dismiss() }
-                }
-            }
         }
-        .loreCanvas()
+        .background(LoreTheme.canvas.ignoresSafeArea())
+        .tint(LoreTheme.ink)
+        .foregroundStyle(LoreTheme.ink)
         .task { await loadPlayer() }
         .task(id: playerModel?.podcast.id) {
             guard let playerModel else { return }
@@ -216,59 +219,146 @@ struct PodcastPlayerView: View {
         }
     }
 
+    private var sheetHeader: some View {
+        HStack(spacing: 8) {
+            Text("Podcast")
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(LoreTheme.secondaryInk)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button("Fermer") { dismiss() }
+                .font(.body.weight(.medium))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Fermer le lecteur")
+                .accessibilityHint("Met en pause et enregistre la position")
+        }
+        .padding(.leading, LoreTheme.pageMargin)
+        .padding(.trailing, max(8, LoreTheme.pageMargin - 6))
+        .padding(.vertical, 2)
+    }
+
+    private var isFilenameRedundant: Bool {
+        let titleNorm = podcast.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var name = podcast.originalFilename.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let dot = name.lastIndex(of: ".") {
+            name = String(name[..<dot])
+        }
+        name = name
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !titleNorm.isEmpty, !name.isEmpty else { return true }
+        if name == titleNorm { return true }
+        if titleNorm.contains(name) || name.contains(titleNorm) { return true }
+        return false
+    }
+
     @ViewBuilder
     private func playerContent(_ playerModel: PodcastPlayerModel) -> some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 VideoPlayer(player: playerModel.player)
                     .frame(maxWidth: .infinity)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .background(.black)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.top, 14)
+                    .accessibilityLabel("Vidéo du podcast")
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(podcast.title)
-                        .font(.title2.weight(.bold))
-                    Text(podcast.originalFilename)
-                        .font(.subheadline)
-                        .foregroundStyle(LoreTheme.secondaryInk)
-                        .lineLimit(1)
+                        .font(.title3.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !isFilenameRedundant {
+                        Text(podcast.originalFilename)
+                            .font(.caption)
+                            .foregroundStyle(LoreTheme.secondaryInk)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(podcast.title)
 
-                Slider(
-                    value: Binding(
-                        get: { playerModel.currentTime },
-                        set: { playerModel.seek(to: $0) }
-                    ),
-                    in: 0...max(playerModel.duration, 1),
-                    onEditingChanged: { editing in
-                        if !editing { playerModel.persist() }
-                    }
-                )
-                .disabled(!playerModel.isReady)
-                HStack {
-                    Text(PodcastTimeFormatter.string(from: playerModel.currentTime))
-                    Spacer()
-                    Text(PodcastTimeFormatter.string(from: playerModel.duration))
-                }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(LoreTheme.secondaryInk)
-
-                Button {
-                    playerModel.togglePlayback()
-                } label: {
-                    Label(
-                        playerModel.isPlaying ? "Pause" : (playerModel.currentTime > 0 ? "Reprendre" : "Écouter"),
-                        systemImage: playerModel.isPlaying ? "pause.fill" : "play.fill"
+                VStack(spacing: 6) {
+                    PodcastScrubber(
+                        currentTime: playerModel.currentTime,
+                        duration: playerModel.duration,
+                        isEnabled: playerModel.isReady,
+                        onSeek: { playerModel.seek(to: $0) },
+                        onScrubEnded: { playerModel.persist() }
                     )
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+                    HStack {
+                        Text(PodcastTimeFormatter.string(from: playerModel.currentTime))
+                        Spacer()
+                        Text(PodcastTimeFormatter.string(from: playerModel.duration))
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(LoreTheme.secondaryInk)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "Position \(PodcastTimeFormatter.string(from: playerModel.currentTime)) sur \(PodcastTimeFormatter.string(from: playerModel.duration))"
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(!playerModel.isReady)
-                .accessibilityHint("La position est enregistrée automatiquement")
+
+                HStack(spacing: 12) {
+                    Button {
+                        playerModel.seek(to: playerModel.currentTime - 15)
+                        playerModel.persist()
+                    } label: {
+                        Image(systemName: "gobackward.15")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!playerModel.isReady)
+                    .accessibilityLabel("Reculer de 15 secondes")
+                    .accessibilityHint("Reprend 15 secondes plus tôt")
+
+                    Button {
+                        playerModel.togglePlayback()
+                    } label: {
+                        Label(
+                            playerModel.isPlaying ? "Pause" : (playerModel.currentTime > 1 ? "Reprendre" : "Écouter"),
+                            systemImage: playerModel.isPlaying ? "pause.fill" : "play.fill"
+                        )
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(LoreTheme.ink)
+                    .foregroundStyle(LoreTheme.canvas)
+                    .controlSize(.large)
+                    .disabled(!playerModel.isReady)
+                    .accessibilityHint("La position enregistrée est conservée automatiquement")
+
+                    Button {
+                        playerModel.seek(to: playerModel.currentTime + 15)
+                        playerModel.persist()
+                    } label: {
+                        Image(systemName: "goforward.15")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!playerModel.isReady)
+                    .accessibilityLabel("Avancer de 15 secondes")
+                    .accessibilityHint("Saute 15 secondes")
+                }
+
+                Text("Position enregistrée automatiquement")
+                    .font(.caption)
+                    .foregroundStyle(LoreTheme.secondaryInk)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, -6)
 
                 if let error = playerModel.errorMessage {
                     Text(error)
@@ -277,8 +367,9 @@ struct PodcastPlayerView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.vertical, 18)
+            .padding(.bottom, 24)
         }
+        .scrollIndicators(.hidden)
     }
 
     private func loadPlayer() async {
@@ -291,6 +382,73 @@ struct PodcastPlayerView: View {
             if let error = model.errorMessage { loadError = error }
         } catch {
             loadError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}
+
+private struct PodcastScrubber: View {
+    let currentTime: Double
+    let duration: Double
+    let isEnabled: Bool
+    var onSeek: (Double) -> Void
+    var onScrubEnded: () -> Void
+
+    @State private var dragValue: Double?
+
+    private var displayed: Double {
+        dragValue ?? currentTime
+    }
+
+    private var progress: Double {
+        guard duration > 0 else { return 0 }
+        return min(max(displayed / duration, 0), 1)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let trackHeight: CGFloat = 4
+            let thumbDiameter: CGFloat = 20
+            let width = max(geometry.size.width - thumbDiameter, 1)
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: trackHeight / 2)
+                    .fill(LoreTheme.ink.opacity(isEnabled ? 0.18 : 0.1))
+                    .frame(height: trackHeight)
+                RoundedRectangle(cornerRadius: trackHeight / 2)
+                    .fill(isEnabled ? LoreTheme.ink : LoreTheme.secondaryInk)
+                    .frame(width: width * progress + thumbDiameter / 2, height: trackHeight)
+                Circle()
+                    .fill(isEnabled ? LoreTheme.ink : LoreTheme.secondaryInk)
+                    .frame(width: thumbDiameter, height: thumbDiameter)
+                    .offset(x: width * progress)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard isEnabled, duration > 0 else { return }
+                        let x = min(max(value.location.x - thumbDiameter / 2, 0), width)
+                        dragValue = (x / width) * duration
+                        if let dragValue { onSeek(dragValue) }
+                    }
+                    .onEnded { _ in
+                        dragValue = nil
+                        onScrubEnded()
+                    }
+            )
+        }
+        .frame(height: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Curseur de lecture")
+        .accessibilityValue("\(PodcastTimeFormatter.string(from: displayed)) sur \(PodcastTimeFormatter.string(from: duration))")
+        .accessibilityHint("Glisser pour changer de position")
+        .accessibilityAdjustableAction { direction in
+            guard isEnabled else { return }
+            switch direction {
+            case .increment: onSeek(min(displayed + 15, max(duration, 0))); onScrubEnded()
+            case .decrement: onSeek(max(displayed - 15, 0)); onScrubEnded()
+            @unknown default: break
+            }
         }
     }
 }
