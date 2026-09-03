@@ -167,7 +167,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - L’IA utilise exactement `gpt-5.6-luna` via l’API Responses, avec `store: false`. La clé n’est jamais incluse dans le code et reste dans le trousseau sécurisé de l’iPhone.
 - Une explication envoie uniquement le passage sélectionné et une fenêtre bornée du chapitre courant. Le résumé quotidien peut envoyer jusqu’à 18 000 caractères de la portion lue la veille.
 - Le résumé quotidien porte uniquement sur le jour civil précédent, utilise les premier et dernier Locator enregistrés et n’est présenté qu’une fois par livre pendant la journée locale.
-- La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
+- La navigation principale comporte quatre onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, Statistiques et Podcasts.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
 - L’icône de Lore conserve uniquement le trait violet minimaliste formant un `L` plié dans Icon Composer : remplissage `none`, ombre désactivée et couche PNG RGBA transparente. Le matériau Liquid Glass reste appliqué au groupe ; iOS 26 peut toutefois ajouter son masque ou son arrière-plan système aux variantes irrégulières.
 - Les couvertures utilisent un cadre portrait commun et `scaledToFit` afin de rester entières, quelles que soient leurs proportions d’origine.

@@ -50,9 +50,10 @@ final class PodcastPlayerModel {
         guard seconds.isFinite else { return }
         currentTime = min(max(seconds, 0), max(duration, 0))
         if duration > 0, currentTime >= duration - 0.5 {
+            let shouldPersist = isPlaying || abs(currentTime - lastPersistedPosition) >= 0.5
             isPlaying = false
             player.pause()
-            persist()
+            if shouldPersist { persist() }
         } else if isPlaying, abs(currentTime - lastPersistedPosition) >= 2 {
             persist()
         }

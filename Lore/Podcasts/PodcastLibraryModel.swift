@@ -37,6 +37,11 @@ final class PodcastLibraryModel {
         self.repository = repository
         self.fileStore = fileStore
         importService = PodcastImportService(repository: repository, fileStore: fileStore)
+        do {
+            _ = try importService.reconcileImports()
+        } catch {
+            present(error)
+        }
         reload()
     }
 

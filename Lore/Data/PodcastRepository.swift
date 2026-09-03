@@ -25,7 +25,10 @@ final class PodcastRepository {
     }
 
     func podcasts() throws -> [PodcastRecord] {
-        var descriptor = FetchDescriptor<PodcastRecord>()
+        let ready = PodcastImportState.ready.rawValue
+        var descriptor = FetchDescriptor<PodcastRecord>(
+            predicate: #Predicate { $0.importStateRawValue == ready }
+        )
         descriptor.sortBy = [SortDescriptor(\.importedAt, order: .reverse)]
         return try context.fetch(descriptor)
     }
@@ -44,6 +47,32 @@ final class PodcastRepository {
         )
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
+    }
+
+    func pendingImports() throws -> [PodcastRecord] {
+        let pending = PodcastImportState.pending.rawValue
+        let descriptor = FetchDescriptor<PodcastRecord>(
+            predicate: #Predicate { $0.importStateRawValue == pending }
+        )
+        return try context.fetch(descriptor)
+    }
+
+    func confirmImport(podcastID: UUID, relativeFilePath: String) throws {
+        guard let podcast = try podcast(id: podcastID) else {
+            throw PodcastRepositoryError.podcastNotFound
+        }
+        podcast.relativeFilePath = relativeFilePath
+        podcast.importState = .ready
+        podcast.stagingToken = nil
+        try saveContext(context)
+    }
+
+    func markRecoveryRequired(podcastID: UUID) throws {
+        guard let podcast = try podcast(id: podcastID) else {
+            throw PodcastRepositoryError.podcastNotFound
+        }
+        podcast.importState = .recoveryRequired
+        try saveContext(context)
     }
 
     func savePosition(

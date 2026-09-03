@@ -1,64 +1,142 @@
 import AVFoundation
 import Foundation
 
+@MainActor
+protocol PodcastImportValidating {
+    func validateMP4(at fileURL: URL) async throws -> Double?
+}
+
+struct AVPodcastImportValidator: PodcastImportValidating {
+    func validateMP4(at fileURL: URL) async throws -> Double? {
+        let asset = AVURLAsset(url: fileURL)
+        guard try await asset.load(.isPlayable) else {
+            throw PodcastImportServiceError.notPlayable
+        }
+        let duration = try await asset.load(.duration).seconds
+        return duration.isFinite && duration > 0 ? duration : nil
+    }
+}
+
 enum PodcastImportResult: Equatable {
     case imported
     case alreadyImported
 }
 
 @MainActor
+private final class PodcastImportGate {
+    private var isHeld = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !isHeld {
+            isHeld = true
+            return
+        }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty {
+            isHeld = false
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}
+
+@MainActor
 final class PodcastImportService {
     private let repository: PodcastRepository
     private let fileStore: PodcastFileStore
+    private let validator: any PodcastImportValidating
+    private let gate = PodcastImportGate()
 
-    init(repository: PodcastRepository, fileStore: PodcastFileStore) {
+    init(
+        repository: PodcastRepository,
+        fileStore: PodcastFileStore,
+        validator: any PodcastImportValidating = AVPodcastImportValidator()
+    ) {
         self.repository = repository
         self.fileStore = fileStore
+        self.validator = validator
     }
 
     func importMP4(from sourceURL: URL) async throws -> PodcastImportResult {
-        guard fileManager.fileExists(atPath: sourceURL.path) else {
-            throw PodcastFileStoreError.sourceUnavailable
-        }
-        guard sourceURL.pathExtension.lowercased() == "mp4" else {
-            throw PodcastFileStoreError.unsupportedFileType
-        }
+        await gate.acquire()
+        defer { gate.release() }
 
         let fileStore = self.fileStore
-        let digest = try await Task.detached {
-            let didAccess = sourceURL.startAccessingSecurityScopedResource()
-            defer { if didAccess { sourceURL.stopAccessingSecurityScopedResource() } }
-            return try fileStore.contentSHA256(of: sourceURL)
+        let staged = try await Task.detached {
+            try fileStore.stageMP4(from: sourceURL)
         }.value
-        if try repository.podcast(contentSHA256: digest) != nil {
+        if try repository.podcast(contentSHA256: staged.contentSHA256) != nil {
+            fileStore.discard(staged)
             return .alreadyImported
         }
 
-        let podcastID = UUID()
-        let relativePath = try await Task.detached {
-            try fileStore.copyMP4(from: sourceURL, podcastID: podcastID)
-        }.value
+        var reservedPodcast: PodcastRecord?
         do {
-            let storedURL = try fileStore.fileURL(for: relativePath)
-            let asset = AVURLAsset(url: storedURL)
-            let isPlayable = try await asset.load(.isPlayable)
-            guard isPlayable else { throw PodcastImportServiceError.notPlayable }
-            let duration = try await asset.load(.duration)
-            let durationSeconds = duration.seconds.isFinite && duration.seconds > 0
-                ? duration.seconds
-                : nil
+            let durationSeconds = try await validator.validateMP4(at: staged.fileURL)
             let record = PodcastRecord(
-                contentSHA256: digest,
+                contentSHA256: staged.contentSHA256,
                 title: Self.title(from: sourceURL),
                 originalFilename: sourceURL.lastPathComponent,
-                relativeFilePath: relativePath,
-                durationSeconds: durationSeconds
+                relativeFilePath: "",
+                durationSeconds: durationSeconds,
+                importState: .pending,
+                stagingToken: staged.token
             )
             try repository.add(record)
+            reservedPodcast = record
+            let podcastID = record.id
+            let relativePath = try await Task.detached {
+                try fileStore.promote(staged, to: podcastID)
+            }.value
+            try repository.confirmImport(podcastID: record.id, relativeFilePath: relativePath)
             return .imported
         } catch {
-            try? fileStore.removeFile(at: relativePath)
+            if reservedPodcast == nil {
+                fileStore.discard(staged)
+            }
             throw error
+        }
+    }
+
+    func reconcileImports(now: Date = .now) throws -> PodcastFileReconciliationReport {
+        var report = PodcastFileReconciliationReport()
+        for podcast in try repository.pendingImports() {
+            do {
+                try recoverImport(podcast)
+            } catch {
+                try repository.markRecoveryRequired(podcastID: podcast.id)
+            }
+        }
+
+        let podcasts = try repository.podcasts()
+        let fileReport = try fileStore.reconcile(
+            referencedPodcastIDs: Set(podcasts.map(\.id)),
+            referencedStagingTokens: Set(podcasts.compactMap(\.stagingToken)),
+            now: now
+        )
+        report = fileReport
+        return report
+    }
+
+    private func recoverImport(_ podcast: PodcastRecord) throws {
+        guard let digest = podcast.contentSHA256 else {
+            throw PodcastFileStoreError.storedFileMissing
+        }
+        if (try? fileStore.finalFile(podcastID: podcast.id, expectedSHA256: digest)) != nil {
+            try repository.confirmImport(
+                podcastID: podcast.id,
+                relativeFilePath: "Podcasts/\(podcast.id.uuidString)/episode.mp4"
+            )
+        } else if let token = podcast.stagingToken {
+            let staged = try fileStore.stagedFile(token: token, expectedSHA256: digest)
+            let path = try fileStore.promote(staged, to: podcast.id)
+            try repository.confirmImport(podcastID: podcast.id, relativeFilePath: path)
+        } else {
+            throw PodcastFileStoreError.storedFileMissing
         }
     }
 
@@ -71,7 +149,6 @@ final class PodcastImportService {
         return title.isEmpty ? "Podcast sans titre" : title
     }
 
-    private var fileManager: FileManager { .default }
 }
 
 enum PodcastImportServiceError: LocalizedError, Equatable {
