@@ -181,8 +181,6 @@ struct PodcastPlayerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            sheetHeader
-            Divider().overlay(LoreTheme.hairline)
             Group {
                 if let playerModel {
                     playerContent(playerModel)
@@ -221,27 +219,6 @@ struct PodcastPlayerView: View {
         }
     }
 
-    private var sheetHeader: some View {
-        HStack(spacing: 8) {
-            Text("Podcast")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .foregroundStyle(LoreTheme.secondaryInk)
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
-            Button("Fermer") { dismiss() }
-                .font(.body.weight(.medium))
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Fermer le lecteur")
-                .accessibilityHint("Met en pause et enregistre la position")
-        }
-        .padding(.leading, LoreTheme.pageMargin)
-        .padding(.trailing, max(8, LoreTheme.pageMargin - 6))
-        .padding(.top, 12)
-        .padding(.bottom, 2)
-    }
-
     private var isFilenameRedundant: Bool {
         let titleNorm = podcast.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         var name = podcast.originalFilename.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -268,28 +245,20 @@ struct PodcastPlayerView: View {
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .background(.black)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.top, 10)
+                    .padding(.top, 4)
                     .accessibilityLabel("Vidéo du podcast")
-
-                transportRow(playerModel)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(podcast.title)
-                        .font(.title3.weight(.bold))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if !isFilenameRedundant {
-                        Text(podcast.originalFilename)
-                            .font(.caption)
-                            .foregroundStyle(LoreTheme.secondaryInk)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .topTrailing) {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .font(.body.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.glass)
+                        .padding(10)
+                        .accessibilityLabel("Fermer le lecteur")
+                        .accessibilityHint("Met en pause et enregistre la position")
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(podcast.title)
 
                 VStack(spacing: 6) {
                     PodcastScrubber(
@@ -312,8 +281,28 @@ struct PodcastPlayerView: View {
                     )
                 }
 
+                transportRow(playerModel)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(podcast.title)
+                        .font(.title3.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !isFilenameRedundant {
+                        Text(podcast.originalFilename)
+                            .font(.caption)
+                            .foregroundStyle(LoreTheme.secondaryInk)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(podcast.title)
+
                 volumeRow
-                    .padding(.top, 2)
+                    .padding(.top, 10)
 
                 if let error = playerModel.errorMessage {
                     Text(error)
@@ -337,7 +326,7 @@ struct PodcastPlayerView: View {
                     .frame(width: 52, height: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Vitesse de lecture")
             .accessibilityValue(playerModel.playbackRateLabel)
@@ -354,7 +343,7 @@ struct PodcastPlayerView: View {
                     .frame(width: 48, height: 48)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Reculer de 15 secondes")
             .accessibilityHint("Reprend 15 secondes plus tôt")
@@ -383,7 +372,7 @@ struct PodcastPlayerView: View {
                     .frame(width: 48, height: 48)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Avancer de 15 secondes")
             .accessibilityHint("Saute 15 secondes")
@@ -398,7 +387,7 @@ struct PodcastPlayerView: View {
     }
 
     private var volumeRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: "speaker.fill")
                 .foregroundStyle(LoreTheme.secondaryInk)
                 .accessibilityHidden(true)
@@ -409,6 +398,9 @@ struct PodcastPlayerView: View {
                 .accessibilityHidden(true)
         }
         .font(.callout)
+        .padding(.horizontal, 18)
+        .frame(height: 56)
+        .glassEffect(.regular, in: Capsule())
     }
 
     private func loadPlayer() async {
@@ -449,9 +441,11 @@ private struct PodcastScrubber: View {
             let thumbDiameter: CGFloat = 18
             let width = max(geometry.size.width - thumbDiameter, 1)
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: trackHeight / 2)
-                    .fill(LoreTheme.ink.opacity(isEnabled ? 0.18 : 0.1))
+                Capsule()
+                    .fill(.clear)
                     .frame(height: trackHeight)
+                    .glassEffect(.regular, in: Capsule())
+                    .opacity(isEnabled ? 1 : 0.5)
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(isEnabled ? LoreTheme.ink : LoreTheme.secondaryInk)
                     .frame(width: width * progress + thumbDiameter / 2, height: trackHeight)
