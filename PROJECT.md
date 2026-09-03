@@ -180,6 +180,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les MP4 importés et leur position restent dans le stockage privé local de Lore. Le lecteur s’appuie sur `AVPlayer`, et la position est enregistrée en secondes ; aucune synchronisation iCloud des podcasts n’est encore activée.
 - La lecture des podcasts continue en arrière-plan grâce au mode audio (`UIBackgroundModes`) ; seule la fermeture du lecteur arrête la lecture. L’autorisation figure dans `Lore-Info.plist` à la racine, fusionné avec les réglages générés.
 - Le lecteur podcast reprend la présentation de l’application Podcasts d’Apple (transport, temps restant négatif, volume, AirPlay) dans l’identité visuelle Lore, avec les commandes visibles dès la demi-fenêtre. Seules les informations réellement disponibles sont affichées.
+- Les commandes du lecteur utilisent le Liquid Glass natif (boutons, curseur de progression, pastille de volume). L’en-tête est supprimé au profit d’un bouton Fermer flottant sur la vidéo ; la progression arrive juste sous la vidéo pour rester visible dans la demi-fenêtre.
 - Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
 - Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
 - La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.
