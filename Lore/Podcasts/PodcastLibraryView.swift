@@ -389,7 +389,7 @@ struct PodcastPlayerView: View {
                 .foregroundStyle(LoreTheme.secondaryInk)
                 .accessibilityHidden(true)
             PodcastVolumeSlider()
-                .frame(height: 44)
+                .frame(height: 30)
             Image(systemName: "speaker.wave.3.fill")
                 .foregroundStyle(LoreTheme.secondaryInk)
                 .accessibilityHidden(true)
