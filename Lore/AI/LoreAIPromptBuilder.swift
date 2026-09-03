@@ -27,7 +27,8 @@ struct LoreAIPromptBuilder: Sendable {
         return LoreAIPrompt(
             developer: Self.safetyInstructions + """
 
-            Explique le passage sélectionné en français simple. Commence par l’idée essentielle, puis précise les notions utiles en quelques paragraphes courts. Utilise le contexte uniquement pour comprendre le passage. Signale clairement toute incertitude. Ne révèle rien qui se situe après le contexte fourni.
+            Explique le passage sélectionné en français simple. Utilise le contexte uniquement pour comprendre le passage. Signale clairement toute incertitude. Ne révèle rien qui se situe après le contexte fourni.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
             """,
             user: """
             LIVRE
@@ -60,7 +61,8 @@ struct LoreAIPromptBuilder: Sendable {
         return LoreAIPrompt(
             developer: Self.safetyInstructions + """
 
-            Résume en français simple ce que la personne a lu lors de sa précédente journée de lecture. Donne au maximum cinq points courts, puis une phrase « Où reprendre ». Reste strictement dans l’extrait et les chapitres fournis. N’annonce jamais un événement ultérieur et signale si le contexte ne suffit pas.
+            Résume en français simple ce que la personne a lu lors de sa précédente journée de lecture. Reste strictement dans l’extrait et les chapitres fournis. N’annonce jamais un événement ultérieur et signale si le contexte ne suffit pas.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Où reprendre : ... ». Aucun texte hors puces et cette dernière ligne.
             """,
             user: """
             LIVRE
