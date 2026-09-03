@@ -178,6 +178,7 @@ struct PodcastPlayerView: View {
     let fileStore: PodcastFileStore
     @State private var playerModel: PodcastPlayerModel?
     @State private var loadError: String?
+    @State private var sheetHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -245,7 +246,7 @@ struct PodcastPlayerView: View {
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .background(.black)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.top, 4)
+                    .padding(.top, 28)
                     .accessibilityLabel("Vidéo du podcast")
                     .overlay(alignment: .topTrailing) {
                         Button { dismiss() } label: {
@@ -301,8 +302,10 @@ struct PodcastPlayerView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(podcast.title)
 
-                volumeRow
-                    .padding(.top, 10)
+                if sheetHeight > 600 {
+                    volumeRow
+                        .padding(.top, 10)
+                }
 
                 if let error = playerModel.errorMessage {
                     Text(error)
@@ -314,6 +317,9 @@ struct PodcastPlayerView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { newHeight in
+            sheetHeight = newHeight
+        }
     }
 
     private func transportRow(_ playerModel: PodcastPlayerModel) -> some View {
@@ -322,11 +328,11 @@ struct PodcastPlayerView: View {
                 playerModel.cyclePlaybackRate()
             } label: {
                 Text(playerModel.playbackRateLabel)
-                    .font(.headline.monospacedDigit())
-                    .frame(width: 52, height: 44)
-                    .contentShape(Rectangle())
+                    .font(.subheadline.monospacedDigit())
+                    .frame(width: 48, height: 48)
+                    .glassEffect(.regular, in: .circle)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Vitesse de lecture")
             .accessibilityValue(playerModel.playbackRateLabel)
@@ -339,11 +345,11 @@ struct PodcastPlayerView: View {
                 playerModel.persist()
             } label: {
                 Image(systemName: "gobackward.15")
-                    .font(.title2)
+                    .font(.title3)
                     .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
+                    .glassEffect(.regular, in: .circle)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Reculer de 15 secondes")
             .accessibilityHint("Reprend 15 secondes plus tôt")
@@ -368,11 +374,11 @@ struct PodcastPlayerView: View {
                 playerModel.persist()
             } label: {
                 Image(systemName: "goforward.15")
-                    .font(.title2)
+                    .font(.title3)
                     .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
+                    .glassEffect(.regular, in: .circle)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
             .accessibilityLabel("Avancer de 15 secondes")
             .accessibilityHint("Saute 15 secondes")
@@ -380,7 +386,8 @@ struct PodcastPlayerView: View {
             Spacer(minLength: 0)
 
             PodcastRouteButton()
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular, in: .circle)
                 .accessibilityLabel("Sortie audio")
                 .accessibilityHint("Choisir un appareil de diffusion, par exemple AirPlay")
         }
