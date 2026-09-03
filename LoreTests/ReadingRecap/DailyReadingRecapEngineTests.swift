@@ -139,6 +139,90 @@ struct DailyReadingRecapEngineTests {
         #expect(window.exactReadingDuration == 180)
     }
 
+    @Test func singleOpeningCreatesACheckpointEvenWithoutASession() throws {
+        let fixture = try RecapFixture()
+        let bookID = UUID()
+        let opening = try fixture.date(year: 2026, month: 8, day: 30, hour: 9)
+
+        // Première ouverture du jour : un seul Locator (restauration ou position
+        // initiale) suffit à créer le checkpoint, sans session ni réseau.
+        try fixture.engine.recordCheckpoint(
+            bookID: bookID,
+            locator: StoredLocator(data: Data("initial".utf8), schemaVersion: 1),
+            at: opening
+        )
+
+        let day = fixture.calendar.startOfDay(for: opening)
+        let checkpoint = try #require(try fixture.store.checkpoint(for: bookID, localDayStart: day))
+        #expect(checkpoint.firstLocator.json == Data("initial".utf8))
+        #expect(checkpoint.lastLocator.json == Data("initial".utf8))
+    }
+
+    @Test func staleRecordAfterAJumpNeverMovesFirstOrLastLocator() throws {
+        let fixture = try RecapFixture()
+        let bookID = UUID()
+        let start = try fixture.date(year: 2026, month: 8, day: 30, hour: 10)
+
+        try fixture.engine.recordCheckpoint(
+            bookID: bookID,
+            locator: StoredLocator(data: Data("first".utf8), schemaVersion: 1),
+            at: start
+        )
+        try fixture.engine.recordCheckpoint(
+            bookID: bookID,
+            locator: StoredLocator(data: Data("last".utf8), schemaVersion: 1),
+            at: start.addingTimeInterval(900)
+        )
+        // Un saut (didJumpTo) n'enregistre jamais de checkpoint ; et même une donnée
+        // périmée ou désordonnée ne doit ni déplacer le premier Locator immuable ni
+        // faire reculer le dernier Locator mobile.
+        try fixture.engine.recordCheckpoint(
+            bookID: bookID,
+            locator: StoredLocator(data: Data("stale-jump".utf8), schemaVersion: 1),
+            at: start.addingTimeInterval(60)
+        )
+
+        let day = fixture.calendar.startOfDay(for: start)
+        let checkpoint = try #require(try fixture.store.checkpoint(for: bookID, localDayStart: day))
+        #expect(checkpoint.firstLocator.json == Data("first".utf8))
+        #expect(checkpoint.lastLocator.json == Data("last".utf8))
+        #expect(checkpoint.lastRecordedAt == start.addingTimeInterval(900))
+    }
+
+    @Test func availableDaysListsOnlyDaysWithSessionsAndCheckpoints() throws {
+        let fixture = try RecapFixture()
+        let bookID = UUID()
+        let now = try fixture.date(year: 2026, month: 8, day: 31, hour: 8)
+        let dayMinus1 = try fixture.date(year: 2026, month: 8, day: 30, hour: 20)
+        let dayMinus2 = try fixture.date(year: 2026, month: 8, day: 29, hour: 18)
+        let dayMinus3 = try fixture.date(year: 2026, month: 8, day: 28, hour: 10)
+        fixture.sessions[bookID] = [
+            .init(startedAt: dayMinus1, lastActivityAt: dayMinus1.addingTimeInterval(600), endedAt: dayMinus1.addingTimeInterval(600)),
+            // J-2 lu mais sans checkpoint : exclu de l'historique.
+            .init(startedAt: dayMinus2, lastActivityAt: dayMinus2.addingTimeInterval(60), endedAt: dayMinus2.addingTimeInterval(60)),
+            .init(startedAt: dayMinus3, lastActivityAt: dayMinus3.addingTimeInterval(300), endedAt: dayMinus3.addingTimeInterval(300)),
+        ]
+        try fixture.recordTwoCheckpoints(bookID: bookID, start: dayMinus1)
+        try fixture.recordTwoCheckpoints(bookID: bookID, start: dayMinus3)
+
+        let days = try fixture.engine.availableDays(for: bookID, lastN: 3, at: now)
+
+        #expect(days.count == 2)
+        #expect(days[0].localDayInterval.start == fixture.calendar.startOfDay(for: dayMinus1))
+        #expect(days[0].exactReadingDuration == 600)
+        #expect(days[0].firstLocator.json == Data("first".utf8))
+        #expect(days[0].lastLocator.json == Data("last".utf8))
+        #expect(days[1].localDayInterval.start == fixture.calendar.startOfDay(for: dayMinus3))
+        #expect(days[1].exactReadingDuration == 300)
+    }
+
+    @Test func availableDaysIsEmptyWithoutSessionsOrCheckpoints() throws {
+        let fixture = try RecapFixture()
+        let now = try fixture.date(year: 2026, month: 8, day: 31, hour: 8)
+        #expect(try fixture.engine.availableDays(for: UUID(), lastN: 7, at: now).isEmpty)
+        #expect(try fixture.engine.availableDays(for: UUID(), lastN: 0, at: now).isEmpty)
+    }
+
     @Test func previousDayUsesCalendarAcrossDaylightSavingTime() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))

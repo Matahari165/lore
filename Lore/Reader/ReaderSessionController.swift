@@ -146,6 +146,20 @@ final class ReaderSessionController {
         )
         navigatorDelegate = delegate
         navigator.delegate = delegate
+        // Première ouverture du jour : le Locator initial (restauration ou position de
+        // départ) est enregistré immédiatement, même sans réseau et même sans session
+        // active. 100 % local (UserDefaults + SwiftData), aucun appel réseau.
+        if let initialLocation, let recapEngine {
+            do {
+                try recapEngine.recordCheckpoint(
+                    bookID: bookID,
+                    locator: try LocatorPersistenceCodec.encode(initialLocation),
+                    at: .now
+                )
+            } catch {
+                onError(error)
+            }
+        }
         delegate.onContentStyleRefresh = { [weak self] in
             Task { @MainActor in await self?.reinforceSelectionAppearance() }
         }
@@ -592,11 +606,19 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
         // Readium may rebuild the same resource after applying preferences.
         // Reapply Lore's final CSS rule after every confirmed location update.
         onContentStyleRefresh?()
+        // La première position observée (ouverture sans déplacement) est elle aussi
+        // enregistrée : sans cela, une journée avec une seule ouverture sans changement
+        // de page n'aurait aucun checkpoint. Enregistrement 100 % local, même hors-ligne.
+        // `didJumpTo` (saut par sommaire ou surlignage) ne passe jamais par ici et ne
+        // déplace donc ni le premier Locator immuable ni l'intervalle résumé.
+        let isFirstObservation = previousLocation == nil
         defer { previousLocation = locator }
-        guard let previousLocation, previousLocation != locator else { return }
+        guard isFirstObservation || previousLocation != locator else { return }
         do {
             try readingActivity.recordReadingInteraction()
-            onQualifiedLocation(previousLocation)
+            if let previousLocation, previousLocation != locator {
+                onQualifiedLocation(previousLocation)
+            }
             onQualifiedLocation(locator)
         } catch {
             onError(error)

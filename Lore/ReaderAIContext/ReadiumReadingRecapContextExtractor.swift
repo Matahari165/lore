@@ -17,6 +17,10 @@ enum ReadiumReadingRecapContextError: Error, Equatable {
 }
 
 /// Bornage indépendant de Readium, réutilisable dans les tests.
+/// Politique de troncature : seul le suffixe (le texte le plus récent) est conservé.
+/// Au-delà de la limite validée (18 000 caractères), les pages intermédiaires les plus
+/// anciennes sont donc résumées par la fin, pas par le début ni par échantillonnage.
+/// Ne pas élargir cette limite sans validation (coût, latence, énergie).
 struct ReaderAIReadingRecapWindowing: Sendable {
     static let defaultLimit = 18_000
 
@@ -28,7 +32,13 @@ struct ReaderAIReadingRecapWindowing: Sendable {
 }
 
 /// Extrait uniquement ce qui se trouve entre le premier et le dernier Locator
-/// d'une journée de lecture.
+/// d'une journée de lecture, bornes incluses.
+/// L'itération démarre au premier Locator (`publication.content(from:)`) et traverse
+/// TOUTES les ressources intermédiaires de l'ordre de lecture ; seul l'élément
+/// contenant le dernier Locator arrête la traversée. Le premier Locator est immuable
+/// et le dernier est mobile (`DailyReadingRecapEngine.recordCheckpoint`), donc un saut
+/// (`didJumpTo`, qui n'enregistre jamais de checkpoint) ne fausse pas l'intervalle :
+/// l'extrait couvre toujours l'intégralité first…last.
 @MainActor
 final class ReadiumReadingRecapContextExtractor {
     private let maximumCharacters: Int
