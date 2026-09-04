@@ -24,7 +24,8 @@ struct LibraryView: View {
     @State private var allHighlightGroups: [BookHighlightGroup] = []
     @State private var allHighlightsLoadError: String?
     @State private var presentsCollections = false
-    @State private var detailsBook: BookRecord?
+    @State private var detailBook: BookRecord?
+    @State private var pendingDetailDestination: PendingDetailDestination?
 
     init(
         mode: Mode = .library,
@@ -78,6 +79,29 @@ struct LibraryView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $detailBook, onDismiss: presentPendingDetailDestination) { book in
+            BookDetailView(
+                book: book,
+                loadDetail: { try model.detailData(for: book.id) },
+                onOpenBook: {
+                    pendingDetailDestination = .reader(book)
+                    detailBook = nil
+                },
+                onOpenHighlights: {
+                    pendingDetailDestination = .highlights(book)
+                    detailBook = nil
+                },
+                onOpenDiscussion: {
+                    pendingDetailDestination = .discussion(book)
+                    detailBook = nil
+                },
+                collections: model.manualCollections,
+                isMember: { model.isMember(book, of: $0) },
+                onToggleCollection: { model.toggleMembership(of: book, in: $0) }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .sheet(item: $completionBook) { book in
             BookCompletionView(book: book) { rating, readingYear in
                 model.finish(book, rating: rating, readingYear: readingYear)
@@ -127,11 +151,6 @@ struct LibraryView: View {
         .sheet(isPresented: $presentsCollections) {
             CollectionsView(model: model)
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(item: $detailsBook) { book in
-            BookDetailsView(book: book, model: model)
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [.epub, .folder], allowsMultipleSelection: true) { result in
@@ -332,10 +351,10 @@ struct LibraryView: View {
                             .frame(width: 44, height: 44)
                     } else {
                         resumeActionButton(
-                            title: "Reprendre \(book.title)",
-                            systemImage: "play.fill"
+                            title: "Voir les détails de \(book.title)",
+                            systemImage: "info.circle"
                         ) {
-                            Task { await model.open(book) }
+                            presentDetails(for: book)
                         }
                     }
 
@@ -398,11 +417,7 @@ struct LibraryView: View {
                 spacing: 16
             ) {
                 ForEach(books) { book in
-                    Button { Task { await model.open(book) } } label: {
-                        trackedCover(book)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Ouvrir \(book.title)")
+                    coverActions(book)
                     .contextMenu { bookContextMenu(for: book) }
                 }
             }
@@ -410,48 +425,84 @@ struct LibraryView: View {
     }
 
     private func bookButton(_ book: BookRecord) -> some View {
-        Button { Task { await model.open(book) } } label: {
-            VStack(alignment: .leading, spacing: 7) {
-                trackedCover(book)
-                    .overlay {
-                        if model.openingBookID == book.id {
-                            LoreTheme.canvas.opacity(0.68)
-                            ProgressView()
+        ZStack(alignment: .top) {
+            Button { Task { await model.open(book) } } label: {
+                VStack(alignment: .leading, spacing: 7) {
+                    trackedCover(book)
+                        .overlay {
+                            if model.openingBookID == book.id {
+                                LoreTheme.canvas.opacity(0.68)
+                                ProgressView()
+                            }
+                        }
+                    // Fixed label slots prevent a long title or a missing author
+                    // from changing the height of a grid row.
+                    Text(book.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(LoreTheme.ink)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .topLeading)
+                    Group {
+                        if let author = book.author {
+                            Text(author)
+                                .font(.caption)
+                                .foregroundStyle(LoreTheme.secondaryInk)
+                                .lineLimit(1)
+                        } else {
+                            Color.clear
                         }
                     }
-                // Fixed label slots prevent a long title or a missing author
-                // from changing the height of a grid row.
-                Text(book.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(LoreTheme.ink)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .topLeading)
-                Group {
-                    if let author = book.author {
-                        Text(author)
-                            .font(.caption)
-                            .foregroundStyle(LoreTheme.secondaryInk)
-                            .lineLimit(1)
-                    } else {
-                        Color.clear
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
-                Text(book.readingStatus.title)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(LoreTheme.secondaryInk)
                     .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
+                    Text(book.readingStatus.title)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(LoreTheme.secondaryInk)
+                        .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(LoreTheme.coverAspectRatio, contentMode: .fit)
+                .overlay(alignment: .bottomTrailing) {
+                    detailsButton(for: book)
+                }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+        .accessibilityElement(children: .contain)
         .contextMenu { bookContextMenu(for: book) }
+    }
+
+    private func coverActions(_ book: BookRecord) -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            Button { Task { await model.open(book) } } label: {
+                trackedCover(book)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ouvrir \(book.title)")
+
+            detailsButton(for: book)
+        }
+    }
+
+    private func detailsButton(for book: BookRecord) -> some View {
+        Button("Voir les détails de \(book.title)", systemImage: "info.circle.fill") {
+            presentDetails(for: book)
+        }
+        .labelStyle(.iconOnly)
+        .font(.title3)
+        .foregroundStyle(LoreTheme.ink)
+        .frame(width: 44, height: 44)
+        .background(.regularMaterial, in: Circle())
+        .padding(2)
     }
 
     @ViewBuilder
     private func bookContextMenu(for book: BookRecord) -> some View {
-        Button("Fiche du livre", systemImage: "info.circle") { detailsBook = book }
+        Button("Détails du livre", systemImage: "info.circle") {
+            presentDetails(for: book)
+        }
 
         if !model.manualCollections.isEmpty {
             Menu("Collections", systemImage: "books.vertical") {
@@ -510,6 +561,29 @@ struct LibraryView: View {
         discussionBook = pending.book
     }
 
+    private func presentDetails(for book: BookRecord) {
+        detailBook = book
+    }
+
+    private func presentHighlights(for book: BookRecord) {
+        selectedHighlights = model.highlights(for: book)
+        highlightsBook = book
+    }
+
+    private func presentPendingDetailDestination() {
+        guard let destination = pendingDetailDestination else { return }
+        pendingDetailDestination = nil
+        switch destination {
+        case let .reader(book):
+            Task { await model.open(book) }
+        case let .highlights(book):
+            presentHighlights(for: book)
+        case let .discussion(book):
+            discussionDraft = nil
+            discussionBook = book
+        }
+    }
+
     private func trackedCover(_ book: BookRecord, width: CGFloat? = nil) -> some View {
         BookCoverView(book: book)
             .frame(width: width)
@@ -528,4 +602,10 @@ private extension UTType {
 private struct PendingHighlightDiscussion {
     let book: BookRecord
     let highlight: ReaderHighlight
+}
+
+private enum PendingDetailDestination {
+    case reader(BookRecord)
+    case highlights(BookRecord)
+    case discussion(BookRecord)
 }

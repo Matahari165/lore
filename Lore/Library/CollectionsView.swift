@@ -71,55 +71,6 @@ struct CollectionsView: View {
     }
 }
 
-struct BookDetailsView: View {
-    let book: BookRecord
-    let model: LibraryViewModel
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    HStack(alignment: .top, spacing: 16) {
-                        BookCoverView(book: book).frame(width: 84)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(book.title).font(.headline)
-                            if let author = book.author { Text(author).foregroundStyle(.secondary) }
-                            Text(book.readingStatus.title).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-
-                Section("Collections") {
-                    if model.manualCollections.isEmpty {
-                        Text("Créez d’abord une collection depuis la Bibliothèque.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(model.manualCollections) { collection in
-                            Button {
-                                model.toggleMembership(of: book, in: collection)
-                            } label: {
-                                HStack {
-                                    Text(collection.name).foregroundStyle(.primary)
-                                    Spacer()
-                                    if model.isMember(book, of: collection) {
-                                        Image(systemName: "checkmark").accessibilityHidden(true)
-                                    }
-                                }
-                            }
-                            .accessibilityValue(model.isMember(book, of: collection) ? "Ajouté" : "Non ajouté")
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Fiche du livre")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
-        }
-    }
-}
-
 private struct CollectionBooksView: View {
     let title: String
     let books: [BookRecord]

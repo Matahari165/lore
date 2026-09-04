@@ -27,6 +27,15 @@ final class LibraryViewModel {
             }
         }
     }
+
+    struct BookDetailData: Equatable {
+        let totalReadingTime: TimeInterval
+        let firstReadAt: Date?
+        let lastReadAt: Date?
+        let highlightCount: Int
+        let noteCount: Int
+        let collectionNames: [String]
+    }
     enum Filter: String, CaseIterable, Identifiable {
         case all, toRead, inProgress, finished
         var id: Self { self }
@@ -725,6 +734,41 @@ final class LibraryViewModel {
             present(error)
             return nil
         }
+    }
+
+    func detailData(for bookID: UUID, now: Date = .now) throws -> BookDetailData {
+        guard try repository.book(id: bookID) != nil else {
+            throw BookRepositoryError.bookNotFound
+        }
+        let sessions = try sessionRepository.sessions(for: bookID)
+        let highlights = try repository.highlights(for: bookID)
+        let firstReadAt = sessions.first?.startedAt
+        let totalReadingTime: TimeInterval
+        if let firstReadAt {
+            totalReadingTime = ReadingSessionDuration.total(
+                sessions,
+                in: DateInterval(start: firstReadAt, end: max(now, firstReadAt)),
+                now: now,
+                inactivityTimeout: ReadingActivityPolicy.defaultInactivityTimeout
+            )
+        } else {
+            totalReadingTime = 0
+        }
+        let lastReadAt = sessions.map { session in
+            min(now, session.endedAt ?? session.lastActivityAt)
+        }.max()
+        let collectionNames = manualCollections
+            .filter { collectionIDsByBookID[bookID, default: []].contains($0.id) }
+            .map(\.name)
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        return BookDetailData(
+            totalReadingTime: totalReadingTime,
+            firstReadAt: firstReadAt,
+            lastReadAt: lastReadAt,
+            highlightCount: highlights.count,
+            noteCount: highlights.filter { !($0.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }.count,
+            collectionNames: collectionNames
+        )
     }
 
     private func present(_ error: Error) {

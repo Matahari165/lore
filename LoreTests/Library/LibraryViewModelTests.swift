@@ -1,4 +1,5 @@
 import Foundation
+import ReadiumShared
 import SwiftData
 import Testing
 @testable import Lore
@@ -135,6 +136,85 @@ struct LibraryViewModelTests {
         #expect(model.books.isEmpty)
         #expect(model.visibleBooks.isEmpty)
         #expect(model.smartCollections.allSatisfy { model.books(in: $0).isEmpty })
+    }
+
+    @Test func detailDataUsesOnlyPersistedReadingSessions() throws {
+        let fixture = try LibraryViewModelFixture()
+        let book = BookRecord(
+            title: "Détails",
+            relativeFilePath: "Books/details/book.epub"
+        )
+        try fixture.repository.add(book)
+        let start = Date(timeIntervalSince1970: 10_000)
+        let sessionID = try fixture.sessionRepository.begin(bookID: book.id, at: start)
+        try fixture.sessionRepository.recordActivity(
+            sessionID: sessionID,
+            at: start.addingTimeInterval(120)
+        )
+        try fixture.sessionRepository.finish(
+            sessionID: sessionID,
+            at: start.addingTimeInterval(120)
+        )
+        let collection = try fixture.repository.createCollection(named: "Favoris")
+        try fixture.repository.setMembership(true, bookID: book.id, collectionID: collection.id)
+        let highlight = try fixture.repository.addHighlight(
+            bookID: book.id,
+            locator: Locator(href: URL(string: "chapter.xhtml")!, mediaType: .xhtml),
+            text: "Passage",
+            color: .yellow
+        )
+        _ = try fixture.repository.updateHighlightNote(
+            id: highlight.id,
+            bookID: book.id,
+            note: "À retenir"
+        )
+
+        let detail = try fixture.makeModel().detailData(
+            for: book.id,
+            now: start.addingTimeInterval(1_000)
+        )
+
+        #expect(detail.totalReadingTime == 120)
+        #expect(detail.firstReadAt == start)
+        #expect(detail.lastReadAt == start.addingTimeInterval(120))
+        #expect(detail.highlightCount == 1)
+        #expect(detail.noteCount == 1)
+        #expect(detail.collectionNames == ["Favoris"])
+    }
+
+    @Test func detailDataRejectsABookMissingFromTheRepository() throws {
+        let fixture = try LibraryViewModelFixture()
+
+        #expect(throws: BookRepositoryError.bookNotFound) {
+            try fixture.makeModel().detailData(for: UUID())
+        }
+    }
+
+    @Test func finishedBookWithoutSessionKeepsHonestEmptyMetrics() throws {
+        let fixture = try LibraryViewModelFixture()
+        let book = BookRecord(
+            title: "Terminé sans session",
+            author: nil,
+            coverData: nil,
+            relativeFilePath: "Books/finished-without-session/book.epub",
+            finishedAt: Date(timeIntervalSince1970: 20_000),
+            rating: nil,
+            readingYear: nil
+        )
+        try fixture.repository.add(book)
+
+        let detail = try fixture.makeModel().detailData(for: book.id)
+
+        #expect(detail.totalReadingTime == 0)
+        #expect(detail.firstReadAt == nil)
+        #expect(detail.lastReadAt == nil)
+        #expect(detail.highlightCount == 0)
+        #expect(detail.noteCount == 0)
+        #expect(detail.collectionNames.isEmpty)
+        #expect(book.rating == nil)
+        #expect(book.readingYear == nil)
+        #expect(book.author == nil)
+        #expect(book.coverData == nil)
     }
 }
 
