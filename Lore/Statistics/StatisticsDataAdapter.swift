@@ -119,6 +119,68 @@ final class StatisticsDataAdapter {
         return points
     }
 
+    /// Evaluates every completed local day with the currently configured goal.
+    /// Today may extend a streak, but an unfinished today does not break yesterday's streak.
+    func goalStreak(
+        targetMinutes: Int,
+        containing now: Date,
+        calendar: Calendar = .autoupdatingCurrent,
+        inactivityTimeout: TimeInterval = ReadingActivityPolicy.defaultInactivityTimeout
+    ) throws -> DailyGoalStreak {
+        guard DailyReadingGoal.allowedMinutes.contains(targetMinutes) else {
+            throw DailyReadingGoalError.invalidMinutes(targetMinutes)
+        }
+
+        var localCalendar = calendar
+        localCalendar.firstWeekday = 2
+        let sessions = try context.fetch(FetchDescriptor<ReadingSessionRecord>())
+        guard let firstStart = sessions.map(\.startedAt).min() else { return .empty }
+
+        let firstDay = localCalendar.startOfDay(for: firstStart)
+        let today = localCalendar.startOfDay(for: now)
+        let requiredSeconds = TimeInterval(targetMinutes * 60)
+        var reachedDays: Set<Date> = []
+        var best = 0
+        var running = 0
+        var dayStart = firstDay
+
+        while dayStart <= today,
+              let nextDay = localCalendar.date(byAdding: .day, value: 1, to: dayStart) {
+            let duration = ReadingSessionDuration.total(
+                sessions,
+                in: DateInterval(start: dayStart, end: nextDay),
+                now: now,
+                inactivityTimeout: inactivityTimeout
+            )
+            if duration >= requiredSeconds {
+                reachedDays.insert(dayStart)
+                running += 1
+                best = max(best, running)
+            } else {
+                running = 0
+            }
+            dayStart = nextDay
+        }
+
+        let currentAnchor: Date
+        if reachedDays.contains(today) {
+            currentAnchor = today
+        } else if let yesterday = localCalendar.date(byAdding: .day, value: -1, to: today) {
+            currentAnchor = yesterday
+        } else {
+            return DailyGoalStreak(currentDays: 0, bestDays: best)
+        }
+
+        var current = 0
+        var cursor = currentAnchor
+        while reachedDays.contains(cursor) {
+            current += 1
+            guard let previous = localCalendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return DailyGoalStreak(currentDays: current, bestDays: best)
+    }
+
     private func readingDays(
         _ sessions: [ReadingSessionRecord],
         in month: DateInterval,

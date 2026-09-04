@@ -48,7 +48,10 @@ struct StatisticsDashboardView: View {
             }
         }
         .sheet(isPresented: $showsActivityChart) {
-            ReadingActivityChartView(adapter: adapter)
+            ReadingActivityChartView(
+                adapter: adapter,
+                targetMinutes: dailyGoalModel.minutes
+            )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }

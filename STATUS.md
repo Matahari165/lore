@@ -50,6 +50,7 @@ Dernière mise à jour : 4 septembre 2026
 - La compilation intégrée de l’application et de sa cible de tests réussit avec Xcode 26.6 et iOS Simulator 26.5.
 - Le nouvel Accueil et la barre des trois onglets ont été vérifiés visuellement sur le simulateur `Lore iPhone 13`, en mode sombre.
 - Un objectif quotidien global et facultatif peut être défini entre 5 et 180 minutes depuis les réglages de l’Accueil. Sa progression exacte alimente un affichage compact dans Accueil et Statistiques, avec un état explicite lorsqu’il est atteint ou lorsque les données sont indisponibles.
+- La série actuelle des jours ayant réellement atteint l’objectif apparaît dans l’Accueil ; le détail de l’objectif affiche aussi la meilleure série. Le calcul utilise les secondes exactes, les jours civils du fuseau local et l’objectif actuellement configuré, sans être coupé par les frontières semaine/mois.
 - Les taps gauche, centre et droit ne tournent plus les pages : ils affichent ou masquent uniquement les commandes. Le défilement, les gestes Readium et le sommaire restent disponibles.
 - La sélection active utilise un texte presque noir sur fond cyan vif, distinct du surlignage jaune persistant. Le menu conserve Copier, Traduire et Définition et ajoute Surligner et Expliquer.
 - Le client IA utilise l’API Responses avec le modèle exact `gpt-5.6-luna`, `store: false`, des délais bornés et une clé stockée dans le trousseau sécurisé. Aucun appel n’est effectué sans clé.

@@ -62,6 +62,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Temps lu aujourd’hui, cette semaine et ce mois.
 - Calendrier des jours de lecture.
 - Objectif quotidien configurable en minutes, avec progression et confirmation lorsqu’il est atteint.
+- Série actuelle des jours où l’objectif est atteint et meilleure série historique.
 - Historique visuel avec les couvertures.
 - Dates de début et de fin d’un livre.
 - Note personnelle sur 10.
@@ -85,7 +86,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Interface générale de discussion avec le livre, incluant les résumés de chapitres et les questions sur le texte lu. *(Architecture validée ; interface à construire.)*
 - Recommandations avancées.
 - Interface complète de discussion et analyse de fin de livre. *(Contrat et prompt prêts.)*
-- Séries de jours et statistiques complexes.
+- Statistiques complexes au-delà des séries liées à l’objectif quotidien.
 
 ## Définition de terminé de la V1
 
@@ -159,6 +160,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les préférences de lecture de la V1 sont globales : elles s’appliquent à tous les livres. Le lecteur utilise des valeurs par défaut sûres si elles sont absentes ou illisibles.
 - Le compteur passe en inactivité après 2 minutes sans interaction de lecture. Tourner une page, faire défiler le contenu ou agir sur un passage relance l’activité ; ouvrir les réglages ou revenir simplement au premier plan ne compte pas comme lecture.
 - L’objectif quotidien est global, facultatif, exprimé en minutes et borné de 5 à 180 minutes. Sa progression utilise les sessions locales exactes ; seul l’affichage est arrondi.
+- Les séries utilisent l’objectif actuellement configuré pour réévaluer toute l’activité locale. Aujourd’hui ne casse pas une série en cours tant que le jour civil n’est pas terminé ; les sessions traversant minuit sont ventilées avec leur durée exacte selon le fuseau local.
 - Les durées sont conservées avec leur précision réelle ; seul l’affichage utilisateur est arrondi en minutes.
 - Les statistiques utilisent le fuseau local de l’iPhone et une semaine commençant le lundi.
 - La date de début d’un livre correspond à sa première session réelle. La date de fin est enregistrée lorsque le livre est explicitement marqué comme terminé.

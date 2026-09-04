@@ -60,10 +60,16 @@ enum DailyReadingGoal {
 struct DailyGoalProgress: Equatable, Sendable {
     let readSeconds: TimeInterval
     let targetMinutes: Int
+    let streak: DailyGoalStreak
 
-    init(readSeconds: TimeInterval, targetMinutes: Int) {
+    init(
+        readSeconds: TimeInterval,
+        targetMinutes: Int,
+        streak: DailyGoalStreak = .empty
+    ) {
         self.readSeconds = max(0, readSeconds)
         self.targetMinutes = min(max(targetMinutes, DailyReadingGoal.allowedMinutes.lowerBound), DailyReadingGoal.allowedMinutes.upperBound)
+        self.streak = streak
     }
 
     var exactFraction: Double { readSeconds / (Double(targetMinutes) * 60) }
@@ -72,6 +78,13 @@ struct DailyGoalProgress: Equatable, Sendable {
     var isReached: Bool { remainingSeconds == 0 }
     var displayedReadMinutes: Int { Int(floor(readSeconds / 60)) }
     var displayedRemainingMinutes: Int { Int(ceil(remainingSeconds / 60)) }
+}
+
+struct DailyGoalStreak: Equatable, Sendable {
+    let currentDays: Int
+    let bestDays: Int
+
+    static let empty = DailyGoalStreak(currentDays: 0, bestDays: 0)
 }
 
 enum DailyGoalState: Equatable {
@@ -88,6 +101,7 @@ final class DailyReadingGoalModel {
     private(set) var errorMessage: String?
     private(set) var todayDuration: TimeInterval = 0
     private(set) var progressErrorMessage: String?
+    private(set) var streak: DailyGoalStreak = .empty
 
     init(store: any DailyReadingGoalStore) {
         self.store = store
@@ -100,12 +114,20 @@ final class DailyReadingGoalModel {
         if let errorMessage { return .failed(message: errorMessage) }
         guard let minutes else { return .disabled }
         if let progressErrorMessage { return .failed(message: progressErrorMessage) }
-        return .active(DailyGoalProgress(readSeconds: todayDuration, targetMinutes: minutes))
+        return .active(DailyGoalProgress(
+            readSeconds: todayDuration,
+            targetMinutes: minutes,
+            streak: streak
+        ))
     }
 
     func updateTodayDuration(_ duration: TimeInterval) {
         todayDuration = max(0, duration)
         progressErrorMessage = nil
+    }
+
+    func updateStreak(_ streak: DailyGoalStreak) {
+        self.streak = streak
     }
 
     func markProgressUnavailable() {

@@ -7,10 +7,12 @@ import SwiftUI
 /// and month without changing the underlying data.
 struct ReadingActivityChartView: View {
     let adapter: StatisticsDataAdapter
+    let targetMinutes: Int?
 
     @Environment(\.dismiss) private var dismiss
     @State private var range: ReadingActivityChartRange = .week
     @State private var state: ReadingActivityChartState = .loading
+    @State private var streak: DailyGoalStreak?
 
     var body: some View {
         NavigationStack {
@@ -22,11 +24,15 @@ struct ReadingActivityChartView: View {
                 case let .loaded(points):
                     chartContent(points)
                 case .empty:
-                    ContentUnavailableView(
-                        "Aucune lecture enregistrée",
-                        systemImage: "chart.bar.xaxis",
-                        description: Text("Les minutes de lecture apparaîtront ici après une première session.")
-                    )
+                    VStack(alignment: .leading, spacing: 20) {
+                        streakSummary
+                            .padding(.horizontal, LoreTheme.pageMargin)
+                        ContentUnavailableView(
+                            "Aucune lecture enregistrée",
+                            systemImage: "chart.bar.xaxis",
+                            description: Text("Les minutes de lecture apparaîtront ici après une première session.")
+                        )
+                    }
                 case .failed:
                     ContentUnavailableView {
                         Label("Activité indisponible", systemImage: "exclamationmark.circle")
@@ -60,6 +66,8 @@ struct ReadingActivityChartView: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("Période du graphique")
+
+                streakSummary
 
                 Text(range == .week ? "Cette semaine" : "Ce mois")
                     .font(.title3.weight(.semibold))
@@ -114,6 +122,30 @@ struct ReadingActivityChartView: View {
         .background(LoreTheme.canvas)
     }
 
+    @ViewBuilder
+    private var streakSummary: some View {
+        if let targetMinutes, let streak {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Objectif quotidien · \(targetMinutes) min")
+                    .font(.subheadline.weight(.semibold))
+                Text(bestStreakLabel(streak.bestDays))
+                    .font(.title3.weight(.semibold))
+                Text(currentStreakLabel(streak.currentDays))
+                    .font(.caption)
+                    .foregroundStyle(LoreTheme.secondaryInk)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func bestStreakLabel(_ days: Int) -> String {
+        days == 1 ? "Meilleure série : 1 jour" : "Meilleure série : \(days) jours"
+    }
+
+    private func currentStreakLabel(_ days: Int) -> String {
+        days == 1 ? "Série actuelle : 1 jour" : "Série actuelle : \(days) jours"
+    }
+
     private func maximumMinutes(in points: [ReadingActivityPoint]) -> Double {
         let maximum = points.map { $0.duration / 60 }.max() ?? 0
         return max(10, ceil(maximum * 1.15 / 10) * 10)
@@ -145,6 +177,11 @@ struct ReadingActivityChartView: View {
     private func load() {
         do {
             let points = try adapter.activityPoints(range: range, containing: .now)
+            if let targetMinutes {
+                streak = try adapter.goalStreak(targetMinutes: targetMinutes, containing: .now)
+            } else {
+                streak = nil
+            }
             state = points.contains(where: { $0.duration > 0 }) ? .loaded(points) : .empty
         } catch {
             state = .failed
@@ -164,5 +201,5 @@ private enum ReadingActivityChartState: Equatable {
         for: BookRecord.self, ReadingSessionRecord.self, HighlightRecord.self,
         AIConversationRecord.self, AIMessageRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    ).mainContext))
+    ).mainContext), targetMinutes: 20)
 }

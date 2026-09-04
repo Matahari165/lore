@@ -120,7 +120,10 @@ struct AppRootView: View {
             }
         }
         .sheet(isPresented: $presentsActivityChart) {
-            ReadingActivityChartView(adapter: statisticsAdapter)
+            ReadingActivityChartView(
+                adapter: statisticsAdapter,
+                targetMinutes: dailyGoalModel.minutes
+            )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -164,6 +167,14 @@ struct AppRootView: View {
             dailyGoalModel.updateTodayDuration(
                 try statisticsAdapter.snapshot(containing: .now).todayDuration
             )
+            if let targetMinutes = dailyGoalModel.minutes {
+                dailyGoalModel.updateStreak(try statisticsAdapter.goalStreak(
+                    targetMinutes: targetMinutes,
+                    containing: .now
+                ))
+            } else {
+                dailyGoalModel.updateStreak(.empty)
+            }
         } catch {
             dailyGoalModel.markProgressUnavailable()
         }

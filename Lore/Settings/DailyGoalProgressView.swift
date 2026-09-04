@@ -60,16 +60,24 @@ struct DailyGoalProgressView: View {
             Text(progress.isReached ? "Objectif atteint" : "Encore \(progress.displayedRemainingMinutes) min")
                 .font(.caption)
                 .foregroundStyle(LoreTheme.secondaryInk)
+
+            Label(streakLabel(progress.streak.currentDays), systemImage: "flame")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(LoreTheme.secondaryInk)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Objectif quotidien")
         .accessibilityValue(accessibilityValue(progress))
     }
 
+    private func streakLabel(_ days: Int) -> String {
+        days == 1 ? "Série actuelle : 1 jour" : "Série actuelle : \(days) jours"
+    }
+
     private func accessibilityValue(_ progress: DailyGoalProgress) -> String {
         if progress.isReached {
-            return "Atteint. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes)."
+            return "Atteint. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
         }
-        return "\(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). Encore \(progress.displayedRemainingMinutes) minutes."
+        return "\(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). Encore \(progress.displayedRemainingMinutes) minutes. \(streakLabel(progress.streak.currentDays))."
     }
 }

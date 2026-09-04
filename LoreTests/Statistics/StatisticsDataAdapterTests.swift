@@ -101,6 +101,150 @@ struct StatisticsDataAdapterTests {
         }
     }
 
+    @Test func streakStopsAtAMissingDayAndKeepsYesterdayUntilTodayIsReached() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try date(2026, 8, 31, 9, 0, calendar: calendar)
+
+        fixture.insertSession(
+            startedAt: try date(2026, 8, 27, 8, 0, calendar: calendar),
+            endedAt: try date(2026, 8, 27, 8, 20, calendar: calendar)
+        )
+        for day in [29, 30] {
+            fixture.insertSession(
+                startedAt: try date(2026, 8, day, 8, 0, calendar: calendar),
+                endedAt: try date(2026, 8, day, 8, 20, calendar: calendar)
+            )
+        }
+        fixture.insertSession(
+            startedAt: try date(2026, 8, 31, 8, 0, calendar: calendar),
+            endedAt: try date(2026, 8, 31, 8, 10, calendar: calendar)
+        )
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 20, containing: now, calendar: calendar
+        ) == DailyGoalStreak(currentDays: 2, bestDays: 2))
+    }
+
+    @Test func reachingTodayExtendsTheCurrentStreak() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try date(2026, 8, 31, 12, 0, calendar: calendar)
+        for day in [29, 30, 31] {
+            fixture.insertSession(
+                startedAt: try date(2026, 8, day, 8, 0, calendar: calendar),
+                endedAt: try date(2026, 8, day, 8, 20, calendar: calendar)
+            )
+        }
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 20, containing: now, calendar: calendar
+        ) == DailyGoalStreak(currentDays: 3, bestDays: 3))
+    }
+
+    @Test func changingTheGoalReevaluatesExactDurations() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try date(2026, 8, 31, 12, 0, calendar: calendar)
+        for day in [30, 31] {
+            fixture.insertSession(
+                startedAt: try date(2026, 8, day, 8, 0, calendar: calendar),
+                endedAt: try date(2026, 8, day, 8, 25, calendar: calendar)
+                    .addingTimeInterval(day == 31 ? -1 : 0)
+            )
+        }
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 20, containing: now, calendar: calendar
+        ).currentDays == 2)
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 25, containing: now, calendar: calendar
+        ) == DailyGoalStreak(currentDays: 1, bestDays: 1))
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 30, containing: now, calendar: calendar
+        ) == .empty)
+    }
+
+    @Test func splitsACrossMidnightSessionUsingDSTCivilDays() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let start = try date(2026, 3, 28, 23, 50, calendar: calendar)
+        let end = try date(2026, 3, 29, 0, 10, calendar: calendar)
+        fixture.insertSession(startedAt: start, endedAt: end)
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 10,
+            containing: try date(2026, 3, 29, 12, 0, calendar: calendar),
+            calendar: calendar
+        ) == DailyGoalStreak(currentDays: 2, bestDays: 2))
+    }
+
+    @Test func usesElapsedSecondsAcrossTheSpringDSTJump() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let start = try date(2026, 3, 29, 1, 55, calendar: calendar)
+        fixture.insertSession(startedAt: start, endedAt: start.addingTimeInterval(10 * 60))
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 10,
+            containing: try date(2026, 3, 29, 12, 0, calendar: calendar),
+            calendar: calendar
+        ) == DailyGoalStreak(currentDays: 1, bestDays: 1))
+    }
+
+    @Test func streakIsIndependentFromWeekAndMonthChartRangesAndHandlesNoData() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try date(2026, 9, 1, 12, 0, calendar: calendar)
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 20, containing: now, calendar: calendar
+        ) == .empty)
+        #expect(try fixture.adapter.activityPoints(
+            range: .week, containing: now, calendar: calendar
+        ).count == 7)
+        #expect(try fixture.adapter.activityPoints(
+            range: .month, containing: now, calendar: calendar
+        ).count == 30)
+    }
+
+    @Test func streakContinuesAcrossWeekAndMonthBoundaries() throws {
+        let fixture = try StatisticsFixture()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Zurich"))
+        let starts = [
+            try date(2026, 8, 30, 8, 0, calendar: calendar),
+            try date(2026, 8, 31, 8, 0, calendar: calendar),
+            try date(2026, 9, 1, 8, 0, calendar: calendar)
+        ]
+        for start in starts {
+            fixture.insertSession(startedAt: start, endedAt: start.addingTimeInterval(20 * 60))
+        }
+
+        #expect(try fixture.adapter.goalStreak(
+            targetMinutes: 20,
+            containing: try date(2026, 9, 1, 12, 0, calendar: calendar),
+            calendar: calendar
+        ) == DailyGoalStreak(currentDays: 3, bestDays: 3))
+    }
+
+    @Test func streakRejectsATargetOutsideTheConfigurableGoalContract() throws {
+        let fixture = try StatisticsFixture()
+
+        #expect(throws: DailyReadingGoalError.invalidMinutes(4)) {
+            try fixture.adapter.goalStreak(
+                targetMinutes: 4,
+                containing: Date(timeIntervalSince1970: 1_000)
+            )
+        }
+    }
+
     private func date(
         _ year: Int,
         _ month: Int,
