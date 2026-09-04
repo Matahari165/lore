@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var confirmsClearToday = false
     @State private var clearTodayMessage: String?
     @State private var clearTodayError: String?
+    @State private var readingFocusEnabled = ReadingFocusMode.shared.isEnabled
+    @State private var showsReadingFocusGuide = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +40,21 @@ struct SettingsView: View {
                         Label(message, systemImage: "exclamationmark.circle")
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                Section {
+                    Toggle("Réduire les interruptions", isOn: $readingFocusEnabled)
+                        .onChange(of: readingFocusEnabled) { _, isEnabled in
+                            ReadingFocusMode.shared.setEnabled(isEnabled)
+                        }
+
+                    Button("Configurer Concentration sur l’iPhone", systemImage: "moon.zzz") {
+                        showsReadingFocusGuide = true
+                    }
+                } header: {
+                    Text("Mode Lecture")
+                } footer: {
+                    Text("Facultatif. Lore masque ses propres bannières et sons pendant la lecture. Pour les autres apps, configurez Concentration sur l’iPhone.")
                 }
 
                 Section("Données de lecture") {
@@ -121,6 +138,9 @@ struct SettingsView: View {
             } message: {
                 Text("Seul le temps de lecture du jour local sera supprimé. Les autres jours et les livres restent intacts.")
             }
+            .sheet(isPresented: $showsReadingFocusGuide) {
+                ReadingFocusGuideView()
+            }
         }
     }
 
@@ -134,6 +154,52 @@ struct SettingsView: View {
         } catch {
             clearTodayMessage = nil
             clearTodayError = error.localizedDescription
+        }
+    }
+}
+
+private struct ReadingFocusGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("À faire une seule fois") {
+                    ForEach(ReadingFocusGuide.steps) { step in
+                        HStack(alignment: .top, spacing: 14) {
+                            Text(step.id, format: .number)
+                                .font(.caption.bold())
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(LoreTheme.ink, in: Circle())
+                                .accessibilityHidden(true)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(step.title)
+                                    .font(.body.weight(.semibold))
+                                Text(step.detail)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+
+                Section {
+                    Label(ReadingFocusGuide.limitation, systemImage: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Concentration sur l’iPhone")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("OK") { dismiss() }
+                }
+            }
         }
     }
 }

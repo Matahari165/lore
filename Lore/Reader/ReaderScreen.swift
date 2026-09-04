@@ -62,6 +62,7 @@ struct ReaderScreen: View {
         .accessibilityAction(.escape) { closeReader() }
         .interactiveDismissDisabled(true)
         .onAppear {
+            ReadingFocusMode.shared.setReaderActive(true)
             presentation.session.setTapHandler {
                 animateChrome {
                     showsControls.toggle()
@@ -76,6 +77,7 @@ struct ReaderScreen: View {
             presentation.session.requestDailyRecapIfEligible()
         }
         .onDisappear {
+            ReadingFocusMode.shared.setReaderActive(false)
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)

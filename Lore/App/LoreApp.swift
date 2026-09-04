@@ -23,7 +23,8 @@ struct LoreApp: App {
             podcastFileStore = try PodcastFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)
             try sessions.recoverOpenSessions(now: .now)
-            // Bannière + son même quand Lore est au premier plan (notifications d'objectif).
+            // Les rappels restent visibles au premier plan, sauf si le mode de
+            // concentration interne est actif pendant la lecture.
             UNUserNotificationCenter.current().delegate = DailyGoalForegroundDelegate.shared
         } catch {
             fatalError("Impossible d’initialiser le stockage local : \(error)")

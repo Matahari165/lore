@@ -188,7 +188,8 @@ final class DailyGoalNotifier: @unchecked Sendable {
     }
 }
 
-/// Délégué minimal pour afficher bannière + son quand l'app est au premier plan.
+/// Présente les rappels Lore au premier plan, sauf pendant une lecture lorsque
+/// l'utilisateur a choisi le mode de concentration interne.
 /// Conservé en singleton afin de survivre à l'initialisation de `LoreApp`.
 final class DailyGoalForegroundDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = DailyGoalForegroundDelegate()
@@ -197,6 +198,14 @@ final class DailyGoalForegroundDelegate: NSObject, UNUserNotificationCenterDeleg
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        await Self.presentationOptions(
+            silencesLoreInterruptions: ReadingFocusMode.shared.silencesLoreInterruptions
+        )
+    }
+
+    nonisolated static func presentationOptions(
+        silencesLoreInterruptions: Bool
+    ) -> UNNotificationPresentationOptions {
+        silencesLoreInterruptions ? [.list] : [.banner, .list, .sound]
     }
 }
