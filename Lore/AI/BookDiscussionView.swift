@@ -11,6 +11,7 @@ struct BookDiscussionView: View {
     private let conversationRepository: AIConversationRepository?
     private let session: ReaderSessionController?
     private let aiService: any LoreAIChatService
+    private let contextProvider: ((String, [LoreAIChatMessage]) async -> LoreAIChatContext?)?
     private let onOpenSettings: (() -> Void)?
     private let onOpenSource: ((LoreAIChatSource) -> Void)?
 
@@ -36,6 +37,7 @@ struct BookDiscussionView: View {
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
+        contextProvider: ((String, [LoreAIChatMessage]) async -> LoreAIChatContext?)? = nil,
         initialDraft: String? = nil,
         onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
@@ -49,6 +51,7 @@ struct BookDiscussionView: View {
             session: session,
             onOpenSettings: onOpenSettings,
             aiService: aiService,
+            contextProvider: contextProvider,
             initialDraft: initialDraft,
             onOpenSource: onOpenSource
         )
@@ -64,6 +67,7 @@ struct BookDiscussionView: View {
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
+        contextProvider: ((String, [LoreAIChatMessage]) async -> LoreAIChatContext?)? = nil,
         initialDraft: String? = nil,
         onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
@@ -77,6 +81,7 @@ struct BookDiscussionView: View {
         self.onOpenSettings = onOpenSettings
         self.aiService = aiService
         self.onOpenSource = onOpenSource
+        self.contextProvider = contextProvider
         _draft = State(initialValue: initialDraft ?? "")
     }
 
@@ -323,8 +328,8 @@ struct BookDiscussionView: View {
                         inputFocused = true
                     }
                     if stage == .finished {
-                        quickAction("Discuter de la fin", systemImage: "flag.checkered") {
-                            send("Je viens de terminer ce livre. Aide-moi à discuter de sa fin à partir du contexte disponible.")
+                        quickAction("Analyse guidée", systemImage: "flag.checkered") {
+                            send(LoreAIEndingDiscussionGuide.kickoffPrompt)
                         }
                     }
                 }
@@ -451,7 +456,7 @@ struct BookDiscussionView: View {
                 "Le texte envoyé reste limité aux passages déjà lus, jamais à la suite."
             }
         case .finished:
-            "L’analyse complète n’est pas encore raccordée : seuls les extraits disponibles sont utilisés pour l’instant."
+            "Lore indique les extraits réellement transmis. Sans autorisation et extraction complètes, elle ne prétend pas connaître tout le livre."
         }
     }
 
@@ -555,6 +560,10 @@ struct BookDiscussionView: View {
             question: question,
             history: history
         ) {
+            return context
+        }
+
+        if let contextProvider, let context = await contextProvider(question, history) {
             return context
         }
 

@@ -68,8 +68,8 @@ struct LoreAIAdvancedPromptBuilder: Sendable {
         return LoreAIPrompt(
             developer: Self.safetyInstructions + """
 
-            Prépare une discussion de fin de lecture à partir du contexte fourni. Ne présente pas d'interprétation comme un fait, n'invente rien et ne révèle rien au-delà de la dernière position fournie.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces (trois observations puis deux questions ouvertes), une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
+            Mène une discussion guidée de fin de lecture à partir du seul contexte fourni. Pour une non-fiction, explore les idées essentielles, ce qui change dans la compréhension et les applications concrètes. Pour une fiction, adapte ces axes aux thèmes, aux choix, à l'expérience et à ce que la personne veut retenir, sans créer de mémoire structurée des personnages. Pose ensuite des questions de rappel actif une par une et attends la réponse avant de continuer. Commence par annoncer la portée exacte du texte reçu. Ne prétends jamais connaître le livre complet si son contexte complet n'a pas été autorisé et transmis. Ne présente pas d'interprétation comme un fait et n'invente rien.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Lors du rappel actif, pose exactement une question dans la dernière puce et attends la réponse. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
             """,
             user: """
             LIVRE

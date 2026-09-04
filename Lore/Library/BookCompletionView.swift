@@ -2,15 +2,16 @@ import SwiftUI
 
 struct BookCompletionView: View {
     let book: BookRecord
-    let onSave: (Int?, Int) -> Void
+    let onSave: (Int?, Int, Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var rating: Int?
     @State private var readingYear: Int
+    @State private var opensGuidedDiscussion = true
 
     private let currentYear = Calendar.autoupdatingCurrent.component(.year, from: .now)
 
-    init(book: BookRecord, onSave: @escaping (Int?, Int) -> Void) {
+    init(book: BookRecord, onSave: @escaping (Int?, Int, Bool) -> Void) {
         self.book = book
         self.onSave = onSave
         _rating = State(initialValue: book.rating)
@@ -81,6 +82,18 @@ struct BookCompletionView: View {
                         }
                     }
 
+                    Toggle(isOn: $opensGuidedDiscussion) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Faire le point avec Lore")
+                                .font(.headline)
+                            Text("Ouvre ensuite une discussion guidée : idées, changements, applications et rappel actif.")
+                                .font(.caption)
+                                .foregroundStyle(LoreTheme.secondaryInk)
+                        }
+                    }
+                    .tint(LoreTheme.ink)
+                    .accessibilityHint("La discussion et vos réponses resteront enregistrées localement avec ce livre")
+
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Année de lecture")
                             .font(.headline)
@@ -103,7 +116,7 @@ struct BookCompletionView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Enregistrer") {
-                        onSave(rating, readingYear)
+                        onSave(rating, readingYear, opensGuidedDiscussion)
                         dismiss()
                     }
                     .fontWeight(.semibold)

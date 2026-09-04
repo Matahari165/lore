@@ -39,7 +39,7 @@ struct LoreAIChatPromptBuilder: Sendable {
         let history = context.summaryScope == nil ? boundedHistory(context.history) : []
 
         let prompt = LoreAIPrompt(
-            developer: developerInstructions(for: context.stage, summaryScope: context.summaryScope),
+            developer: developerInstructions(for: context),
             user: try userPrompt(for: context, excerpts: excerpts, history: history, question: question),
             history: history
         )
@@ -157,21 +157,22 @@ struct LoreAIChatPromptBuilder: Sendable {
         return selected.reversed()
     }
 
-    private func developerInstructions(
-        for stage: LoreAIReadingStage,
-        summaryScope: LoreAISummaryScope?
-    ) -> String {
+    private func developerInstructions(for context: LoreAIChatContext) -> String {
         let stageInstruction: String
-        switch stage {
+        switch context.stage {
         case .notStarted:
             stageInstruction = "Avant lecture, tu ne peux pas analyser l’intrigue : aucun texte du livre n’est disponible. Tu peux seulement aider à préparer la lecture à partir du titre et de l’auteur."
         case .inProgress:
             stageInstruction = "Pendant la lecture, réponds uniquement à partir des extraits situés à ou avant la frontière de lecture fournie. Si une réponse demande un passage absent ou ultérieur, dis que tu ne peux pas le confirmer et ne révèle pas la suite."
         case .finished:
-            stageInstruction = "Après la fin, analyse uniquement les extraits fournis. Le consentement d’accès au livre entier autorise des extraits sélectionnés, mais ne justifie jamais d’inventer un passage absent. Sépare les faits du texte et tes interprétations."
+            if context.fullBookAccessGranted {
+                stageInstruction = "Après la fin, analyse uniquement les extraits effectivement fournis. Indique que l’accès au livre entier a été autorisé, mais ne prétends pas avoir reçu les passages absents. Pour une discussion guidée, adapte idées, changement et applications à la non-fiction ; pour une fiction, parle plutôt de thèmes, choix, expérience et trace laissée. Pose les questions de rappel actif une par une. Sépare les faits du texte et tes interprétations."
+            } else {
+                stageInstruction = "Après la fin, commence par dire clairement que tu ne disposes que d’extraits et non du livre complet. Analyse uniquement ces extraits et ne formule jamais une synthèse comme si elle couvrait toute l’œuvre. Pour une discussion guidée, adapte idées, changement et applications à la non-fiction ; pour une fiction, parle plutôt de thèmes, choix, expérience et trace laissée. Pose les questions de rappel actif une par une. Sépare les faits du texte et tes interprétations."
+            }
         }
 
-        let summaryInstruction = summaryScope.map {
+        let summaryInstruction = context.summaryScope.map {
             let scope = switch $0 {
             case .currentChapter: "le chapitre courant déjà lu"
             case .yesterday: "la portion lue hier"

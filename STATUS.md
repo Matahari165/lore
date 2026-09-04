@@ -6,6 +6,7 @@ Dernière mise à jour : 4 septembre 2026
 
 - Un mode Lecture interne facultatif peut rendre silencieuses les notifications propres à Lore pendant l’ouverture du lecteur. Les réglages expliquent séparément comment associer Lore à un mode Concentration iOS, sans prétendre que l’app contrôle Ne pas déranger.
 - La récupération des imports Podcast interrompus est retentée à chaque lancement, y compris après un premier échec. Les fichiers temporaires et finaux encore rattachés à une récupération sont protégés du nettoyage automatique. Les tests de régression sont ajoutés et le diff est valide ; leur compilation et leur exécution restent à confirmer, Xcode étant resté bloqué pendant cette vérification.
+- Fin de livre guidée : l’évaluation propose d’ouvrir un brouillon non envoyé automatiquement. Le chat couvre idées ou thèmes, changement, applications et rappel actif une question à la fois ; l’historique existant conserve localement réponses et actions. Terminer le livre ne vaut pas consentement au contexte complet : sans accord distinct, seuls les extraits bornés au Locator enregistré sont utilisés, sans flashcards ni mémoire structurée de personnages.
 - Format IA en puces imposé aux 6 prompts (explication, résumé veille, chat 3 stades, résumé chapitre, réponse question, discussion fin) : 5-6 puces max, phrases courtes, termes techniques expliqués simplement, ligne finale Idée essentielle / Où reprendre. `conciseRecap` aligné à 6 puces. Prompts seuls modifiés, envois inchangés.
 - Notifications objectif quotidien : bannière unique par jour local à l'atteinte + rappel 21 h replanifié tant que non atteint, textes avec durées uniquement, autorisation demandée une fois, délégué avant-plan. Build + 6 tests `DailyGoalNotificationTests` verts sur `Lore iPhone 13`.
 - Progression offline fiabilisée : checkpoint initial enregistré dès l'ouverture (même 1 page, même hors-ligne, 100 % local) + première observation `locationDidChange`. Échec résumé veille non bloquant, non mis en cache, réessayable via Réessayer une fois connecté.
@@ -108,7 +109,7 @@ Dernière mise à jour : 4 septembre 2026
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
 - Vérification réelle sur l’iPhone et avec VoiceOver des boutons « Passages cités » et du retour au passage depuis les trois points d’entrée.
-- Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
+- Vérifier sur un EPUB réel la qualité de l’analyse guidée de fin : le contexte envoyé reste un extrait borné de la fin de la portion disponible, jamais l’EPUB complet.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.
 - Profilage Énergie/CPU sur l’iPhone : l’audit statique soupçonne les sauvegardes SwiftData et la réécriture des checkpoints de récap lors du défilement, mais aucune mesure Instruments n’a encore été réalisée.

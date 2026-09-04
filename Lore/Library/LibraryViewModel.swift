@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import ReadiumShared
 
 @MainActor
 @Observable
@@ -702,6 +703,73 @@ final class LibraryViewModel {
             reload()
         } catch {
             present(error)
+        }
+    }
+
+    /// Ouvre localement le livre uniquement après une action volontaire dans
+    /// la discussion. Le modèle reçoit un extrait borné, jamais l'EPUB brut.
+    func endingDiscussionContext(
+        for book: BookRecord,
+        question: String,
+        history: [LoreAIChatMessage]
+    ) async -> LoreAIChatContext? {
+        guard book.readingStatus == .finished else { return nil }
+
+        do {
+            let fileURL = try fileStore.fileURL(for: book.relativeFilePath)
+            nonisolated(unsafe) let publication = try await publicationService.openEPUB(at: fileURL).publication
+            guard let firstLink = publication.readingOrder.first,
+                  let firstLocator = await publication.locate(firstLink)
+            else { return nil }
+
+            guard let savedLocator = try repository.storedLocator(for: book.id).flatMap({
+                try LocatorPersistenceCodec.decode($0).locator
+            }) else { return nil }
+
+            let extracted = try await ReadiumReadingRecapContextExtractor(
+                maximumCharacters: LoreAIChatPromptLimits.production.excerptCharacters
+            ).extract(
+                from: publication,
+                firstLocator: firstLocator,
+                lastLocator: savedLocator
+            )
+            let progression = savedLocator.locations.totalProgression ?? book.lastProgression
+            let excerpts = extracted.sourcedExcerpts.enumerated().compactMap { index, excerpt in
+                guard let sourceProgression = excerpt.locator.locations.totalProgression,
+                      let locatorJSON = try? excerpt.locator.jsonData()
+                else { return nil }
+                let label = excerpt.locator.title ?? "Passage \(index + 1)"
+                let source = LoreAIChatSource(
+                    id: UUID().uuidString,
+                    bookID: book.id,
+                    label: label,
+                    locatorJSON: locatorJSON,
+                    locatorSchemaVersion: LocatorPersistenceCodec.currentSchemaVersion,
+                    progression: sourceProgression
+                )
+                return LoreAIChatExcerpt(
+                    text: excerpt.text,
+                    sourceDescription: label,
+                    progression: sourceProgression,
+                    source: source
+                )
+            }
+            guard !excerpts.isEmpty else { return nil }
+            return LoreAIChatContext(
+                bookID: book.id,
+                title: extracted.title,
+                author: extracted.author,
+                stage: .finished,
+                chapterTitle: extracted.chapterTitles.last,
+                readFrontierProgression: progression,
+                readFrontierDescription: extracted.lastReadPositionDescription,
+                excerpts: excerpts,
+                fullBookAccessGranted: false,
+                history: history,
+                question: question
+            )
+        } catch {
+            return nil
         }
     }
 

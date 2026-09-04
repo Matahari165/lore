@@ -27,6 +27,7 @@ struct LibraryView: View {
     @State private var presentsCollections = false
     @State private var detailBook: BookRecord?
     @State private var pendingDetailDestination: PendingDetailDestination?
+    @State private var pendingCompletionDiscussionBook: BookRecord?
 
     init(
         mode: Mode = .library,
@@ -77,6 +78,13 @@ struct LibraryView: View {
                 book: book,
                 conversationRepository: model.conversationRepository,
                 onOpenSettings: mode == .home ? onOpenSettings : nil,
+                contextProvider: { question, history in
+                    await model.endingDiscussionContext(
+                        for: book,
+                        question: question,
+                        history: history
+                    )
+                },
                 initialDraft: discussionDraft,
                 onOpenSource: onOpenDiscussionSource.map { route in
                     { source in
@@ -111,9 +119,12 @@ struct LibraryView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(item: $completionBook) { book in
-            BookCompletionView(book: book) { rating, readingYear in
+        .sheet(item: $completionBook, onDismiss: presentPendingCompletionDiscussion) { book in
+            BookCompletionView(book: book) { rating, readingYear, opensDiscussion in
                 model.finish(book, rating: rating, readingYear: readingYear)
+                if opensDiscussion, book.readingStatus == .finished {
+                    pendingCompletionDiscussionBook = book
+                }
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -591,6 +602,13 @@ struct LibraryView: View {
             discussionDraft = nil
             discussionBook = book
         }
+    }
+
+    private func presentPendingCompletionDiscussion() {
+        guard let book = pendingCompletionDiscussionBook else { return }
+        pendingCompletionDiscussionBook = nil
+        discussionDraft = LoreAIEndingDiscussionGuide.kickoffPrompt
+        discussionBook = book
     }
 
     private func trackedCover(_ book: BookRecord, width: CGFloat? = nil) -> some View {
