@@ -65,7 +65,8 @@ struct AppRootView: View {
                     dailyGoalState: dailyGoalModel.state,
                     onOpenSettings: { presentsSettings = true },
                     onOpenActivityChart: { presentsActivityChart = true },
-                    onOpenHighlight: openHighlight
+                    onOpenHighlight: openHighlight,
+                    onOpenDiscussionSource: openDiscussionSource
                 )
                 .tabItem { Label("Accueil", systemImage: "house") }
                 .tag(Tab.home)
@@ -73,7 +74,8 @@ struct AppRootView: View {
                 LibraryView(
                     mode: .library,
                     model: libraryModel,
-                    onOpenHighlight: openHighlight
+                    onOpenHighlight: openHighlight,
+                    onOpenDiscussionSource: openDiscussionSource
                 )
                 .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
                 .tag(Tab.library)
@@ -218,6 +220,18 @@ struct AppRootView: View {
             )
         case .disabled, .failed:
             await goalNotifier.cancelEveningReminder()
+        }
+    }
+
+    private func openDiscussionSource(book: BookRecord, source: LoreAIChatSource) {
+        Task { @MainActor in
+            await libraryModel.open(book)
+            guard let presentation = libraryModel.readerPresentation,
+                  await presentation.session.go(to: source)
+            else {
+                libraryModel.errorMessage = "Le passage cité n’est plus disponible dans ce livre."
+                return
+            }
         }
     }
 }

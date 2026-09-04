@@ -33,6 +33,9 @@ final class AIMessageRecord {
     var createdAt: Date
     var frontierProgression: Double?
     var frontierDescription: String?
+    var sourcesJSON: Data?
+    var sourcesSchemaVersion: Int?
+    var readingStageRawValue: String?
 
     init(
         id: UUID = UUID(),
@@ -42,7 +45,10 @@ final class AIMessageRecord {
         sequence: Int,
         createdAt: Date = .now,
         frontierProgression: Double? = nil,
-        frontierDescription: String? = nil
+        frontierDescription: String? = nil,
+        sourcesJSON: Data? = nil,
+        sourcesSchemaVersion: Int? = nil,
+        readingStage: LoreAIReadingStage? = nil
     ) {
         self.id = id
         self.conversationID = conversationID
@@ -52,6 +58,9 @@ final class AIMessageRecord {
         self.createdAt = createdAt
         self.frontierProgression = frontierProgression
         self.frontierDescription = frontierDescription
+        self.sourcesJSON = sourcesJSON
+        self.sourcesSchemaVersion = sourcesSchemaVersion
+        readingStageRawValue = readingStage?.rawValue
     }
 
     var role: LoreAIChatRole? { LoreAIChatRole(rawValue: roleRawValue) }

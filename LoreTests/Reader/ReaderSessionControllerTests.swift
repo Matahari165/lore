@@ -174,6 +174,48 @@ struct ReaderSessionControllerTests {
         #expect(received == [0.42])
     }
 
+    @Test func validatedCitationNavigatesToItsExactLocator() async throws {
+        let bookID = UUID()
+        let controller = ReaderControllerSpy(currentLocation: makeLocator(0.6))
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: PositionManagerSpy(),
+            citationBookID: bookID,
+            citationReadingOrder: [Link(href: "chapter.xhtml")]
+        )
+        let locator = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(totalProgression: 0.4),
+            text: .init(highlight: "Passage exact")
+        )
+        let source = LoreAIChatSource(
+            id: "opaque", bookID: bookID, label: "Passage",
+            locatorJSON: try locator.jsonData(), locatorSchemaVersion: 1, progression: 0.4
+        )
+
+        #expect(await session.go(to: source))
+        #expect(controller.openedLocators == [locator])
+    }
+
+    @Test(arguments: [(-0.01, "opaque"), (1.01, "opaque"), (0.4, "   ")])
+    func invalidCitationIdentityNeverNavigates(_ progression: Double, _ id: String) async throws {
+        let bookID = UUID()
+        let controller = ReaderControllerSpy(currentLocation: makeLocator(1))
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: PositionManagerSpy(),
+            citationBookID: bookID,
+            citationReadingOrder: [Link(href: "chapter.xhtml")]
+        )
+        let locator = makeLocator(progression)
+        let source = LoreAIChatSource(
+            id: id, bookID: bookID, label: "Passage",
+            locatorJSON: try locator.jsonData(), locatorSchemaVersion: 1, progression: progression
+        )
+        #expect(await !session.go(to: source))
+        #expect(controller.openedLocators.isEmpty)
+    }
+
     private func makeLocator(_ progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,

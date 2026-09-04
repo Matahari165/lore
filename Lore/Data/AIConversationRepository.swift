@@ -3,6 +3,7 @@ import SwiftData
 
 @MainActor
 final class AIConversationRepository {
+    static let sourcesSchemaVersion = 1
     private let context: ModelContext
     private let saveContext: (ModelContext) throws -> Void
 
@@ -37,7 +38,8 @@ final class AIConversationRepository {
         guard let conversation = try conversation(for: bookID) else { return [] }
         return try messages(for: conversation.id).compactMap { message in
             guard let role = message.role else { return nil }
-            return LoreAIChatMessage(role: role, text: message.text)
+            let sources = storedSources(for: message, bookID: bookID)
+            return LoreAIChatMessage(role: role, text: message.text, sources: sources)
         }
     }
 
@@ -48,6 +50,8 @@ final class AIConversationRepository {
         bookID: UUID,
         question: String,
         answer: String,
+        sources: [LoreAIChatSource] = [],
+        readingStage: LoreAIReadingStage = .inProgress,
         frontierProgression: Double? = nil,
         frontierDescription: String? = nil,
         at date: Date = .now
@@ -59,6 +63,26 @@ final class AIConversationRepository {
         }
         if let frontierProgression, !(0...1).contains(frontierProgression) {
             throw AIConversationRepositoryError.invalidFrontier
+        }
+        guard sources.allSatisfy({ source in
+            source.bookID == bookID
+                && source.hasValidIdentityAndProgression
+                && source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion
+                && (readingStage == .finished || source.progression.map { progression in
+                    frontierProgression.map { progression <= $0 + 0.000_001 } ?? false
+                } == true)
+                && ((try? LocatorPersistenceCodec.decode(.init(
+                    data: source.locatorJSON,
+                    schemaVersion: source.locatorSchemaVersion
+                )).locator.locations.totalProgression).flatMap { locatorProgression in
+                    source.progression.map { abs(locatorProgression - $0) <= 0.000_001 }
+                } == true)
+        }) else { throw AIConversationRepositoryError.invalidSource }
+        guard readingStage != .notStarted || sources.isEmpty else {
+            throw AIConversationRepositoryError.invalidSource
+        }
+        guard Set(sources.map(\.id)).count == sources.count else {
+            throw AIConversationRepositoryError.invalidSource
         }
 
         let conversationRecord: AIConversationRecord
@@ -90,7 +114,10 @@ final class AIConversationRepository {
             sequence: firstSequence + 1,
             createdAt: date,
             frontierProgression: frontierProgression,
-            frontierDescription: frontierDescription
+            frontierDescription: frontierDescription,
+            sourcesJSON: sources.isEmpty ? nil : try JSONEncoder().encode(sources),
+            sourcesSchemaVersion: sources.isEmpty ? nil : Self.sourcesSchemaVersion,
+            readingStage: readingStage
         )
         context.insert(userMessage)
         context.insert(assistantMessage)
@@ -109,6 +136,35 @@ final class AIConversationRepository {
             throw error
         }
         return conversationRecord
+    }
+
+    private func validStoredSource(
+        _ source: LoreAIChatSource,
+        bookID: UUID,
+        message: AIMessageRecord
+    ) -> Bool {
+        guard source.bookID == bookID,
+              source.hasValidIdentityAndProgression,
+              source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion,
+              let decoded = try? LocatorPersistenceCodec.decode(.init(
+                  data: source.locatorJSON,
+                  schemaVersion: source.locatorSchemaVersion
+              )),
+              let locatorProgression = decoded.locator.locations.totalProgression,
+              source.progression.map({ abs($0 - locatorProgression) <= 0.000_001 }) == true
+        else { return false }
+        if message.readingStageRawValue == LoreAIReadingStage.finished.rawValue { return true }
+        guard let frontier = message.frontierProgression else { return false }
+        return source.progression.map { $0 <= frontier + 0.000_001 } == true
+    }
+
+    private func storedSources(for message: AIMessageRecord, bookID: UUID) -> [LoreAIChatSource] {
+        guard message.sourcesSchemaVersion == Self.sourcesSchemaVersion,
+              let data = message.sourcesJSON,
+              let decoded = try? JSONDecoder().decode([LoreAIChatSource].self, from: data),
+              Set(decoded.map(\.id)).count == decoded.count
+        else { return [] }
+        return decoded.filter { validStoredSource($0, bookID: bookID, message: message) }
     }
 
     @discardableResult
@@ -159,11 +215,13 @@ final class AIConversationRepository {
 enum AIConversationRepositoryError: LocalizedError, Equatable {
     case emptyMessage
     case invalidFrontier
+    case invalidSource
 
     var errorDescription: String? {
         switch self {
         case .emptyMessage: "La question et la réponse ne peuvent pas être vides."
         case .invalidFrontier: "La progression de lecture doit être comprise entre 0 et 1."
+        case .invalidSource: "Une source de la réponse ne correspond pas au passage lu."
         }
     }
 }

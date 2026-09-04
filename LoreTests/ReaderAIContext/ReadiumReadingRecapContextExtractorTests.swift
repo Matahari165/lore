@@ -1,3 +1,5 @@
+import Foundation
+import ReadiumShared
 import Testing
 @testable import Lore
 
@@ -28,5 +30,73 @@ struct ReadiumReadingRecapContextExtractorTests {
         #expect(excerpt.count == 18_000)
         #expect(excerpt.hasSuffix("FIN"))
         #expect(excerpt == String(text.suffix(18_000)))
+    }
+
+    @Test func exactSlicePreservesRawWhitespaceAndRecalculatesLocatorText() throws {
+        let raw = "Avant  deux espaces\nPassage exact\nSuite interdite"
+        let element = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(totalProgression: 0.4),
+            text: .init(after: "Après", before: "Contexte", highlight: "\n\(raw)  ")
+        )
+        let frontier = element.copy(text: { locatorText in
+            let highlight = locatorText.highlight!
+            locatorText = locatorText[highlight.range(of: "Passage exact")!]
+        })
+        let piece = try #require(ReadiumReadingRecapContextExtractor.boundedElement(
+            raw, locator: element, firstLocator: nil, lastLocator: frontier
+        ))
+
+        #expect(piece.text == "Avant  deux espaces\nPassage exact")
+        #expect(piece.locator.text.highlight == piece.text)
+        #expect(piece.locator.text.after?.contains("Suite interdite") == true)
+        #expect(!piece.text.contains("Suite interdite"))
+    }
+
+    @Test func normalizedReadiumTextUsesOnlyLocatorCoordinateSpace() throws {
+        let raw = "Avant  deux espaces\nPassage exact"
+        let locator = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(totalProgression: 0.4),
+            text: .init(highlight: "Avant deux espaces Passage exact")
+        )
+
+        let piece = try #require(ReadiumReadingRecapContextExtractor.boundedElement(
+            raw, locator: locator, firstLocator: nil, lastLocator: nil
+        ))
+        #expect(piece.text == "Avant deux espaces Passage exact")
+        #expect(piece.locator.text.highlight == piece.text)
+    }
+
+    @Test func frontierWithoutRawHighlightRefusesWholeElement() {
+        let raw = "Début lu. Suite non lue."
+        let element = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: 0.5, totalProgression: 0.5),
+            text: .init(highlight: raw)
+        )
+        let progressionOnly = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: 0.5, totalProgression: 0.5)
+        )
+        #expect(ReadiumReadingRecapContextExtractor.boundedElement(
+            raw, locator: element, firstLocator: nil, lastLocator: progressionOnly
+        ) == nil)
+    }
+
+    @Test func suffixBoundingKeepsLocatorAlignedWithReturnedText() throws {
+        let text = "0123456789ABCDEFGHIJ"
+        let locator = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(totalProgression: 0.3),
+            text: .init(after: "Après", before: "Avant", highlight: text)
+        )
+        let pieces = ReadiumReadingRecapContextExtractor.boundedPieces(
+            [.init(text: text, locator: locator)], maximum: 8
+        )
+        let piece = try #require(pieces.first)
+        #expect(piece.text == "CDEFGHIJ")
+        #expect(piece.locator.text.highlight == "CDEFGHIJ")
+        #expect(piece.locator.text.before?.hasSuffix("0123456789AB") == true)
     }
 }

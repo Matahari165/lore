@@ -12,6 +12,7 @@ struct BookDiscussionView: View {
     private let session: ReaderSessionController?
     private let aiService: any LoreAIChatService
     private let onOpenSettings: (() -> Void)?
+    private let onOpenSource: ((LoreAIChatSource) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -35,7 +36,8 @@ struct BookDiscussionView: View {
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
-        initialDraft: String? = nil
+        initialDraft: String? = nil,
+        onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
         self.init(
             bookID: book.id,
@@ -47,7 +49,8 @@ struct BookDiscussionView: View {
             session: session,
             onOpenSettings: onOpenSettings,
             aiService: aiService,
-            initialDraft: initialDraft
+            initialDraft: initialDraft,
+            onOpenSource: onOpenSource
         )
     }
 
@@ -61,7 +64,8 @@ struct BookDiscussionView: View {
         session: ReaderSessionController? = nil,
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
-        initialDraft: String? = nil
+        initialDraft: String? = nil,
+        onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
         self.bookID = bookID
         self.title = title
@@ -72,6 +76,7 @@ struct BookDiscussionView: View {
         self.session = session
         self.onOpenSettings = onOpenSettings
         self.aiService = aiService
+        self.onOpenSource = onOpenSource
         _draft = State(initialValue: initialDraft ?? "")
     }
 
@@ -247,6 +252,32 @@ struct BookDiscussionView: View {
 
                 if message.role == .assistant {
                     DiscussionMarkdownText(markdown: message.text)
+                    if !message.sources.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Passages cités")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(LoreTheme.secondaryInk)
+                            ForEach(message.sources) { source in
+                                Button {
+                                    onOpenSource?(source)
+                                } label: {
+                                    Label(source.label, systemImage: "book.pages")
+                                        .font(.subheadline)
+                                        .frame(minHeight: 44, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(onOpenSource == nil)
+                                .accessibilityLabel("Passage cité : \(source.label)")
+                                .accessibilityHint("Revient au passage cité dans le livre")
+                                .accessibilityAddTraits(.isButton)
+                            }
+                        }
+                    }
+                    if !message.sources.isEmpty, onOpenSource == nil {
+                        Text("Retour au passage indisponible depuis cet écran.")
+                            .font(.caption)
+                            .foregroundStyle(LoreTheme.secondaryInk)
+                    }
                 } else {
                     Text(message.text)
                         .font(.body)
@@ -274,8 +305,7 @@ struct BookDiscussionView: View {
 
             if message.role == .assistant { Spacer(minLength: 12) }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message.role == .user ? "Vous" : "Lore") : \(message.text)")
+        .accessibilityElement(children: message.sources.isEmpty ? .combine : .contain)
     }
 
     private var quickActions: some View {
@@ -492,18 +522,20 @@ struct BookDiscussionView: View {
                 if stage != .notStarted, context.excerpts.isEmpty {
                     scopeWarning = "Aucun extrait n’est disponible pour ce tour. Lore indiquera quand le texte ne suffit pas."
                 }
-                let answer = try await aiService.chat(context)
+                let response = try await aiService.chat(context)
                 if let conversationRepository {
                     _ = try conversationRepository.appendTurn(
                         bookID: bookID,
                         question: value,
-                        answer: answer,
+                        answer: response.text,
+                        sources: response.sources,
+                        readingStage: stage,
                         frontierProgression: context.readFrontierProgression,
                         frontierDescription: context.readFrontierDescription
                     )
                 }
                 messages.append(LoreAIChatMessage(role: .user, text: value))
-                messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+                messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
             } catch is CancellationError {
                 failedQuestion = value
             } catch {

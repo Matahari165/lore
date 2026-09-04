@@ -8,7 +8,13 @@ struct ReaderAIReadingRecapContext: Equatable, Sendable {
     let author: String?
     let chapterTitles: [String]
     let excerpt: String
+    let sourcedExcerpts: [ReaderAISourcedExcerpt]
     let lastReadPositionDescription: String?
+}
+
+struct ReaderAISourcedExcerpt: Equatable, Sendable {
+    let text: String
+    let locator: Locator
 }
 
 enum ReadiumReadingRecapContextError: Error, Equatable {
@@ -81,7 +87,7 @@ final class ReadiumReadingRecapContextExtractor {
         let title = publication.metadata.title ?? "Livre sans titre"
         let author = publication.metadata.authors.map(\.name).joined(separator: ", ").nilIfEmpty
         let iterator = content.iterator()
-        var pieces: [String] = []
+        var pieces: [ReaderAISourcedExcerpt] = []
         var chapters: [String] = []
         var reachedLast = false
         var firstElement = true
@@ -108,13 +114,12 @@ final class ReadiumReadingRecapContextExtractor {
             }
 
             let normalizedText = ReaderAIContextWindowing.normalize(rawText)
-            let text = Self.boundedElementText(
-                normalizedText,
+            if let piece = Self.boundedElement(
+                rawText,
                 locator: element.locator,
                 firstLocator: firstElement ? firstLocator : nil,
                 lastLocator: sameResourceAsLast ? lastLocator : nil
-            )
-            if !text.isEmpty { pieces.append(text) }
+            ) { pieces.append(piece) }
 
             if let textElement = element as? TextContentElement,
                case .heading = textElement.role,
@@ -142,10 +147,8 @@ final class ReadiumReadingRecapContextExtractor {
             throw ReadiumReadingRecapContextError.invalidInterval
         }
 
-        let excerpt = ReaderAIReadingRecapWindowing.boundedExcerpt(
-            pieces.joined(separator: "\n"),
-            maximum: maximumCharacters
-        )
+        let sourcedExcerpts = Self.boundedPieces(pieces, maximum: maximumCharacters)
+        let excerpt = sourcedExcerpts.map(\.text).joined(separator: "\n")
         guard !excerpt.isEmpty else {
             throw ReadiumReadingRecapContextError.contentUnavailable
         }
@@ -159,6 +162,7 @@ final class ReadiumReadingRecapContextExtractor {
             author: author,
             chapterTitles: chapterTitles,
             excerpt: excerpt,
+            sourcedExcerpts: sourcedExcerpts,
             lastReadPositionDescription: lastLocator.title
         )
     }
@@ -202,35 +206,73 @@ final class ReadiumReadingRecapContextExtractor {
         return false
     }
 
-    nonisolated private static func boundedElementText(
+    nonisolated static func boundedElement(
         _ text: String,
         locator: Locator,
         firstLocator: Locator?,
         lastLocator: Locator?
-    ) -> String {
-        var result = text
+    ) -> ReaderAISourcedExcerpt? {
+        // Readium may normalize `TextContentElement.text` while keeping the
+        // Locator highlight in its original DOM representation. The Locator
+        // text is the only safe coordinate space for a clickable citation.
+        guard let locatorText = rawHighlight(locator.text.highlight),
+              ReaderAIContextWindowing.normalize(locatorText) == ReaderAIContextWindowing.normalize(text)
+        else { return nil }
+        var range = locatorText.startIndex..<locatorText.endIndex
 
         if let firstLocator,
-           let highlight = Self.normalizedHighlight(firstLocator.text.highlight),
-           let range = result.range(of: highlight)
+           let highlight = Self.rawHighlight(firstLocator.text.highlight),
+           let found = locatorText.range(of: highlight)
         {
-            result = String(result[range.lowerBound...])
+            range = found.lowerBound..<range.upperBound
         }
 
-        if let lastLocator,
-           let highlight = Self.normalizedHighlight(lastLocator.text.highlight),
-           let range = result.range(of: highlight)
-        {
-            result = String(result[..<range.upperBound])
+        if let lastLocator {
+            // A progression or a selector identifies at best an element, not
+            // an exact character boundary. Including that whole element could
+            // leak text located after the user's real frontier.
+            guard let highlight = Self.rawHighlight(lastLocator.text.highlight),
+                  let found = locatorText.range(of: highlight)
+            else { return nil }
+            range = range.lowerBound..<found.upperBound
         }
 
-        return result
+        guard range.lowerBound < range.upperBound else { return nil }
+        let clipped = String(locatorText[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clipped.isEmpty else { return nil }
+        guard let locatorRange = locatorText.range(of: clipped, range: range) else { return nil }
+        let exactLocator = locator.copy(text: { $0 = $0[locatorRange] })
+        return ReaderAISourcedExcerpt(text: clipped, locator: exactLocator)
     }
 
-    nonisolated private static func normalizedHighlight(_ value: String?) -> String? {
+    nonisolated static func boundedPieces(
+        _ pieces: [ReaderAISourcedExcerpt],
+        maximum: Int
+    ) -> [ReaderAISourcedExcerpt] {
+        guard maximum > 0 else { return [] }
+        var remaining = maximum
+        var result: [ReaderAISourcedExcerpt] = []
+        for piece in pieces.reversed() where remaining > 0 {
+            if piece.text.count <= remaining {
+                result.append(piece)
+                remaining -= piece.text.count
+            } else {
+                let range = piece.text.index(piece.text.endIndex, offsetBy: -remaining)..<piece.text.endIndex
+                let clipped = String(piece.text[range])
+                guard let locatorHighlight = piece.locator.text.highlight,
+                      let locatorRange = locatorHighlight.range(of: clipped, options: .backwards)
+                else { continue }
+                let locator = piece.locator.copy(text: { $0 = $0[locatorRange] })
+                result.append(.init(text: clipped, locator: locator))
+                remaining = 0
+            }
+        }
+        return result.reversed()
+    }
+
+    nonisolated private static func rawHighlight(_ value: String?) -> String? {
         guard let value else { return nil }
-        let normalized = ReaderAIContextWindowing.normalize(value)
-        return normalized.isEmpty ? nil : normalized
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
     }
 }
 

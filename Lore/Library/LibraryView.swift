@@ -12,6 +12,7 @@ struct LibraryView: View {
     /// Optional hand-off to the reader for a selected highlight. The library
     /// still presents the complete local list when no reader route is supplied.
     let onOpenHighlight: ((BookRecord, ReaderHighlight) -> Void)?
+    let onOpenDiscussionSource: ((BookRecord, LoreAIChatSource) -> Void)?
     @State private var presentsImporter = false
     @State private var discussionBook: BookRecord?
     @State private var completionBook: BookRecord?
@@ -33,7 +34,8 @@ struct LibraryView: View {
         dailyGoalState: DailyGoalState = .disabled,
         onOpenSettings: @escaping () -> Void = {},
         onOpenActivityChart: (() -> Void)? = nil,
-        onOpenHighlight: ((BookRecord, ReaderHighlight) -> Void)? = nil
+        onOpenHighlight: ((BookRecord, ReaderHighlight) -> Void)? = nil,
+        onOpenDiscussionSource: ((BookRecord, LoreAIChatSource) -> Void)? = nil
     ) {
         self.mode = mode
         self.model = model
@@ -41,6 +43,7 @@ struct LibraryView: View {
         self.onOpenSettings = onOpenSettings
         self.onOpenActivityChart = onOpenActivityChart
         self.onOpenHighlight = onOpenHighlight
+        self.onOpenDiscussionSource = onOpenDiscussionSource
     }
 
     var body: some View {
@@ -74,7 +77,13 @@ struct LibraryView: View {
                 book: book,
                 conversationRepository: model.conversationRepository,
                 onOpenSettings: mode == .home ? onOpenSettings : nil,
-                initialDraft: discussionDraft
+                initialDraft: discussionDraft,
+                onOpenSource: onOpenDiscussionSource.map { route in
+                    { source in
+                        discussionBook = nil
+                        route(book, source)
+                    }
+                }
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

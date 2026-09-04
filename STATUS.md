@@ -101,11 +101,13 @@ Dernière mise à jour : 4 septembre 2026
 - Discussion route maintenant les demandes naturelles de résumé du chapitre courant, de la lecture d’hier et de la dernière session. Le chapitre et la veille utilisent des Locators locaux bornés ; une session sans bornes précises produit une réponse locale explicite, sans envoyer de texte ni approximer.
 - Les collections manuelles et intelligentes sont implémentées : statuts, douze imports récents, années de lecture et auteurs. L’ajout ou le retrait est disponible depuis l’appui long et la fiche du livre, sans dupliquer les fichiers EPUB.
 - Une fiche compacte par livre est accessible séparément depuis l’Accueil et la Bibliothèque, sans remplacer l’ouverture directe du lecteur. Elle rassemble uniquement les métadonnées persistées du livre, les dates et durées calculées depuis ses sessions, ses notes de surlignage, ses collections et les accès existants au lecteur, aux surlignages et à la Discussion.
+- La Discussion par livre utilise maintenant une réponse structurée `answer + source_ids`. Les passages cités sont découpés avec leur Locator Readium exact, validés localement contre le livre et la progression, persistés atomiquement avec la réponse et ouvrables depuis le lecteur, l’Accueil ou la Bibliothèque. Les anciens messages sans source restent lisibles.
 
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
+- Vérification réelle sur l’iPhone et avec VoiceOver des boutons « Passages cités » et du retour au passage depuis les trois points d’entrée.
 - Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.

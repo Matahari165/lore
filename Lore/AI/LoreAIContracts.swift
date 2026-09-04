@@ -87,10 +87,12 @@ enum LoreAIChatRole: String, Codable, Equatable, Sendable {
 struct LoreAIChatMessage: Equatable, Codable, Sendable {
     let role: LoreAIChatRole
     let text: String
+    let sources: [LoreAIChatSource]
 
-    init(role: LoreAIChatRole, text: String) {
+    init(role: LoreAIChatRole, text: String, sources: [LoreAIChatSource] = []) {
         self.role = role
         self.text = text
+        self.sources = sources
     }
 }
 
@@ -100,17 +102,45 @@ enum LoreAISummaryScope: String, Equatable, Sendable {
     case sinceLastSession
 }
 
+/// Source locale contrôlée par Lore. Le modèle ne reçoit que `id` et ne peut
+/// donc jamais fabriquer le Locator utilisé pour revenir au livre.
+struct LoreAIChatSource: Equatable, Codable, Sendable, Identifiable {
+    let id: String
+    let bookID: UUID
+    let label: String
+    let locatorJSON: Data
+    let locatorSchemaVersion: Int
+    let progression: Double?
+
+    var hasValidIdentityAndProgression: Bool {
+        !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && progression.map { (0...1).contains($0) } == true
+    }
+}
+
+struct LoreAIChatResponse: Equatable, Sendable {
+    let text: String
+    let sources: [LoreAIChatSource]
+}
+
 /// Un fragment sélectionné localement. Pour une analyse de fin, l'appelant
 /// doit fournir plusieurs fragments bornés et non l'EPUB comme un seul bloc.
 struct LoreAIChatExcerpt: Equatable, Sendable {
     let text: String
     let sourceDescription: String?
     let progression: Double?
+    let source: LoreAIChatSource?
 
-    init(text: String, sourceDescription: String? = nil, progression: Double? = nil) {
+    init(
+        text: String,
+        sourceDescription: String? = nil,
+        progression: Double? = nil,
+        source: LoreAIChatSource? = nil
+    ) {
         self.text = text
         self.sourceDescription = sourceDescription
         self.progression = progression
+        self.source = source
     }
 }
 
@@ -158,7 +188,7 @@ struct LoreAIChatContext: Equatable, Sendable {
 }
 
 protocol LoreAIChatService: Sendable {
-    func chat(_ context: LoreAIChatContext) async throws -> String
+    func chat(_ context: LoreAIChatContext) async throws -> LoreAIChatResponse
 }
 
 protocol LoreAIService: LoreAIChatService {

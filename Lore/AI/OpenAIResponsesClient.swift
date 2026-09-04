@@ -45,11 +45,58 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         try await respond(to: promptBuilder.previousReadingRecap(for: context))
     }
 
-    func chat(_ context: LoreAIChatContext) async throws -> String {
-        try await respond(to: LoreAIChatPromptBuilder().chat(for: context))
+    func chat(_ context: LoreAIChatContext) async throws -> LoreAIChatResponse {
+        let prepared = try LoreAIChatPromptBuilder().preparedChat(for: context)
+        let data = try await respondData(to: prepared.prompt, structuredChat: true)
+        let payload: StructuredChatPayload
+        do {
+            payload = try decoder.decode(StructuredChatPayload.self, from: data)
+        } catch {
+            throw LoreAIError.invalidResponse
+        }
+        let answer = payload.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !answer.isEmpty else { throw LoreAIError.invalidResponse }
+
+        var allowed: [String: LoreAIChatSource] = [:]
+        var duplicated = Set<String>()
+        for source in prepared.sources {
+            if let pair: (String, LoreAIChatSource) = ({ source -> (String, LoreAIChatSource)? in
+                guard context.bookID == source.bookID,
+                      source.hasValidIdentityAndProgression,
+                      source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion,
+                      source.progression.map({ progression in
+                          guard let frontier = context.readFrontierProgression else {
+                              return context.stage == .finished
+                          }
+                          return progression <= frontier + 0.000_001
+                      }) == true,
+                      (try? LocatorPersistenceCodec.decode(.init(
+                          data: source.locatorJSON,
+                          schemaVersion: source.locatorSchemaVersion
+                      ))) != nil
+                else { return nil }
+                return (source.id, source)
+            })(source) {
+                if allowed.updateValue(pair.1, forKey: pair.0) != nil { duplicated.insert(pair.0) }
+            }
+        }
+        for id in duplicated { allowed.removeValue(forKey: id) }
+        var seen = Set<String>()
+        let sources = payload.sourceIDs.compactMap { id -> LoreAIChatSource? in
+            guard seen.insert(id).inserted else { return nil }
+            return allowed[id]
+        }
+        return LoreAIChatResponse(text: answer, sources: sources)
     }
 
     func respond(to prompt: LoreAIPrompt) async throws -> String {
+        let data = try await respondData(to: prompt, structuredChat: false)
+        guard let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { throw LoreAIError.invalidResponse }
+        return text
+    }
+
+    private func respondData(to prompt: LoreAIPrompt, structuredChat: Bool) async throws -> Data {
         guard let rawKey = try keyStore.loadAPIKey() else { throw LoreAIError.missingAPIKey }
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw LoreAIError.invalidAPIKey }
@@ -64,6 +111,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
                 model: OpenAIResponsesConfiguration.model,
                 store: false,
                 reasoning: .init(effort: "low"),
+                text: structuredChat ? .structuredChat : nil,
                 input: [.init(role: "developer", content: prompt.developer)]
                     + prompt.history.map { .init(role: $0.role.rawValue, content: $0.text) }
                     + [.init(role: "user", content: prompt.user)]
@@ -78,10 +126,13 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
                 throw LoreAIError.requestFailed(statusCode: http.statusCode, message: error?.error.message)
             }
             let envelope = try decoder.decode(ResponsesEnvelope.self, from: data)
+            guard envelope.status == nil || envelope.status == "completed",
+                  !envelope.containsRefusal
+            else { throw LoreAIError.invalidResponse }
             guard let text = envelope.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty
             else { throw LoreAIError.invalidResponse }
-            return text
+            return Data(text.utf8)
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as LoreAIError {
@@ -98,10 +149,58 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
 private struct ResponsesRequest: Encodable {
     struct Reasoning: Encodable { let effort: String }
     struct Input: Encodable { let role: String; let content: String }
+    struct TextConfiguration: Encodable {
+        struct Format: Encodable {
+            let type: String
+            let name: String
+            let strict: Bool
+            let schema: JSONSchema
+        }
+        struct JSONSchema: Encodable {
+            struct Property: Encodable {
+                let type: String
+                let items: Item?
+                struct Item: Encodable { let type: String }
+
+                enum CodingKeys: String, CodingKey { case type, items }
+                func encode(to encoder: Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(type, forKey: .type)
+                    try container.encodeIfPresent(items, forKey: .items)
+                }
+            }
+            let type = "object"
+            let properties: [String: Property]
+            let required = ["answer", "source_ids"]
+            let additionalProperties = false
+        }
+        let format: Format
+
+        static let structuredChat = TextConfiguration(format: .init(
+            type: "json_schema",
+            name: "lore_chat_answer",
+            strict: true,
+            schema: .init(properties: [
+                "answer": .init(type: "string", items: nil),
+                "source_ids": .init(type: "array", items: .init(type: "string"))
+            ])
+        ))
+    }
     let model: String
     let store: Bool
     let reasoning: Reasoning
+    let text: TextConfiguration?
     let input: [Input]
+}
+
+private struct StructuredChatPayload: Decodable {
+    let answer: String
+    let sourceIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case answer
+        case sourceIDs = "source_ids"
+    }
 }
 
 private struct ResponsesEnvelope: Decodable {
@@ -109,6 +208,7 @@ private struct ResponsesEnvelope: Decodable {
         struct Content: Decodable {
             let type: String?
             let text: String?
+            let refusal: String?
         }
         let type: String?
         let content: [Content]?
@@ -116,10 +216,12 @@ private struct ResponsesEnvelope: Decodable {
 
     let outputText: String?
     let output: [Output]?
+    let status: String?
 
     enum CodingKeys: String, CodingKey {
         case outputText = "output_text"
         case output
+        case status
     }
 
     var extractedText: String? {
@@ -134,6 +236,12 @@ private struct ResponsesEnvelope: Decodable {
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: "\n")
+    }
+
+    var containsRefusal: Bool {
+        output?.contains { item in
+            item.content?.contains { $0.type == "refusal" || $0.refusal != nil } == true
+        } == true
     }
 }
 

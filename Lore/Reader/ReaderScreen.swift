@@ -21,6 +21,7 @@ struct ReaderScreen: View {
     @State private var aiExplanation: ReaderAIExplanationState?
     @State private var aiRecap: ReaderAIRecapState?
     @State private var showsDiscussion = false
+    @State private var citationNavigationError: String?
     @State private var readerPresentationState: ReaderPresentationState = .appearing
     @Namespace private var glassNamespace
 
@@ -151,10 +152,28 @@ struct ReaderScreen: View {
                 stage: presentation.readingStage,
                 initialProgression: progression,
                 conversationRepository: presentation.conversationRepository,
-                session: presentation.session
+                session: presentation.session,
+                onOpenSource: { source in
+                    Task {
+                        if await presentation.session.go(to: source) {
+                            showsDiscussion = false
+                            showsControls = false
+                        } else {
+                            citationNavigationError = "Le passage cité n’est plus disponible dans ce livre."
+                        }
+                    }
+                }
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Passage indisponible", isPresented: Binding(
+            get: { citationNavigationError != nil },
+            set: { if !$0 { citationNavigationError = nil } }
+        )) {
+            Button("OK", role: .cancel) { citationNavigationError = nil }
+        } message: {
+            Text(citationNavigationError ?? "")
         }
     }
 

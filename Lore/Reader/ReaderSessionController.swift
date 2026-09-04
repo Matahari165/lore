@@ -11,6 +11,7 @@ final class ReaderSessionController {
 
     private let publication: Publication?
     private let bookID: UUID?
+    private let citationReadingOrder: [Link]
     private let highlightStore: (any HighlightStoring)?
     private let vocabularyStore: (any VocabularyStoring)?
     private let aiService: any LoreAIService
@@ -93,6 +94,7 @@ final class ReaderSessionController {
     ) throws {
         self.publication = publication
         self.bookID = bookID
+        citationReadingOrder = publication.readingOrder
         highlightStore = progressStore as? any HighlightStoring
         vocabularyStore = progressStore as? any VocabularyStoring
         self.preferences = preferences
@@ -195,10 +197,13 @@ final class ReaderSessionController {
         preferencesStore: any ReaderPreferencesStoring = UserDefaultsReaderPreferencesStore(),
         chapters: [ReaderChapter] = [],
         progressionLocator: @escaping @MainActor (Double) async -> Locator? = { _ in nil },
+        citationBookID: UUID? = nil,
+        citationReadingOrder: [Link] = [],
         onError: @escaping @MainActor (Error) -> Void = { _ in }
     ) {
         publication = nil
-        bookID = nil
+        bookID = citationBookID
+        self.citationReadingOrder = citationReadingOrder
         highlightStore = nil
         vocabularyStore = nil
         aiService = OpenAIResponsesClient()
@@ -416,13 +421,21 @@ final class ReaderSessionController {
             ) {
                 chapterTitle = requestedInterval.1.title ?? extracted.chapterTitles.last
                 frontierDescription = extracted.lastReadPositionDescription
-                excerpts = [LoreAIChatExcerpt(
-                    text: extracted.excerpt,
-                    sourceDescription: requestedInterval.2,
-                    progression: summaryScope == .yesterday
-                        ? nil
-                        : requestedInterval.1.locations.totalProgression
-                )]
+                excerpts = extracted.sourcedExcerpts.enumerated().compactMap { index, excerpt in
+                    guard let progression = excerpt.locator.locations.totalProgression,
+                          let source = try? Self.chatSource(
+                              bookID: bookID,
+                              locator: excerpt.locator,
+                              label: excerpt.locator.title ?? "Passage \(index + 1)"
+                          )
+                    else { return nil }
+                    return LoreAIChatExcerpt(
+                        text: excerpt.text,
+                        sourceDescription: excerpt.locator.title ?? requestedInterval.2,
+                        progression: progression,
+                        source: source
+                    )
+                }
             }
         }
 
@@ -444,6 +457,37 @@ final class ReaderSessionController {
             history: history,
             question: question
         )
+    }
+
+    private static func chatSource(bookID: UUID, locator: Locator, label: String) throws -> LoreAIChatSource {
+        guard let progression = locator.locations.totalProgression else {
+            throw LoreAIError.invalidChatContext
+        }
+        return LoreAIChatSource(
+            id: UUID().uuidString,
+            bookID: bookID,
+            label: label,
+            locatorJSON: try locator.jsonData(),
+            locatorSchemaVersion: LocatorPersistenceCodec.currentSchemaVersion,
+            progression: progression
+        )
+    }
+
+    @discardableResult
+    func go(to source: LoreAIChatSource) async -> Bool {
+        guard source.bookID == bookID,
+              source.hasValidIdentityAndProgression,
+              source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion,
+              let decoded = try? LocatorPersistenceCodec.decode(.init(
+                  data: source.locatorJSON,
+                  schemaVersion: source.locatorSchemaVersion
+              )),
+              let locatorProgression = decoded.locator.locations.totalProgression,
+              source.progression.map({ abs($0 - locatorProgression) <= 0.000_001 }) == true,
+              citationReadingOrder.contains(where: { $0.url().isEquivalentTo(decoded.locator.href) }),
+              source.progression.map({ $0 <= currentProgression + 0.000_001 }) == true
+        else { return false }
+        return await readerController?.go(to: decoded.locator, options: .animated) ?? false
     }
 
     func highlightCurrentSelection() {
