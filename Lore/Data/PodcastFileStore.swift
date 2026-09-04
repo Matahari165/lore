@@ -141,10 +141,6 @@ struct PodcastFileStore: Sendable {
         return candidate
     }
 
-    func removeFile(at relativePath: String) throws {
-        try fileManager.removeItem(at: try fileURL(for: relativePath).deletingLastPathComponent())
-    }
-
     func finalFile(podcastID: UUID, expectedSHA256: String) throws -> URL {
         let url = podcastsRoot.appendingPathComponent(podcastID.uuidString).appendingPathComponent("episode.mp4")
         guard fileManager.fileExists(atPath: url.path), try contentSHA256(of: url) == expectedSHA256 else {

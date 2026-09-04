@@ -140,10 +140,6 @@ struct BookFileStore: Sendable {
         return destination
     }
 
-    func removeBookFile(at relativePath: String) throws {
-        try fileManager.removeItem(at: try fileURL(for: relativePath).deletingLastPathComponent())
-    }
-
     func reconcile(
         referencedBookIDs: Set<UUID>,
         referencedStagingTokens: Set<UUID>,

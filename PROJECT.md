@@ -122,7 +122,7 @@ La V1 est terminée lorsque :
 
 - **Application :** SwiftUI, le système natif d’Apple pour construire l’interface iPhone puis Mac.
 - **Données locales :** SwiftData conserve les métadonnées et le Locator Readium complet ; les EPUB sont copiés dans le dossier Application Support propre à l’application.
-- **iCloud :** synchronise les données entre les appareils personnels.
+- **iCloud :** un miroir privé manuel est prévu pour synchroniser les données entre les appareils personnels ; il n’est pas encore activé.
 - **Moteur EPUB :** Readium Swift Toolkit 3.11 ouvre le livre et fournit le Locator stable utilisé pour reprendre la lecture.
 - **Mesure de lecture :** enregistre des sessions actives, puis calcule les statistiques à partir de ces sessions.
 - **IA :** module séparé utilisant l’API Responses d’OpenAI avec `gpt-5.6-luna`, une clé conservée dans le trousseau de l’iPhone et `store: false`.

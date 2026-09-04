@@ -1,13 +1,5 @@
 import Foundation
 
-enum LoreAIFeature: Sendable {
-    case explainSelection
-    case previousReadingRecap
-    case chapterSummary
-    case bookQuestion
-    case endingDiscussion
-}
-
 struct BookAIContext: Equatable, Sendable {
     let title: String
     let author: String?

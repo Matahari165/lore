@@ -208,11 +208,6 @@ final class LibraryViewModel {
         }.prefix(4))
     }
 
-    /// Kept as a convenience for callers that only need the first queue entry.
-    var resumableBook: BookRecord? {
-        resumableBooks.first
-    }
-
     func recentActivityDate(for book: BookRecord) -> Date? {
         [book.progressUpdatedAt, latestSessionActivityByBookID[book.id]]
             .compactMap { $0 }

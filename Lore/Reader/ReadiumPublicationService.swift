@@ -161,15 +161,6 @@ final class ReadiumPublicationService: EPUBImportValidating {
         nextRecency = 0
     }
 
-    func invalidateCache(for fileURL: URL) {
-        let path = fileURL.standardizedFileURL.path
-        let keys = publicationCache.keys.filter { $0.standardizedPath == path }
-        for key in keys {
-            publicationCache.removeValue(forKey: key)
-            cacheRecency.removeValue(forKey: key)
-        }
-    }
-
     private func cacheKey(for fileURL: URL) -> ReadiumPublicationCacheKey? {
         let standardizedURL = fileURL.standardizedFileURL
         guard FileManager.default.fileExists(atPath: standardizedURL.path) else { return nil }

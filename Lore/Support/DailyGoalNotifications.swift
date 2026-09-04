@@ -146,10 +146,6 @@ final class DailyGoalNotifier: @unchecked Sendable {
         center.removePendingNotificationRequests(withIdentifiers: [Self.reminderIdentifier])
     }
 
-    func cancelAllGoalNotifications() {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.reminderIdentifier, Self.reachedIdentifier])
-    }
-
     // MARK: - Envois privés
 
     private func notifyGoalReached(targetMinutes: Int) async {

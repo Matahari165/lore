@@ -4,6 +4,7 @@ Dernière mise à jour : 4 septembre 2026
 
 ## Terminé
 
+- Nettoyage du code mort vérifié : suppression de l’ancien type d’erreur générique, d’un enum IA sans consommateur, de quatre méthodes et d’une propriété sans appel, ainsi que des anciennes ressources d’icône remplacées. Les migrations de données et contrats futurs documentés ont été conservés. L’application et la cible de tests compilent ; l’exécution XCTest reste bloquée avant tout résultat.
 - Un mode Lecture interne facultatif peut rendre silencieuses les notifications propres à Lore pendant l’ouverture du lecteur. Les réglages expliquent séparément comment associer Lore à un mode Concentration iOS, sans prétendre que l’app contrôle Ne pas déranger.
 - La récupération des imports Podcast interrompus est retentée à chaque lancement, y compris après un premier échec. Les fichiers temporaires et finaux encore rattachés à une récupération sont protégés du nettoyage automatique. Les tests de régression sont ajoutés et le diff est valide ; leur compilation et leur exécution restent à confirmer, Xcode étant resté bloqué pendant cette vérification.
 - Format IA en puces imposé aux 6 prompts (explication, résumé veille, chat 3 stades, résumé chapitre, réponse question, discussion fin) : 5-6 puces max, phrases courtes, termes techniques expliqués simplement, ligne finale Idée essentielle / Où reprendre. `conciseRecap` aligné à 6 puces. Prompts seuls modifiés, envois inchangés.
@@ -42,13 +43,13 @@ Dernière mise à jour : 4 septembre 2026
 - Les commandes du lecteur utilisent les événements de toucher Readium et des barres limitées au haut et au bas de l’écran afin de préserver la sélection native et les gestes de pagination.
 - Les tests de préférences, bornes, traduction Readium, sommaire et navigation ont été ajoutés et leur cible compile ; leur exécution reste bloquée par le lanceur XCTest du simulateur.
 - Le contrat de données de l’écran Statistiques est raccordé aux vraies sessions et aux livres : totaux exacts, jours de lecture du mois, historique en cours/terminé avec couverture, première session réelle, fin explicite et note entière 0–10. L’interface reste dans son lot séparé.
-- La navigation comporte trois onglets synchronisés autour d’un seul état : Accueil, Bibliothèque et Statistiques.
+- La navigation comporte quatre onglets synchronisés autour d’un seul état : Accueil, Bibliothèque, Statistiques et Podcasts.
 - L’Accueil présente la reprise et les ajouts récents. La Bibliothèque permet la recherche, les filtres Tous / À lire / En cours / Terminés et le tri par ajout, titre, auteur ou progression, ascendant ou descendant.
 - Le sélecteur Fichiers accepte plusieurs EPUB ; les imports sont traités séquentiellement, les succès partiels sont conservés et les erreurs sont récapitulées fichier par fichier.
 - Le lecteur utilise Liquid Glass natif pour des commandes flottantes discrètes, avec réglages rapides puis page complète, réduction des animations/transparence et progression réactive.
 - L’icône détaillée a été remplacée par une page pliée minimaliste formant un `L`.
 - La compilation intégrée de l’application et de sa cible de tests réussit avec Xcode 26.6 et iOS Simulator 26.5.
-- Le nouvel Accueil et la barre des trois onglets ont été vérifiés visuellement sur le simulateur `Lore iPhone 13`, en mode sombre.
+- Le nouvel Accueil et la barre d’onglets ont été vérifiés visuellement sur le simulateur `Lore iPhone 13`, en mode sombre.
 - Un objectif quotidien global et facultatif peut être défini entre 5 et 180 minutes depuis les réglages de l’Accueil. Sa progression exacte alimente un affichage compact dans Accueil et Statistiques, avec un état explicite lorsqu’il est atteint ou lorsque les données sont indisponibles.
 - La série actuelle des jours ayant réellement atteint l’objectif apparaît dans l’Accueil ; le détail de l’objectif affiche aussi la meilleure série. Le calcul utilise les secondes exactes, les jours civils du fuseau local et l’objectif actuellement configuré, sans être coupé par les frontières semaine/mois.
 - Les taps gauche, centre et droit ne tournent plus les pages : ils affichent ou masquent uniquement les commandes. Le défilement, les gestes Readium et le sommaire restent disponibles.
@@ -71,7 +72,7 @@ Dernière mise à jour : 4 septembre 2026
 - Le trait violet du logo transparent a été épaissi d’environ 80 % sans ajouter de fond, halo ni ombre.
 - Le socle local de Discussion par livre est ajouté : historique multi-tours borné, stockage SwiftData local, suppression avec le livre et client IA anti-spoiler.
 - L’écran Discussion est maintenant accessible depuis le lecteur, l’Accueil et la Bibliothèque. Il conserve l’historique local, affiche le contexte utilisé, rend le Markdown et propose résumé, question libre et discussion de fin.
-- La barre des trois onglets se réduit au défilement vers le bas et réapparaît en remontant. Les titres Accueil, Bibliothèque et Activité sont alignés avec leurs actions afin de supprimer l’espace supérieur perdu.
+- La barre des quatre onglets se réduit au défilement vers le bas et réapparaît en remontant. Les titres Accueil, Bibliothèque et Activité sont alignés avec leurs actions afin de supprimer l’espace supérieur perdu.
 - Le logo transparent a encore été agrandi et épaissi, sans fond, halo ni ombre.
 - Les couvertures utilisent maintenant des rangées fixes de trois éléments avec des zones de titre, auteur et statut de hauteur identique. L’Accueil affiche jusqu’à six ajouts récents et la reprise n’affiche plus la date de dernière lecture.
 - Un appui long sur une pochette ouvre les passages surlignés, l’évaluation de fin ou la discussion IA. La fin d’un livre demande une note entière sur 10 avec dix étoiles et l’année de lecture.
