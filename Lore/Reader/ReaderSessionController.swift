@@ -30,6 +30,10 @@ final class ReaderSessionController {
     private var recapHandler: (@MainActor (ReaderAIRecapState) -> Void)?
     private var explanationTask: Task<Void, Never>?
     private var recapTask: Task<Void, Never>?
+    private var navigationHistory: [Locator] = []
+    private var navigationHistoryHandler: (@MainActor (Bool) -> Void)?
+    private let progressionLocator: @MainActor (Double) async -> Locator?
+    private var isNavigating = false
     private(set) var highlights: [ReaderHighlight] = []
     private(set) var vocabulary: [VocabularyItem] = []
 
@@ -98,6 +102,9 @@ final class ReaderSessionController {
         selectionContextExtractor = ReadiumSelectionContextExtractor()
         recapContextExtractor = ReadiumReadingRecapContextExtractor()
         self.recapEngine = recapEngine
+        progressionLocator = { progression in
+            await publication.locate(progression: progression)
+        }
 
         let positionController = ReadingPositionController(
             bookID: bookID,
@@ -183,6 +190,7 @@ final class ReaderSessionController {
         readingActivity: any ReadingActivityManaging = NoopReadingActivityManager(),
         preferencesStore: any ReaderPreferencesStoring = UserDefaultsReaderPreferencesStore(),
         chapters: [ReaderChapter] = [],
+        progressionLocator: @escaping @MainActor (Double) async -> Locator? = { _ in nil },
         onError: @escaping @MainActor (Error) -> Void = { _ in }
     ) {
         publication = nil
@@ -200,6 +208,7 @@ final class ReaderSessionController {
         self.preferencesStore = preferencesStore
         preferences = preferencesStore.load()
         self.chapters = chapters
+        self.progressionLocator = progressionLocator
         contentViewController = locationProvider.viewController
         navigatorDelegate = nil
         self.onError = onError
@@ -466,9 +475,7 @@ final class ReaderSessionController {
     @discardableResult
     func go(to vocabularyItem: VocabularyItem) async -> Bool {
         guard vocabularyItem.bookID == bookID else { return false }
-        let didNavigate = await readerController?.go(to: vocabularyItem.locator, options: .animated) ?? false
-        if didNavigate { await reinforceSelectionAppearance() }
-        return didNavigate
+        return await navigate(to: vocabularyItem.locator)
     }
 
     func deleteHighlight(_ highlight: ReaderHighlight) {
@@ -504,9 +511,8 @@ final class ReaderSessionController {
 
     @discardableResult
     func go(to highlight: ReaderHighlight) async -> Bool {
-        let didNavigate = await readerController?.go(to: highlight.locator, options: .animated) ?? false
-        if didNavigate { await reinforceSelectionAppearance() }
-        return didNavigate
+        guard highlight.bookID == bookID else { return false }
+        return await navigate(to: highlight.locator)
     }
 
     private func applyHighlights(to navigator: any DecorableNavigator) {
@@ -524,15 +530,87 @@ final class ReaderSessionController {
         handler?(currentProgression)
     }
 
+    func setNavigationHistoryHandler(_ handler: (@MainActor (Bool) -> Void)?) {
+        navigationHistoryHandler = handler
+        handler?(!navigationHistory.isEmpty)
+    }
+
+    func previewNavigation(at progression: Double) async -> ReaderNavigationPreview {
+        let bounded = min(max(progression, 0), 1)
+        let locator = await progressionLocator(bounded)
+        let title = locator?.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTitle = locator.flatMap { locator in
+            chapters.first { $0.link.url().isEquivalentTo(locator.href) }?.title
+        }
+        return ReaderNavigationPreview(
+            progression: bounded,
+            chapterTitle: title?.isEmpty == false ? title : fallbackTitle,
+            isAvailable: locator != nil
+        )
+    }
+
+    @discardableResult
+    func go(toProgression progression: Double) async -> Bool {
+        let bounded = min(max(progression, 0), 1)
+        guard let destination = await progressionLocator(bounded) else { return false }
+        return await navigate(to: destination)
+    }
+
+    @discardableResult
+    func goBackAfterJump() async -> Bool {
+        guard !isNavigating, let destination = navigationHistory.last else { return false }
+        isNavigating = true
+        defer { isNavigating = false }
+        let didNavigate = await readerController?.go(to: destination, options: .animated) ?? false
+        guard didNavigate else { return false }
+        positionController.record(destination)
+        navigationHistory.removeLast()
+        navigationHistoryHandler?(!navigationHistory.isEmpty)
+        await reinforceSelectionAppearance()
+        return true
+    }
+
     var currentProgression: Double {
         locationProvider.currentLocation?.locations.totalProgression ?? 0
     }
 
     @discardableResult
     func go(to chapter: ReaderChapter) async -> Bool {
-        let didNavigate = await readerController?.go(to: chapter.link, options: .animated) ?? false
-        if didNavigate { await reinforceSelectionAppearance() }
+        await navigate(to: chapter.link)
+    }
+
+    private func navigate(to locator: Locator) async -> Bool {
+        guard !isNavigating else { return false }
+        let origin = locationProvider.currentLocation
+        guard origin != locator else { return true }
+        isNavigating = true
+        defer { isNavigating = false }
+        let didNavigate = await readerController?.go(to: locator, options: .animated) ?? false
+        if didNavigate {
+            rememberNavigationOrigin(origin)
+            positionController.record(locator)
+            await reinforceSelectionAppearance()
+        }
         return didNavigate
+    }
+
+    private func navigate(to link: Link) async -> Bool {
+        guard !isNavigating else { return false }
+        let origin = locationProvider.currentLocation
+        isNavigating = true
+        defer { isNavigating = false }
+        let didNavigate = await readerController?.go(to: link, options: .animated) ?? false
+        if didNavigate {
+            rememberNavigationOrigin(origin)
+            await reinforceSelectionAppearance()
+        }
+        return didNavigate
+    }
+
+    private func rememberNavigationOrigin(_ locator: Locator?) {
+        guard let locator, navigationHistory.last != locator else { return }
+        navigationHistory.append(locator)
+        navigationHistoryHandler?(true)
     }
 
     static func restoreInitialLocation(
@@ -646,6 +724,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
 
     func navigator(_ navigator: Navigator, didJumpTo locator: Locator) {
         selectionActivityPolicy.reset()
+        positionController.record(locator)
         onProgressionChange?(locator.locations.totalProgression ?? 0)
         // Un saut par le sommaire ou vers un surlignage n'est pas une preuve
         // que les chapitres intermédiaires ont été lus.

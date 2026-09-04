@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 3 septembre 2026
+Dernière mise à jour : 4 septembre 2026
 
 ## Terminé
 
@@ -82,6 +82,7 @@ Dernière mise à jour : 3 septembre 2026
 - Le graphique d’activité indique la moyenne quotidienne sur les jours écoulés de la semaine ou du mois.
 - Un appui long sur un passage surligné prépare une discussion IA avec ce passage. Les dix étoiles de notation tiennent sur une seule ligne.
 - Le lecteur propose des marges horizontales et verticales globales, ainsi qu’un vocabulaire local exportable avec retour au passage exact. La sélection temporaire sombre utilise un cyan clair opaque et des poignées assorties.
+- Le lecteur propose un curseur de progression accessible avec aperçu du chapitre, puis un bouton Retour après les sauts par curseur, sommaire, surlignage ou vocabulaire. Chaque origine est conservée comme Locator Readium complet et les sauts ne sont pas comptés comme du temps de lecture.
 - Un livre peut être retiré de Reprendre sans perdre sa progression. L’ouverture ne redécode plus la couverture et utilise une animation de page qui grandit depuis le bas, avec respect de Réduire les animations.
 - La section sous Hier est désormais limitée aux trois derniers livres réellement terminés. Les barres d’objectif et de lecture sont épaissies ; la progression du lecteur devient blanche en thème sombre.
 - L’animation d’ouverture et de fermeture prend la position globale de la pochette touchée comme origine, puis agrandit la surface Readium jusqu’au plein écran.

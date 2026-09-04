@@ -155,6 +155,12 @@ struct ReaderChapter: Identifiable, Sendable {
     }
 }
 
+struct ReaderNavigationPreview: Sendable, Equatable {
+    let progression: Double
+    let chapterTitle: String?
+    let isAvailable: Bool
+}
+
 @MainActor
 protocol ReadingPositionManaging: AnyObject {
     func record(_ locator: Locator)

@@ -72,9 +72,10 @@ struct ReaderSessionControllerTests {
     @Test func preferenceUpdateIsPersistedAndSubmittedToReadiumController() throws {
         let controller = ReaderControllerSpy()
         let store = PreferencesStoreSpy(initial: .default)
+        let positions = PositionManagerSpy()
         let session = ReaderSessionController(
             locationProvider: controller,
-            positionController: PositionManagerSpy(),
+            positionController: positions,
             preferencesStore: store
         )
         let updated = ReaderPreferences(
@@ -90,19 +91,75 @@ struct ReaderSessionControllerTests {
     }
 
     @Test func chapterNavigationDelegatesTheOriginalReadiumLink() async {
-        let controller = ReaderControllerSpy()
+        let origin = makeLocator(0.24)
+        let controller = ReaderControllerSpy(currentLocation: origin)
         let chapter = ReaderChapter(
             id: "0:chapter.xhtml", title: "Chapitre", depth: 0,
             link: Link(href: "chapter.xhtml", title: "Chapitre")
         )
+        let positions = PositionManagerSpy()
         let session = ReaderSessionController(
             locationProvider: controller,
-            positionController: PositionManagerSpy(),
+            positionController: positions,
             chapters: [chapter]
         )
 
         #expect(await session.go(to: chapter))
         #expect(controller.openedLinks.map(\.href) == ["chapter.xhtml"])
+        #expect(positions.recordedLocations.isEmpty)
+        #expect(await session.goBackAfterJump())
+        #expect(controller.openedLocators == [origin])
+    }
+
+    @Test func progressionPreviewAndJumpUseLocatedFullLocator() async {
+        let origin = makeLocator(0.18)
+        let destination = Locator(
+            href: URL(string: "part-two.xhtml")!, mediaType: .xhtml,
+            title: "Deuxième partie",
+            locations: .init(progression: 0.4, totalProgression: 0.62),
+            text: .init(after: "après", before: "avant", highlight: "passage")
+        )
+        let controller = ReaderControllerSpy(currentLocation: origin)
+        let positions = PositionManagerSpy()
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: positions,
+            progressionLocator: { value in value == 0.62 ? destination : nil }
+        )
+        var historyStates: [Bool] = []
+        session.setNavigationHistoryHandler { historyStates.append($0) }
+
+        let preview = await session.previewNavigation(at: 0.62)
+        #expect(preview == ReaderNavigationPreview(
+            progression: 0.62,
+            chapterTitle: "Deuxième partie",
+            isAvailable: true
+        ))
+        #expect(await session.go(toProgression: 0.62))
+        #expect(controller.openedLocators == [destination])
+        #expect(positions.recordedLocations == [destination])
+        #expect(historyStates == [false, true])
+
+        #expect(await session.goBackAfterJump())
+        #expect(controller.openedLocators == [destination, origin])
+        #expect(positions.recordedLocations == [destination, origin])
+        #expect(historyStates == [false, true, false])
+    }
+
+    @Test func failedJumpDoesNotCreateBackHistory() async {
+        let controller = ReaderControllerSpy(currentLocation: makeLocator(0.3), navigationSucceeds: false)
+        let destination = makeLocator(0.8)
+        let session = ReaderSessionController(
+            locationProvider: controller,
+            positionController: PositionManagerSpy(),
+            progressionLocator: { _ in destination }
+        )
+        var historyStates: [Bool] = []
+        session.setNavigationHistoryHandler { historyStates.append($0) }
+
+        #expect(await session.go(toProgression: 0.8) == false)
+        #expect(await session.goBackAfterJump() == false)
+        #expect(historyStates == [false])
     }
 
     @Test func progressionSubscriptionImmediatelyPublishesCurrentLocator() {
@@ -134,10 +191,17 @@ private final class LocationProviderSpy: ReaderLocationProviding {
 
 @MainActor
 private final class ReaderControllerSpy: EPUBReaderControlling {
-    let currentLocation: Locator? = nil
+    var currentLocation: Locator?
     let viewController = UIViewController()
+    let navigationSucceeds: Bool
     private(set) var submittedPreferences: [EPUBPreferences] = []
     private(set) var openedLinks: [Link] = []
+    private(set) var openedLocators: [Locator] = []
+
+    init(currentLocation: Locator? = nil, navigationSucceeds: Bool = true) {
+        self.currentLocation = currentLocation
+        self.navigationSucceeds = navigationSucceeds
+    }
 
     func submitPreferences(_ preferences: EPUBPreferences) {
         submittedPreferences.append(preferences)
@@ -145,11 +209,13 @@ private final class ReaderControllerSpy: EPUBReaderControlling {
 
     func go(to link: Link, options: NavigatorGoOptions) async -> Bool {
         openedLinks.append(link)
-        return true
+        return navigationSucceeds
     }
 
     func go(to locator: Locator, options: NavigatorGoOptions) async -> Bool {
-        return true
+        openedLocators.append(locator)
+        if navigationSucceeds { currentLocation = locator }
+        return navigationSucceeds
     }
 }
 
@@ -167,9 +233,10 @@ private final class PositionManagerSpy: ReadingPositionManaging {
     enum Failure: Error { case save }
     var failuresRemaining: Int
     private(set) var flushLocations: [Locator?] = []
+    private(set) var recordedLocations: [Locator] = []
     private(set) var successfulFlushes = 0
     init(failuresRemaining: Int = 0) { self.failuresRemaining = failuresRemaining }
-    func record(_ locator: Locator) {}
+    func record(_ locator: Locator) { recordedLocations.append(locator) }
     func flush(currentLocator: Locator?) async throws {
         flushLocations.append(currentLocator)
         if failuresRemaining > 0 {

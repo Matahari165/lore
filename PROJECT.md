@@ -188,6 +188,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.
 - L’animation du lecteur utilise la position réelle de la pochette touchée comme origine et rejoint ensuite le plein écran.
 - Les marges horizontales et verticales sont des préférences globales du lecteur, comme la typographie et l’interligne.
+- La navigation rapide utilise la progression globale Readium pour prévisualiser un chapitre, effectue un seul saut au relâchement et conserve une pile éphémère de Locator complets pour revenir exactement aux positions précédentes.
 - L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.

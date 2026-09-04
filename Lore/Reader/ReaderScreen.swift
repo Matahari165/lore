@@ -11,6 +11,11 @@ struct ReaderScreen: View {
     @State private var presentedPanel: Panel?
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
+    @State private var scrubProgression: Double
+    @State private var navigationPreview: ReaderNavigationPreview?
+    @State private var isScrubbing = false
+    @State private var canGoBackAfterJump = false
+    @State private var previewTask: Task<Void, Never>?
     @State private var highlights: [ReaderHighlight]
     @State private var vocabulary: [VocabularyItem]
     @State private var aiExplanation: ReaderAIExplanationState?
@@ -30,6 +35,7 @@ struct ReaderScreen: View {
         self.onRequestClose = onRequestClose
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
+        _scrubProgression = State(initialValue: presentation.session.currentProgression)
         _highlights = State(initialValue: presentation.session.highlights)
         _vocabulary = State(initialValue: presentation.session.vocabulary)
     }
@@ -68,7 +74,11 @@ struct ReaderScreen: View {
                     if !showsControls { showsQuickPreferences = false }
                 }
             }
-            presentation.session.setProgressionHandler { progression = $0 }
+            presentation.session.setProgressionHandler {
+                progression = $0
+                if !isScrubbing { scrubProgression = $0 }
+            }
+            presentation.session.setNavigationHistoryHandler { canGoBackAfterJump = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
             presentation.session.setVocabularyChangeHandler { vocabulary = $0 }
             presentation.session.setExplanationHandler { aiExplanation = $0 }
@@ -81,10 +91,12 @@ struct ReaderScreen: View {
         .onDisappear {
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
+            presentation.session.setNavigationHistoryHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)
             presentation.session.setVocabularyChangeHandler(nil)
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
+            previewTask?.cancel()
         }
         .onAppear(perform: animateReaderEntrance)
         .sheet(item: $presentedPanel) { panel in
@@ -152,20 +164,7 @@ struct ReaderScreen: View {
                         .font(.footnote.weight(.medium))
                         .lineLimit(1)
 
-                    HStack(spacing: 8) {
-                        LoreProgressBar(
-                            value: progression,
-                            fill: preferences.appearance == .dark ? .white : LoreTheme.ink,
-                            height: 7
-                        )
-                        Text(progression, format: .percent.precision(.fractionLength(0)))
-                            .font(.caption.monospacedDigit().weight(.medium))
-                            .contentTransition(.numericText())
-                            .frame(minWidth: 40, alignment: .trailing)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Progression de lecture")
-                    .accessibilityValue(Text(progression, format: .percent.precision(.fractionLength(0))))
+                    navigationScrubber
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -200,8 +199,15 @@ struct ReaderScreen: View {
 
                 GlassEffectContainer(spacing: 12) {
                     HStack(spacing: 4) {
-                        progressLabel
-                        Divider().frame(height: 20)
+                        if canGoBackAfterJump {
+                            controlButton("Retour à la position précédente", systemImage: "arrow.uturn.backward") {
+                                goBackAfterJump()
+                            }
+                            Divider().frame(height: 20)
+                        } else {
+                            progressLabel
+                            Divider().frame(height: 20)
+                        }
                         controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
                         controlButton("Surlignages", systemImage: "highlighter") { presentedPanel = .highlights }
                         controlButton("Vocabulaire", systemImage: "character.book.closed") { presentedPanel = .vocabulary }
@@ -226,6 +232,82 @@ struct ReaderScreen: View {
             .contentTransition(.numericText())
             .frame(minWidth: 52, minHeight: 44)
             .accessibilityLabel("Progression")
+    }
+
+    private var navigationScrubber: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Slider(
+                    value: $scrubProgression,
+                    in: 0...1,
+                    onEditingChanged: scrubberEditingChanged
+                )
+                .frame(minHeight: 44)
+                .tint(preferences.appearance == .dark ? .white : LoreTheme.ink)
+                .accessibilityLabel("Position dans le livre")
+                .accessibilityValue(Text(scrubProgression, format: .percent.precision(.fractionLength(0))))
+                .accessibilityHint("Ajustez puis relâchez pour aller à cette position")
+
+                Text(scrubProgression, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .contentTransition(.numericText())
+                    .frame(minWidth: 40, alignment: .trailing)
+            }
+
+            if isScrubbing {
+                Text(navigationPreviewText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .accessibilityLabel("Aperçu du chapitre")
+                    .accessibilityValue(navigationPreview?.chapterTitle ?? "Indisponible")
+            }
+        }
+        .onChange(of: scrubProgression) { _, newValue in
+            guard isScrubbing else { return }
+            requestNavigationPreview(at: newValue)
+        }
+    }
+
+    private var navigationPreviewText: String {
+        guard let navigationPreview else { return "Recherche du chapitre…" }
+        guard navigationPreview.isAvailable else { return "Navigation indisponible" }
+        return navigationPreview.chapterTitle ?? "Chapitre sans titre"
+    }
+
+    private func scrubberEditingChanged(_ editing: Bool) {
+        isScrubbing = editing
+        if editing {
+            requestNavigationPreview(at: scrubProgression)
+        } else {
+            previewTask?.cancel()
+            navigationPreview = nil
+            let destination = scrubProgression
+            Task {
+                if !(await presentation.session.go(toProgression: destination)) {
+                    scrubProgression = progression
+                }
+            }
+        }
+    }
+
+    private func requestNavigationPreview(at value: Double) {
+        previewTask?.cancel()
+        previewTask = Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            let preview = await presentation.session.previewNavigation(at: value)
+            guard !Task.isCancelled else { return }
+            navigationPreview = preview
+        }
+    }
+
+    private func goBackAfterJump() {
+        Task {
+            if await presentation.session.goBackAfterJump() {
+                showsControls = false
+            }
+        }
     }
 
     private func controlButton(
