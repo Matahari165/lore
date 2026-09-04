@@ -77,6 +77,22 @@ struct LibraryViewModelTests {
         #expect(model.visibleBooks.map(\.id) == [book.id])
         #expect(model.visibleBooks.first?.lastProgression == 0.35)
     }
+
+    @Test func incompleteImportNeverAppearsInLibrary() throws {
+        let fixture = try LibraryViewModelFixture()
+        let book = BookRecord(
+            contentSHA256: String(repeating: "a", count: 64),
+            title: "Import incomplet",
+            relativeFilePath: "",
+            importState: .recoveryRequired
+        )
+        try fixture.repository.add(book)
+
+        let model = fixture.makeModel()
+
+        #expect(model.books.isEmpty)
+        #expect(model.visibleBooks.isEmpty)
+    }
 }
 
 @MainActor

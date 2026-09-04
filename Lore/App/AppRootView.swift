@@ -94,6 +94,9 @@ struct AppRootView: View {
             reloadDailyGoal()
         }
         .onChange(of: selectedTab) { _, _ in reloadDailyGoal() }
+        .onOpenURL { url in
+            Task { await libraryModel.importURLs([url]) }
+        }
         .sheet(isPresented: $presentsSettings, onDismiss: reloadDailyGoal) {
             SettingsView(model: dailyGoalModel) {
                 let count = try sessionRepository.clearSessions(on: .now)

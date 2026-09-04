@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 31 août 2026
+Dernière mise à jour : 4 septembre 2026
 
 ## Terminé
 
@@ -21,6 +21,7 @@ Dernière mise à jour : 31 août 2026
 - Le libellé du bouton principal d’import, initialement invisible, a été corrigé et confirmé par une seconde capture du simulateur.
 - L’EPUB réel *Deep Work* a été validé puis importé par le pipeline de production : couverture, titre `Deep Work`, auteur `Cal Newport`, copie privée et persistance après relance sont confirmés.
 - Le lecteur Readium rend réellement le livre. Après huit avances de page, le Locator `Introduction`, position `8`, progression `37,5 %` a été sauvegardé puis restauré au même passage après relance.
+- L’import EPUB accepte désormais une sélection multiple, une ouverture système déclarée, un glisser-déposer et un dossier explicite. Les sources convergent vers la même file, les réussites partielles sont conservées, les doublons sont signalés et les imports incomplets restent masqués jusqu’à récupération.
 - L’import local est durci : SHA-256, retour du doublon, file unique, staging privé validé par Readium puis promotion atomique.
 - Une réconciliation prudente traite les imports interrompus, nettoie seulement les staging non référencés de plus de 24 heures, conserve les livres au fichier manquant et déplace les dossiers finaux orphelins de plus de 7 jours dans une quarantaine persistante jamais supprimée automatiquement.
 - Un doublon dont le fichier final est absent ou invalide est réparé depuis la nouvelle copie staging validée, sans remplacer son identité ni sa progression.
@@ -147,6 +148,7 @@ Dernière mise à jour : 31 août 2026
 - L’application normale a déjà été vérifiée sur `Lore iPhone 13`, mais le lanceur XCTest reste bloqué sur `waiting for workers to materialize` ; un premier clone a ensuite échoué avec `Invalid device state` et `server died`. Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
 - Pour cette tranche, `simctl install` n’a pas créé le conteneur de l’application après le redémarrage du simulateur ; aucune capture des nouveaux réglages ou du sommaire n’est donc disponible.
 - L’automatisation tactile du simulateur ne transmet pas les clics : l’ouverture du sélecteur Fichiers n’est donc pas encore prouvée. L’import après sélection, la lecture et la reprise ont été vérifiés avec des harnais temporaires appelant les composants de production, puis entièrement supprimés.
+- L’ouverture depuis une feuille de partage, le glisser-déposer et la sélection d’un dossier sont implémentés mais n’ont pas encore été exercés par les interfaces système sur simulateur ou appareil réel.
 - L’exécution des tests sur `Lore iPhone 13` reste bloquée avant le lancement du processus de tests (`waiting for workers to materialize`) ; la compilation du code et des tests réussit, mais leur exécution automatique n’est pas encore prouvée.
 - La première tentative de lancement sur l’iPhone a été refusée car l’appareil était verrouillé ; une seconde tentative après déverrouillage a réussi.
 - La version IA du 31 août est bien installée sur l’iPhone, mais sa tentative de lancement automatique a été refusée car l’appareil était verrouillé.

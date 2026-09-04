@@ -159,6 +159,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le résumé quotidien porte uniquement sur le jour civil précédent, utilise les premier et dernier Locator enregistrés et n’est présenté qu’une fois par livre pendant la journée locale.
 - La navigation principale comporte trois onglets : Accueil pour reprendre rapidement, Bibliothèque pour rechercher, filtrer et trier, puis Statistiques.
 - Le sélecteur de fichiers accepte plusieurs EPUB. Chaque fichier est traité séparément afin qu’un échec n’annule pas les imports déjà réussis.
+- Les imports depuis Fichiers, l’ouverture système d’un EPUB, le glisser-déposer et la sélection explicite d’un dossier convergent vers la même file séquentielle. Un dossier est parcouru récursivement, dans la limite de 500 EPUB, en ignorant les fichiers cachés et tout contenu non EPUB.
 - L’icône de Lore conserve uniquement le trait violet minimaliste formant un `L` plié dans Icon Composer : remplissage `none`, ombre désactivée et couche PNG RGBA transparente. Le matériau Liquid Glass reste appliqué au groupe ; iOS 26 peut toutefois ajouter son masque ou son arrière-plan système aux variantes irrégulières.
 - Les couvertures utilisent un cadre portrait commun et `scaledToFit` afin de rester entières, quelles que soient leurs proportions d’origine.
 - Les listes principales utilisent trois colonnes de largeur identique et des zones de texte de hauteur fixe afin de conserver des rangées parfaitement alignées.
