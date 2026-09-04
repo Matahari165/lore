@@ -24,12 +24,15 @@ struct ReaderHighlight: Identifiable, Sendable {
     let text: String
     let createdAt: Date
     let color: HighlightColor
+    let note: String?
 }
 
 @MainActor
 protocol HighlightStoring: AnyObject {
     func highlights(for bookID: UUID) throws -> [ReaderHighlight]
+    func allHighlights() throws -> [ReaderHighlight]
     func addHighlight(bookID: UUID, locator: Locator, text: String, color: HighlightColor) throws -> ReaderHighlight
+    func updateHighlightNote(id: UUID, bookID: UUID, note: String?) throws -> ReaderHighlight
     func deleteHighlight(id: UUID, bookID: UUID) throws
 }
 

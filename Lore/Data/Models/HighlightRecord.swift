@@ -10,6 +10,9 @@ final class HighlightRecord {
     var text: String
     var createdAt: Date
     var colorRawValue: String
+    /// Optional so SwiftData can lightweight-migrate stores created before
+    /// personal notes existed without manufacturing content for old highlights.
+    var note: String?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +21,8 @@ final class HighlightRecord {
         locatorSchemaVersion: Int,
         text: String,
         createdAt: Date = .now,
-        colorRawValue: String
+        colorRawValue: String,
+        note: String? = nil
     ) {
         self.id = id
         self.bookID = bookID
@@ -27,5 +31,6 @@ final class HighlightRecord {
         self.text = text
         self.createdAt = createdAt
         self.colorRawValue = colorRawValue
+        self.note = note
     }
 }

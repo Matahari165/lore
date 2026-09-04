@@ -17,8 +17,12 @@ struct LibraryView: View {
     @State private var completionBook: BookRecord?
     @State private var highlightsBook: BookRecord?
     @State private var selectedHighlights: [ReaderHighlight] = []
+    @State private var highlightsLoadError: String?
     @State private var discussionDraft: String?
     @State private var pendingHighlightDiscussion: PendingHighlightDiscussion?
+    @State private var showsAllHighlights = false
+    @State private var allHighlightGroups: [BookHighlightGroup] = []
+    @State private var allHighlightsLoadError: String?
 
     init(
         mode: Mode = .library,
@@ -82,9 +86,14 @@ struct LibraryView: View {
             LibraryHighlightsView(
                 book: book,
                 highlights: selectedHighlights,
+                loadError: highlightsLoadError,
                 onOpenHighlight: onOpenHighlight.map { callback in
-                    { highlight in callback(book, highlight) }
+                    { highlight in
+                        highlightsBook = nil
+                        callback(book, highlight)
+                    }
                 },
+                onUpdateNote: model.updateNote,
                 onDiscussHighlight: { highlight in
                     pendingHighlightDiscussion = PendingHighlightDiscussion(
                         book: book,
@@ -94,6 +103,22 @@ struct LibraryView: View {
                 }
             )
             .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showsAllHighlights) {
+            AllHighlightsView(
+                groups: allHighlightGroups,
+                loadError: allHighlightsLoadError,
+                onOpenHighlight: onOpenHighlight.map { callback in
+                    { bookID, highlight in
+                        guard let book = model.books.first(where: { $0.id == bookID }) else { return }
+                        showsAllHighlights = false
+                        callback(book, highlight)
+                    }
+                },
+                onUpdateNote: model.updateNote
+            )
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [UTType(filenameExtension: "epub") ?? .data], allowsMultipleSelection: true) { result in
@@ -117,6 +142,22 @@ struct LibraryView: View {
                     .labelStyle(.iconOnly)
                     .frame(width: 44, height: 44)
                     .accessibilityHint("Configurer l’objectif quotidien")
+            }
+
+            if mode == .library {
+                Button("Toutes les annotations", systemImage: "highlighter") {
+                    do {
+                        allHighlightGroups = try model.highlightGroups()
+                        allHighlightsLoadError = nil
+                    } catch {
+                        allHighlightGroups = []
+                        allHighlightsLoadError = (error as? LocalizedError)?.errorDescription
+                            ?? "Les annotations n’ont pas pu être chargées."
+                    }
+                    showsAllHighlights = true
+                }
+                .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
             }
 
             Button("Importer des EPUB", systemImage: "plus") { presentsImporter = true }
@@ -405,7 +446,14 @@ struct LibraryView: View {
         }
 
         Button("Passages surlignés", systemImage: "highlighter") {
-            selectedHighlights = model.highlights(for: book)
+            do {
+                selectedHighlights = try model.highlights(for: book)
+                highlightsLoadError = nil
+            } catch {
+                selectedHighlights = []
+                highlightsLoadError = (error as? LocalizedError)?.errorDescription
+                    ?? "Les passages surlignés n’ont pas pu être chargés."
+            }
             highlightsBook = book
         }
 

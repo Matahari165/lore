@@ -58,6 +58,7 @@ final class LibraryViewModel {
         let conversationRepository: AIConversationRepository?
         let session: ReaderSessionController
         let sourceFrame: CGRect?
+        let initialHighlight: ReaderHighlight?
 
         init(
             id: UUID,
@@ -66,6 +67,7 @@ final class LibraryViewModel {
             readingStage: LoreAIReadingStage = .inProgress,
             conversationRepository: AIConversationRepository? = nil,
             sourceFrame: CGRect? = nil,
+            initialHighlight: ReaderHighlight? = nil,
             session: ReaderSessionController
         ) {
             self.id = id
@@ -74,6 +76,7 @@ final class LibraryViewModel {
             self.readingStage = readingStage
             self.conversationRepository = conversationRepository
             self.sourceFrame = sourceFrame
+            self.initialHighlight = initialHighlight
             self.session = session
         }
     }
@@ -335,7 +338,7 @@ final class LibraryViewModel {
         }
     }
 
-    func open(_ book: BookRecord) async {
+    func open(_ book: BookRecord, at highlight: ReaderHighlight? = nil) async {
         guard openingBookID == nil else { return }
         openingBookID = book.id
         defer { openingBookID = nil }
@@ -362,6 +365,7 @@ final class LibraryViewModel {
                 readingStage: book.readingStatus.loreAIStage,
                 conversationRepository: conversationRepository,
                 sourceFrame: coverFramesByBookID[book.id],
+                initialHighlight: highlight,
                 session: session
             )
         } catch {
@@ -545,12 +549,34 @@ final class LibraryViewModel {
         }
     }
 
-    func highlights(for book: BookRecord) -> [ReaderHighlight] {
+    func highlights(for book: BookRecord) throws -> [ReaderHighlight] {
+        try repository.highlights(for: book.id)
+    }
+
+    func highlightGroups() throws -> [BookHighlightGroup] {
+        let allHighlights = try repository.allHighlights()
+        let booksByID = Dictionary(uniqueKeysWithValues: books.map { ($0.id, $0) })
+        return Dictionary(grouping: allHighlights, by: \.bookID).compactMap { bookID, highlights in
+            guard let book = booksByID[bookID] else { return nil }
+            return BookHighlightGroup(
+                bookID: bookID,
+                title: book.title,
+                author: book.author,
+                highlights: highlights
+            )
+        }
+    }
+
+    func updateNote(_ note: String?, for highlight: ReaderHighlight) -> ReaderHighlight? {
         do {
-            return try repository.highlights(for: book.id)
+            return try repository.updateHighlightNote(
+                id: highlight.id,
+                bookID: highlight.bookID,
+                note: note
+            )
         } catch {
             present(error)
-            return []
+            return nil
         }
     }
 

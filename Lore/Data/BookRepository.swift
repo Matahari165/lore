@@ -190,8 +190,16 @@ extension BookRepository: HighlightStoring {
         try highlightRepository.highlights(for: bookID)
     }
 
+    func allHighlights() throws -> [ReaderHighlight] {
+        try highlightRepository.allHighlights()
+    }
+
     func addHighlight(bookID: UUID, locator: Locator, text: String, color: HighlightColor) throws -> ReaderHighlight {
         try highlightRepository.addHighlight(bookID: bookID, locator: locator, text: text, color: color)
+    }
+
+    func updateHighlightNote(id: UUID, bookID: UUID, note: String?) throws -> ReaderHighlight {
+        try highlightRepository.updateHighlightNote(id: id, bookID: bookID, note: note)
     }
 
     func deleteHighlight(id: UUID, bookID: UUID) throws {

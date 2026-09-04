@@ -74,6 +74,9 @@ struct ReaderScreen: View {
             presentation.session.setExplanationHandler { aiExplanation = $0 }
             presentation.session.setRecapHandler { aiRecap = $0 }
             presentation.session.requestDailyRecapIfEligible()
+            if let initialHighlight = presentation.initialHighlight {
+                Task { _ = await presentation.session.go(to: initialHighlight) }
+            }
         }
         .onDisappear {
             presentation.session.setTapHandler(nil)
@@ -90,8 +93,12 @@ struct ReaderScreen: View {
                 ReaderChaptersSheet(chapters: presentation.session.chapters, onSelect: openChapter)
             case .highlights:
                 ReaderHighlightsSheet(
+                    bookID: presentation.id,
+                    bookTitle: presentation.title,
+                    author: presentation.author,
                     highlights: highlights,
                     onSelect: openHighlight,
+                    onUpdateNote: presentation.session.updateNote,
                     onDelete: presentation.session.deleteHighlight
                 )
             case .vocabulary:
@@ -477,11 +484,18 @@ enum ReaderMarkdownRenderer {
 }
 
 private struct ReaderHighlightsSheet: View {
+    let bookID: UUID
+    let bookTitle: String
+    let author: String?
     let highlights: [ReaderHighlight]
     let onSelect: (ReaderHighlight) -> Void
+    let onUpdateNote: (String?, ReaderHighlight) -> ReaderHighlight?
     let onDelete: (ReaderHighlight) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var pendingDeletion: ReaderHighlight?
+    @State private var editingHighlight: ReaderHighlight?
+    @State private var searchText = ""
+    @State private var filter: HighlightFilter = .all
 
     var body: some View {
         NavigationStack {
@@ -492,8 +506,10 @@ private struct ReaderHighlightsSheet: View {
                         systemImage: "highlighter",
                         description: Text("Sélectionnez un passage puis touchez Surligner.")
                     )
+                } else if filteredHighlights.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
                 } else {
-                    List(highlights) { highlight in
+                    List(filteredHighlights) { highlight in
                         HStack(spacing: 8) {
                             Button { onSelect(highlight) } label: {
                                 VStack(alignment: .leading, spacing: 6) {
@@ -503,11 +519,24 @@ private struct ReaderHighlightsSheet: View {
                                     Text(highlight.createdAt, format: .dateTime.day().month().year())
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if let note = highlight.note {
+                                        Label(note, systemImage: "note.text")
+                                            .font(.callout)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(3)
+                                    }
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             }
                             .buttonStyle(.borderless)
                             .accessibilityHint("Revient au passage surligné")
+
+                            Button(highlight.note == nil ? "Ajouter une note" : "Modifier la note", systemImage: "square.and.pencil") {
+                                editingHighlight = highlight
+                            }
+                            .buttonStyle(.borderless)
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: 44, minHeight: 44)
 
                             Button("Supprimer", systemImage: "trash", role: .destructive) {
                                 pendingDeletion = highlight
@@ -521,9 +550,32 @@ private struct ReaderHighlightsSheet: View {
             }
             .navigationTitle("Surlignages")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Passage ou note")
+            .safeAreaInset(edge: .top) {
+                if !highlights.isEmpty {
+                    Picker("Filtrer les surlignages", selection: $filter) {
+                        ForEach(HighlightFilter.allCases) { option in Text(option.title).tag(option) }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
+                    .background(.bar)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: HighlightMarkdownExporter.export(groups: [BookHighlightGroup(
+                        bookID: bookID,
+                        title: bookTitle,
+                        author: author,
+                        highlights: highlights
+                    )])) {
+                        Label("Exporter en Markdown", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(highlights.isEmpty)
                 }
             }
             .confirmationDialog(
@@ -541,6 +593,21 @@ private struct ReaderHighlightsSheet: View {
                 }
                 Button("Annuler", role: .cancel) { pendingDeletion = nil }
             }
+        }
+        .sheet(item: $editingHighlight) { highlight in
+            HighlightNoteEditor(highlight: highlight) { note in
+                onUpdateNote(note, highlight) != nil
+            }
+        }
+    }
+
+    private var filteredHighlights: [ReaderHighlight] {
+        highlights.filter { highlight in
+            let matchesFilter = filter == .all || highlight.note != nil
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return matchesFilter && (query.isEmpty
+                || highlight.text.localizedStandardContains(query)
+                || (highlight.note?.localizedStandardContains(query) ?? false))
         }
     }
 }

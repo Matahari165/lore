@@ -64,14 +64,16 @@ struct AppRootView: View {
                     model: libraryModel,
                     dailyGoalState: dailyGoalModel.state,
                     onOpenSettings: { presentsSettings = true },
-                    onOpenActivityChart: { presentsActivityChart = true }
+                    onOpenActivityChart: { presentsActivityChart = true },
+                    onOpenHighlight: openHighlight
                 )
                 .tabItem { Label("Accueil", systemImage: "house") }
                 .tag(Tab.home)
 
                 LibraryView(
                     mode: .library,
-                    model: libraryModel
+                    model: libraryModel,
+                    onOpenHighlight: openHighlight
                 )
                 .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
                 .tag(Tab.library)
@@ -149,6 +151,11 @@ struct AppRootView: View {
         } message: {
             Text("Lore vous prévient quand votre objectif quotidien est atteint et vous rappelle à 21 h s'il vous reste du temps. Les notifications ne contiennent que des durées, jamais vos livres.")
         }
+    }
+
+    private func openHighlight(_ book: BookRecord, _ highlight: ReaderHighlight) {
+        selectedTab = .library
+        Task { await libraryModel.open(book, at: highlight) }
     }
 
     private func reloadDailyGoal() {

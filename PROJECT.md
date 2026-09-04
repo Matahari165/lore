@@ -53,6 +53,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Résumé de la lecture de la veille à la première ouverture pertinente de la journée, sans répétition le même jour.
 - Création et suppression de surlignages persistants, consultables depuis le lecteur avec retour direct au passage.
 - Création, modification et suppression de notes.
+- Recherche globale dans les passages et notes, filtre des passages avec note et export Markdown groupé par livre.
 - Mesure automatique du temps de lecture actif.
 - Arrêt du compteur lorsque l’application passe en arrière-plan ou après une période d’inactivité.
 
@@ -165,6 +166,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Le lecteur utilise Liquid Glass natif pour ses commandes flottantes. Les réglages essentiels sont disponibles dans un panneau rapide, puis dans une page complète.
 - Aucun tap gauche ou droit ne tourne les pages ; tout tap simple sur le contenu contrôle uniquement l’affichage des commandes.
 - Les surlignages sont privés et locaux. Ils conservent le Locator Readium complet, le texte sélectionné, la date et la couleur afin de revenir au passage exact.
+- Une note personnelle optionnelle est attachée au surlignage sans modifier son Locator ni son texte. Les annotations peuvent être recherchées globalement puis exportées localement en Markdown, groupées par livre.
 - Le menu de sélection conserve Copier, Traduire et Définition, puis ajoute Surligner et Expliquer.
 - L’IA utilise exactement `gpt-5.6-luna` via l’API Responses, avec `store: false`. La clé n’est jamais incluse dans le code et reste dans le trousseau sécurisé de l’iPhone.
 - Une explication envoie uniquement le passage sélectionné et une fenêtre bornée du chapitre courant. Le résumé quotidien peut envoyer jusqu’à 18 000 caractères de la portion lue la veille.

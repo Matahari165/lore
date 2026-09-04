@@ -484,6 +484,25 @@ final class ReaderSessionController {
     }
 
     @discardableResult
+    func updateNote(_ note: String?, for highlight: ReaderHighlight) -> ReaderHighlight? {
+        guard let bookID, let highlightStore else { return nil }
+        do {
+            let updated = try highlightStore.updateHighlightNote(
+                id: highlight.id,
+                bookID: bookID,
+                note: note
+            )
+            guard let index = highlights.firstIndex(where: { $0.id == updated.id }) else { return nil }
+            highlights[index] = updated
+            highlightChangeHandler?(highlights)
+            return updated
+        } catch {
+            onError(error)
+            return nil
+        }
+    }
+
+    @discardableResult
     func go(to highlight: ReaderHighlight) async -> Bool {
         let didNavigate = await readerController?.go(to: highlight.locator, options: .animated) ?? false
         if didNavigate { await reinforceSelectionAppearance() }

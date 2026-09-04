@@ -55,6 +55,7 @@ Dernière mise à jour : 3 septembre 2026
 - L’explication extrait localement le passage et une fenêtre bornée avant/après dans le chapitre courant. Le résumé quotidien utilise les Locator de la veille, s’arrête au dernier passage lu et n’est présenté qu’une fois par livre et par jour local.
 - Les réglages permettent d’enregistrer ou supprimer la clé sans l’afficher ni effectuer de requête de validation.
 - Les surlignages sont persistés localement par livre avec le Locator Readium complet, le texte, la date et la couleur. Ils sont restaurés dans le livre, consultables depuis le lecteur, ouvrables au passage exact et supprimables avec confirmation.
+- Chaque surlignage accepte désormais une note personnelle créée, modifiée ou supprimée depuis le lecteur et les listes. La Bibliothèque propose une recherche globale sur livres, passages et notes, un filtre « Avec note » et un export Markdown déterministe groupé par livre. L’ajout SwiftData reste optionnel afin de préserver les anciens surlignages.
 - La suppression d’un livre supprime ses surlignages dans la même sauvegarde. Les échecs de suppression et les erreurs d’agrégation de l’objectif ne sont pas présentés comme des réussites ou des valeurs nulles.
 - La compilation finale de l’application et de sa cible de tests réussit après revue QA indépendante. La nouvelle version IA signée est installée sur l’iPhone 13 physique ; son lancement automatisé reste à confirmer une fois l’appareil déverrouillé.
 - Les réponses IA du lecteur rendent désormais le Markdown (titres, gras, italiques et listes) au lieu d’afficher ses signes bruts.
@@ -144,7 +145,7 @@ Dernière mise à jour : 3 septembre 2026
 
 ### Phase 5 — Annotations
 
-- Ajouter les surlignages et les notes. *(Surlignages implémentés ; notes restantes.)*
+- Ajouter les surlignages et les notes. *(Implémenté localement ; vérification tactile et migration sur données réelles restantes.)*
 - Permettre de retrouver rapidement un passage annoté. *(Implémenté pour les surlignages avec Locator complet ; essai appareil restant.)*
 
 ### Phase 6 — Synchronisation iCloud
