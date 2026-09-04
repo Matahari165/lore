@@ -99,6 +99,7 @@ Dernière mise à jour : 4 septembre 2026
 - Ajustements d’après photo : grande marge au-dessus de la vidéo, boutons ±15 s et vitesse en petits ronds de verre, volume visible uniquement en grande fenêtre. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Finitions d’après photo : ±15 s espacés du bouton Lecture, croix de fermeture retirée (fermeture par glissement, action vocale conservée), coins de la vidéo assortis à la fenêtre, pastille du volume assortie au curseur. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Discussion route maintenant les demandes naturelles de résumé du chapitre courant, de la lecture d’hier et de la dernière session. Le chapitre et la veille utilisent des Locators locaux bornés ; une session sans bornes précises produit une réponse locale explicite, sans envoyer de texte ni approximer.
+- Les collections manuelles et intelligentes sont implémentées : statuts, douze imports récents, années de lecture et auteurs. L’ajout ou le retrait est disponible depuis l’appui long et la fiche du livre, sans dupliquer les fichiers EPUB.
 
 ## En cours
 
@@ -113,6 +114,7 @@ Dernière mise à jour : 4 septembre 2026
 - Vérification sur iPhone du son podcast (piste audio connue, volume > 0, hors puis en mode silencieux), de l’interruption (appel simulé) et du nouveau visuel du lecteur à `390 × 844` (bouton visible, titre unique, curseur, −15/+15 s).
 - Vérification sur iPhone de la poursuite de lecture écran verrouillé : le son continue, le titre et les commandes apparaissent sur l’écran verrouillé, et la position est retrouvée au retour dans Lore.
 - Résumés naturels : la compilation complète de Lore et LoreTests réussit avec Xcode 26.6 / iOS Simulator 26.5. L’exécution ciblée des nouveaux tests reste bloquée avant tout résultat dans le lanceur XCTest et a été interrompue après deux minutes.
+- Vérification visuelle et VoiceOver des écrans Collections sur iPhone `390 × 844`.
 
 ## À faire
 
@@ -179,6 +181,7 @@ Dernière mise à jour : 4 septembre 2026
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
 - L’analyse IA d’un livre complet reste hors périmètre ; seules des fenêtres bornées sont envoyées.
+- Les catégories éditoriales des EPUB ne sont pas encore extraites ni persistées ; aucune collection intelligente par sujet n’est donc affichée.
 
 ## Décisions en attente
 

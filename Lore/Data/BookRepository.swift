@@ -39,6 +39,78 @@ final class BookRepository {
         return try context.fetch(descriptor)
     }
 
+    func collections() throws -> [ManualCollectionRecord] {
+        var descriptor = FetchDescriptor<ManualCollectionRecord>()
+        descriptor.sortBy = [SortDescriptor(\.createdAt), SortDescriptor(\.name)]
+        return try context.fetch(descriptor)
+    }
+
+    func collectionMemberships() throws -> [CollectionMembershipRecord] {
+        try context.fetch(FetchDescriptor<CollectionMembershipRecord>())
+    }
+
+    @discardableResult
+    func createCollection(named rawName: String) throws -> ManualCollectionRecord {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw BookRepositoryError.invalidCollectionName }
+        let normalized = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+        let collection = ManualCollectionRecord(name: name, normalizedName: normalized)
+        context.insert(collection)
+        do {
+            try saveContext(context)
+            return collection
+        } catch {
+            context.delete(collection)
+            throw error
+        }
+    }
+
+    func setMembership(_ isMember: Bool, bookID: UUID, collectionID: UUID) throws {
+        guard try book(id: bookID) != nil else { throw BookRepositoryError.bookNotFound }
+        var collectionDescriptor = FetchDescriptor<ManualCollectionRecord>(
+            predicate: #Predicate { $0.id == collectionID }
+        )
+        collectionDescriptor.fetchLimit = 1
+        guard try context.fetch(collectionDescriptor).first != nil else {
+            throw BookRepositoryError.collectionNotFound
+        }
+        let key = "\(collectionID.uuidString.lowercased())|\(bookID.uuidString.lowercased())"
+        var descriptor = FetchDescriptor<CollectionMembershipRecord>(
+            predicate: #Predicate { $0.membershipKey == key }
+        )
+        descriptor.fetchLimit = 1
+        let existing = try context.fetch(descriptor).first
+        if isMember, existing == nil {
+            context.insert(CollectionMembershipRecord(collectionID: collectionID, bookID: bookID))
+        } else if !isMember, let existing {
+            context.delete(existing)
+        } else {
+            return
+        }
+        do {
+            try saveContext(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    func deleteCollection(_ collection: ManualCollectionRecord) throws {
+        let collectionID = collection.id
+        let memberships = try context.fetch(FetchDescriptor<CollectionMembershipRecord>(
+            predicate: #Predicate { $0.collectionID == collectionID }
+        ))
+        memberships.forEach(context.delete)
+        context.delete(collection)
+        do {
+            try saveContext(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     func book(id: UUID) throws -> BookRecord? {
         var descriptor = FetchDescriptor<BookRecord>(
             predicate: #Predicate { $0.id == id }
@@ -118,6 +190,11 @@ final class BookRepository {
         try highlightRepository.deleteHighlights(for: book.id, save: false)
         try vocabularyRepository?.deleteVocabulary(for: book.id, save: false)
         try conversationRepository?.deleteConversations(for: book.id, save: false)
+        let bookID = book.id
+        let memberships = try context.fetch(FetchDescriptor<CollectionMembershipRecord>(
+            predicate: #Predicate { $0.bookID == bookID }
+        ))
+        memberships.forEach(context.delete)
         context.delete(book)
         do {
             try saveContext(context)
@@ -237,6 +314,8 @@ enum BookRepositoryError: LocalizedError, Equatable {
     case bookNotFound
     case invalidRating
     case invalidReadingYear
+    case invalidCollectionName
+    case collectionNotFound
 
     var errorDescription: String? {
         switch self {
@@ -246,6 +325,10 @@ enum BookRepositoryError: LocalizedError, Equatable {
             "La note doit être comprise entre 0 et 10."
         case .invalidReadingYear:
             "L’année de lecture n’est pas valide."
+        case .invalidCollectionName:
+            "Donnez un nom à la collection."
+        case .collectionNotFound:
+            "Cette collection n’existe plus."
         }
     }
 }

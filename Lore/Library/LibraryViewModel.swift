@@ -4,6 +4,29 @@ import Observation
 @MainActor
 @Observable
 final class LibraryViewModel {
+    enum SmartCollection: Hashable, Identifiable {
+        case inProgress, finished, notStarted, recent, year(Int), author(String)
+        var id: String {
+            switch self {
+            case .inProgress: "status-in-progress"
+            case .finished: "status-finished"
+            case .notStarted: "status-not-started"
+            case .recent: "recent"
+            case let .year(year): "year-\(year)"
+            case let .author(author): "author-\(author)"
+            }
+        }
+        var title: String {
+            switch self {
+            case .inProgress: "En cours"
+            case .finished: "Terminés"
+            case .notStarted: "Non commencés"
+            case .recent: "Récents"
+            case let .year(year): String(year)
+            case let .author(author): author
+            }
+        }
+    }
     enum Filter: String, CaseIterable, Identifiable {
         case all, toRead, inProgress, finished
         var id: Self { self }
@@ -92,6 +115,7 @@ final class LibraryViewModel {
     let conversationRepository: AIConversationRepository?
 
     var books: [BookRecord] = []
+    var manualCollections: [ManualCollectionRecord] = []
     var isImporting = false
     var openingBookID: UUID?
     var errorMessage: String?
@@ -110,6 +134,7 @@ final class LibraryViewModel {
     // (dictionnaire par jour + fingerprint, 30 jours, migration v1 incluse).
     // nil signifie « veille » ; toute autre valeur est un début de jour local.
     var selectedHistoryDay: Date?
+    private var collectionIDsByBookID: [UUID: Set<UUID>] = [:]
 
     init(
         repository: BookRepository,
@@ -310,6 +335,67 @@ final class LibraryViewModel {
         }
     }
 
+    var smartCollections: [SmartCollection] {
+        var values: [SmartCollection] = [.inProgress, .finished, .notStarted, .recent]
+        values += Set(books.compactMap(\.readingYear)).sorted(by: >).map(SmartCollection.year)
+        let authors = Dictionary(grouping: books.compactMap { Self.trimmedAuthor($0.author) }) {
+            Self.normalizedAuthor($0)
+        }.values.compactMap(\.first)
+        values += authors.sorted().map(SmartCollection.author)
+        return values
+    }
+
+    func books(in smartCollection: SmartCollection) -> [BookRecord] {
+        if smartCollection == .recent {
+            return Array(books.sorted { $0.importedAt > $1.importedAt }.prefix(12))
+        }
+        let selected: [BookRecord] = switch smartCollection {
+        case .inProgress: books.filter { $0.readingStatus == .inProgress }
+        case .finished: books.filter { $0.readingStatus == .finished }
+        case .notStarted: books.filter { $0.readingStatus == .toRead }
+        case .recent: []
+        case let .year(year): books.filter { $0.readingYear == year }
+        case let .author(author):
+            books.filter { Self.normalizedAuthor(Self.trimmedAuthor($0.author) ?? "") == Self.normalizedAuthor(author) }
+        }
+        return selected.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    private static func trimmedAuthor(_ author: String?) -> String? {
+        guard let value = author?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    private static func normalizedAuthor(_ author: String) -> String {
+        author.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased()
+    }
+
+    func books(in collection: ManualCollectionRecord) -> [BookRecord] {
+        books.filter { collectionIDsByBookID[$0.id, default: []].contains(collection.id) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    func isMember(_ book: BookRecord, of collection: ManualCollectionRecord) -> Bool {
+        collectionIDsByBookID[book.id, default: []].contains(collection.id)
+    }
+
+    func createCollection(named name: String) {
+        do { _ = try repository.createCollection(named: name); reload() }
+        catch { present(error) }
+    }
+
+    func toggleMembership(of book: BookRecord, in collection: ManualCollectionRecord) {
+        do {
+            try repository.setMembership(!isMember(book, of: collection), bookID: book.id, collectionID: collection.id)
+            reload()
+        } catch { present(error) }
+    }
+
+    func deleteCollection(_ collection: ManualCollectionRecord) {
+        do { try repository.deleteCollection(collection); reload() }
+        catch { present(error) }
+    }
+
     func importSelection(_ result: Result<[URL], Error>) async {
         guard !isImporting else { return }
         do {
@@ -387,6 +473,10 @@ final class LibraryViewModel {
     func reload() {
         do {
             books = try repository.books()
+            manualCollections = try repository.collections()
+            collectionIDsByBookID = try repository.collectionMemberships().reduce(into: [:]) { result, item in
+                result[item.bookID, default: []].insert(item.collectionID)
+            }
             let sessions = try sessionRepository.sessions()
             latestSessionActivityByBookID = sessions.reduce(into: [:]) { latest, session in
                 guard session.lastActivityAt > (latest[session.bookID] ?? .distantPast) else { return }

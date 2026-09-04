@@ -193,6 +193,8 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La navigation rapide utilise la progression globale Readium pour prévisualiser un chapitre, effectue un seul saut au relâchement et conserve une pile éphémère de Locator complets pour revenir exactement aux positions précédentes.
 - L’Accueil peut proposer jusqu’à quatre lectures à reprendre, triées par dernière activité réelle.
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
+- Les collections manuelles conservent uniquement des références vers les livres existants ; elles ne dupliquent ni EPUB, ni couverture, ni progression. Les collections intelligentes sont calculées depuis le statut, l’import récent, l’année de lecture et l’auteur.
+- Les catégories éditoriales EPUB ne sont pas encore conservées et ne sont donc pas proposées comme collections intelligentes.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
 - La prochaine surface IA est une conversation unique avec chaque livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
 - La surface Discussion est accessible depuis le lecteur et les listes de livres. Elle conserve ses messages localement et affiche explicitement la portée du texte envoyé.
