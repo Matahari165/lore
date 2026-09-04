@@ -72,6 +72,8 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 
 - Synchronisation de la progression, des notes, des surlignages, du temps de lecture, des métadonnées et du statut.
 - La synchronisation des fichiers EPUB eux-mêmes doit être confirmée par un test réel sur deux appareils.
+- Le store SwiftData reste explicitement local (`cloudKitDatabase: .none`). Le plan CloudKit futur prévoit un miroir privé manuel limité aux livres, progression, sessions, surlignages et vocabulaire ; EPUB, chemins locaux, staging, préférences et conversations IA seront exclus.
+- La sauvegarde portable versionnée sépare les EPUB des données structurées, contrôle les UUID, Locators, valeurs et empreintes SHA-256, puis restaure par fusion idempotente sans suppression. Elle inclut les préférences de lecture et l’objectif quotidien dans une évolution ultérieure du format ; les récapitulatifs IA et leurs caches restent exclus.
 
 ## Hors V1
 
@@ -185,6 +187,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - La lecture des podcasts continue en arrière-plan grâce au mode audio (`UIBackgroundModes`) ; seule la fermeture du lecteur arrête la lecture. L’autorisation figure dans `Lore-Info.plist` à la racine, fusionné avec les réglages générés.
 - Le lecteur podcast reprend la présentation de l’application Podcasts d’Apple (transport, temps restant négatif, volume, AirPlay) dans l’identité visuelle Lore, avec les commandes visibles dès la demi-fenêtre. Seules les informations réellement disponibles sont affichées.
 - Les commandes du lecteur utilisent le Liquid Glass natif (boutons, curseur de progression, pastille de volume). L’en-tête est supprimé au profit d’un bouton Fermer flottant sur la vidéo ; la progression arrive juste sous la vidéo pour rester visible dans la demi-fenêtre.
+- Le store SwiftData reste explicitement configuré sans CloudKit. La sauvegarde locale versionnée inclut les données de lecture, notes de surlignage, podcasts et collections, avec les EPUB/MP4 séparés du JSON ; les conversations IA, préférences, caches et fichiers temporaires sont exclus.
 - Le vocabulaire est une annotation locale distincte des surlignages. Chaque entrée conserve le texte, le livre, la date et le Locator complet ; l’utilisateur peut copier ou partager toutes les entrées d’un livre.
 - Un livre peut être retiré de la file Reprendre sans effacer sa progression ni son Locator.
 - La section des derniers livres lus de l’Accueil contient uniquement des livres explicitement terminés, classés par date de fin.

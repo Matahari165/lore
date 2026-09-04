@@ -10,8 +10,8 @@ struct LoreApp: App {
 
     init() {
         do {
-            container = try ModelContainer(
-                for: BookRecord.self,
+            let localSchema = Schema([
+                BookRecord.self,
                 ReadingSessionRecord.self,
                 HighlightRecord.self,
                 VocabularyRecord.self,
@@ -20,7 +20,9 @@ struct LoreApp: App {
                 PodcastRecord.self,
                 ManualCollectionRecord.self,
                 CollectionMembershipRecord.self
-            )
+            ])
+            let localConfiguration = ModelConfiguration(schema: localSchema, cloudKitDatabase: .none)
+            container = try ModelContainer(for: localSchema, configurations: localConfiguration)
             fileStore = try BookFileStore()
             podcastFileStore = try PodcastFileStore()
             let sessions = ReadingSessionRepository(context: container.mainContext)

@@ -165,6 +165,8 @@ Dernière mise à jour : 4 septembre 2026
 - Tester séparément la synchronisation des fichiers EPUB complets avant de la déclarer prise en charge.
 - Gérer les conflits et les interruptions de synchronisation sans perdre de données.
 - Tester d'abord entre deux environnements iPhone avant d'étendre au Mac.
+- Socle local implémenté : store SwiftData explicitement non-CloudKit et export/restauration versionné avec manifeste, comptes, empreintes et listes des EPUB/MP4 manquants. Le format couvre livres, sessions, surlignages avec notes, vocabulaire, podcasts, collections manuelles et appartenances. Le miroir CloudKit reste un plan séparé non activé.
+- Le futur miroir exclura conversations IA, EPUB/MP4, chemins locaux, staging, caches et préférences. Les collections désormais stabilisées restent hors miroir tant que leur contrat CloudKit n’a pas été décidé et éprouvé.
 
 ### Plus tard — Après le premier lot IA
 
@@ -183,6 +185,7 @@ Dernière mise à jour : 4 septembre 2026
 - La première tentative de lancement sur l’iPhone a été refusée car l’appareil était verrouillé ; une seconde tentative après déverrouillage a réussi.
 - La version IA du 31 août est bien installée sur l’iPhone, mais sa tentative de lancement automatique a été refusée car l’appareil était verrouillé.
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
+- Aucun miroir CloudKit, entitlement ou schéma distant n’est activé et aucune preuve réelle sur deux appareils n’a été obtenue. Le futur contrat devra borner les champs proches de 1 Mo ou employer `CKAsset`.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
 - L’analyse IA d’un livre complet reste hors périmètre ; seules des fenêtres bornées sont envoyées.
 - Les catégories éditoriales des EPUB ne sont pas encore extraites ni persistées ; aucune collection intelligente par sujet n’est donc affichée.
