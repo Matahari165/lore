@@ -62,10 +62,12 @@ final class LibraryViewModel {
     struct ImportSummary: Equatable {
         var imported = 0
         var duplicates = 0
+        var completedFiles: [String] = []
         var issues: [ImportIssue] = []
 
         var message: String {
             var lines = ["\(imported) importé(s), \(duplicates) déjà présent(s)."]
+            lines.append(contentsOf: completedFiles)
             if !issues.isEmpty {
                 lines.append(contentsOf: issues.map { "\($0.filename) : \($0.message)" })
             }
@@ -125,6 +127,8 @@ final class LibraryViewModel {
     var sort: Sort = .recent
     var sortAscending = false
     var importSummary: ImportSummary?
+    var currentImportProgress: String?
+    private var pendingImportURLs: [URL] = []
     private(set) var yesterdayReadingSummaryState: YesterdayReadingSummaryState = .noReading
     private(set) var lastReconciliationReport: ImportReconciliationReport?
     private var latestSessionActivityByBookID: [UUID: Date] = [:]
@@ -397,30 +401,83 @@ final class LibraryViewModel {
     }
 
     func importSelection(_ result: Result<[URL], Error>) async {
-        guard !isImporting else { return }
         do {
             let urls = try result.get()
             guard !urls.isEmpty else { throw CocoaError(.fileNoSuchFile) }
-            isImporting = true
-            defer { isImporting = false }
-            var summary = ImportSummary()
-            for url in urls {
+            await importURLs(urls)
+        } catch {
+            if (error as? CocoaError)?.code == .userCancelled { return }
+            present(error)
+        }
+    }
+
+    func importURLs(_ urls: [URL]) async {
+        guard !urls.isEmpty else { return }
+        if isImporting {
+            pendingImportURLs.append(contentsOf: urls)
+            return
+        }
+
+        isImporting = true
+        defer { isImporting = false }
+        var summary = ImportSummary()
+        var batch = urls
+        while !batch.isEmpty {
+            for sourceURL in batch {
+                await importSource(sourceURL, into: &summary)
+            }
+            batch = pendingImportURLs
+            pendingImportURLs.removeAll()
+        }
+        reload()
+        importSummary = summary
+    }
+
+    private func importSource(_ sourceURL: URL, into summary: inout ImportSummary) async {
+        let didAccess = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { sourceURL.stopAccessingSecurityScopedResource() }
+            currentImportProgress = nil
+        }
+
+        do {
+            let candidates = try EPUBImportSourceResolver.epubURLs(from: sourceURL)
+            guard !candidates.isEmpty else {
+                summary.issues.append(ImportIssue(
+                    filename: sourceURL.lastPathComponent,
+                    message: "Ce dossier ne contient aucun fichier EPUB."
+                ))
+                return
+            }
+            for url in candidates {
+                currentImportProgress = "Import de \(url.lastPathComponent)…"
                 do {
                     switch try await importService.importEPUB(from: url) {
-                    case .imported: summary.imported += 1
-                    case .alreadyImported: summary.duplicates += 1
+                    case .imported:
+                        summary.imported += 1
+                        summary.completedFiles.append("\(url.lastPathComponent) : importé.")
+                    case .alreadyImported:
+                        summary.duplicates += 1
+                        summary.completedFiles.append("\(url.lastPathComponent) : déjà présent.")
                     }
+                } catch is CancellationError {
+                    summary.issues.append(ImportIssue(
+                        filename: url.lastPathComponent,
+                        message: "Import interrompu. Vous pouvez réessayer sans créer de doublon."
+                    ))
+                    return
                 } catch {
                     summary.issues.append(ImportIssue(
                         filename: url.lastPathComponent,
-                        message: (error as? LocalizedError)?.errorDescription ?? "Import impossible"
+                        message: (error as? LocalizedError)?.errorDescription ?? "Import impossible."
                     ))
                 }
             }
-            reload()
-            importSummary = summary
         } catch {
-            present(error)
+            summary.issues.append(ImportIssue(
+                filename: sourceURL.lastPathComponent,
+                message: (error as? LocalizedError)?.errorDescription ?? "Cette source ne peut pas être parcourue."
+            ))
         }
     }
 
@@ -472,7 +529,7 @@ final class LibraryViewModel {
 
     func reload() {
         do {
-            books = try repository.books()
+            books = try repository.books().filter { $0.importState == .ready }
             manualCollections = try repository.collections()
             collectionIDsByBookID = try repository.collectionMemberships().reduce(into: [:]) { result, item in
                 result[item.bookID, default: []].insert(item.collectionID)

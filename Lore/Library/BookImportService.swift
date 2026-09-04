@@ -60,6 +60,12 @@ final class BookImportService {
         let staged = try await Task.detached {
             try fileStore.stageEPUB(from: sourceURL)
         }.value
+        do {
+            try Task.checkCancellation()
+        } catch {
+            fileStore.discard(staged)
+            throw error
+        }
         if let existing = try repository.book(contentSHA256: staged.contentSHA256) {
             if existing.importState == .ready,
                (try? fileStore.finalFile(bookID: existing.id, expectedSHA256: staged.contentSHA256)) != nil {
@@ -75,6 +81,7 @@ final class BookImportService {
 
         do {
             let metadata = try await validator.validateEPUBForImport(at: staged.fileURL)
+            try Task.checkCancellation()
             let book = BookRecord(
                 contentSHA256: staged.contentSHA256,
                 title: metadata.title?.nonEmpty ?? sourceURL.deletingPathExtension().lastPathComponent,
@@ -103,8 +110,15 @@ final class BookImportService {
             return .imported(book)
         } catch {
             // A staging that is not referenced by a pending record is disposable.
-            let isReserved = (try? repository.book(contentSHA256: staged.contentSHA256)) != nil
-            if !isReserved { fileStore.discard(staged) }
+            if let reserved = try? repository.book(contentSHA256: staged.contentSHA256) {
+                do {
+                    try recoverImport(reserved)
+                } catch {
+                    try? repository.markRecoveryRequired(bookID: reserved.id)
+                }
+            } else {
+                fileStore.discard(staged)
+            }
             throw error
         }
     }

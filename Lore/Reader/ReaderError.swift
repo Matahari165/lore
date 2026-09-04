@@ -21,7 +21,7 @@ enum ReaderError: LocalizedError {
         case .unsupportedLocatorSchemaVersion:
             "La position de lecture provient d’une version plus récente de Lore."
         case .openingFailed:
-            "Le livre n’a pas pu être ouvert."
+            "Ce fichier EPUB est invalide, incomplet ou illisible."
         }
     }
 }

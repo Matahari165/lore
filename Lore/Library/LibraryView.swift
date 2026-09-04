@@ -58,7 +58,8 @@ struct LibraryView: View {
                 if model.isImporting {
                     ZStack {
                         LoreTheme.canvas.opacity(0.88)
-                        ProgressView("Importation en cours…").font(.callout.weight(.medium))
+                        ProgressView(model.currentImportProgress ?? "Importation en cours…")
+                            .font(.callout.weight(.medium))
                     }
                     .ignoresSafeArea()
                     .accessibilityElement(children: .combine)
@@ -133,8 +134,13 @@ struct LibraryView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [UTType(filenameExtension: "epub") ?? .data], allowsMultipleSelection: true) { result in
+        .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [.epub, .folder], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard !urls.isEmpty else { return false }
+            Task { await model.importURLs(urls) }
+            return true
         }
     }
 
@@ -513,6 +519,10 @@ struct LibraryView: View {
                 model.recordCoverFrame(frame, for: book.id)
             }
     }
+}
+
+private extension UTType {
+    static let epub = UTType(importedAs: "org.idpf.epub-container", conformingTo: .zip)
 }
 
 private struct PendingHighlightDiscussion {

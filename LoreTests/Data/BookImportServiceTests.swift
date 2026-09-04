@@ -171,6 +171,62 @@ struct BookImportServiceTests {
         #expect(books.filter { !$0.hasPrefix(".") }.isEmpty)
     }
 
+    @Test func cancellationDiscardsUnreservedStaging() async throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let source = try fixture.source(named: "cancel.epub", contents: "valid")
+        let task = Task<Void, Error> {
+            _ = try await fixture.service.importEPUB(from: source)
+        }
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(try fixture.repository.books().isEmpty)
+        let staging = fixture.support.appendingPathComponent("Books/.staging")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging.path).isEmpty)
+    }
+
+    @Test func postReservationFailureIsImmediatelyRecoverableOrHidden() async throws {
+        enum SimulatedSaveError: Error { case failed }
+        var saveCount = 0
+        let fixture = try Fixture(save: { context in
+            saveCount += 1
+            if saveCount == 2 { throw SimulatedSaveError.failed }
+            try context.save()
+        })
+        defer { fixture.cleanup() }
+        let source = try fixture.source(named: "reserved.epub", contents: "valid")
+
+        await #expect(throws: SimulatedSaveError.self) {
+            _ = try await fixture.service.importEPUB(from: source)
+        }
+
+        let book = try #require(fixture.repository.books().first)
+        #expect(book.importState == .ready || book.importState == .recoveryRequired)
+        #expect((try? fixture.fileStore.finalFile(bookID: book.id, expectedSHA256: book.contentSHA256!)) != nil)
+    }
+
+    @Test func multiImportKeepsTwoSuccessesOneFailureAndOneDuplicateIndependent() async throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let first = try fixture.source(named: "one.epub", contents: "one")
+        let second = try fixture.source(named: "two.epub", contents: "two")
+        let invalid = try fixture.source(named: "bad.txt", contents: "bad")
+        var imported = 0, duplicates = 0, failures = 0
+
+        for url in [first, invalid, second, first] {
+            do {
+                switch try await fixture.service.importEPUB(from: url) {
+                case .imported: imported += 1
+                case .alreadyImported: duplicates += 1
+                }
+            } catch { failures += 1 }
+        }
+
+        #expect(imported == 2)
+        #expect(duplicates == 1)
+        #expect(failures == 1)
+        #expect(try fixture.repository.books().count == 2)
+    }
+
     @MainActor
     private final class Fixture {
         let root: URL, sourceRoot: URL, support: URL

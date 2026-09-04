@@ -119,6 +119,23 @@ struct LibraryViewModelTests {
         #expect(recent.map(\.title).first == "Livre 12")
         #expect(recent.map(\.title).last == "Livre 1")
     }
+
+    @Test func incompleteImportNeverAppearsInLibraryOrCollections() throws {
+        let fixture = try LibraryViewModelFixture()
+        let book = BookRecord(
+            contentSHA256: String(repeating: "a", count: 64),
+            title: "Import incomplet",
+            relativeFilePath: "",
+            importState: .recoveryRequired
+        )
+        try fixture.repository.add(book)
+
+        let model = fixture.makeModel()
+
+        #expect(model.books.isEmpty)
+        #expect(model.visibleBooks.isEmpty)
+        #expect(model.smartCollections.allSatisfy { model.books(in: $0).isEmpty })
+    }
 }
 
 @MainActor
