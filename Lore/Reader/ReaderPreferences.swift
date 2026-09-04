@@ -43,7 +43,7 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
     var fontSize: Double = 1.0
     var typeface: Typeface = .publisher
     var lineHeight: Double?
-    var appearance: Appearance = .light
+    var appearance: Appearance = .dark
     /// Factor applied by Readium to the left and right page gutters.
     var horizontalMargins: Double = 1.0
     /// Top and bottom page padding in `rem`, injected into the current EPUB resource.
@@ -53,7 +53,7 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
         fontSize: Double = 1.0,
         typeface: Typeface = .publisher,
         lineHeight: Double? = nil,
-        appearance: Appearance = .light,
+        appearance: Appearance = .dark,
         horizontalMargins: Double = 1.0,
         verticalMargins: Double = 1.0
     ) {
@@ -75,7 +75,7 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
         fontSize = try values.decodeIfPresent(Double.self, forKey: .fontSize) ?? 1.0
         typeface = try values.decodeIfPresent(Typeface.self, forKey: .typeface) ?? .publisher
         lineHeight = try values.decodeIfPresent(Double.self, forKey: .lineHeight)
-        appearance = try values.decodeIfPresent(Appearance.self, forKey: .appearance) ?? .light
+        appearance = try values.decodeIfPresent(Appearance.self, forKey: .appearance) ?? .dark
         horizontalMargins = try values.decodeIfPresent(Double.self, forKey: .horizontalMargins) ?? 1.0
         verticalMargins = try values.decodeIfPresent(Double.self, forKey: .verticalMargins) ?? 1.0
         normalize()
@@ -86,6 +86,9 @@ struct ReaderPreferences: Codable, Equatable, Sendable {
         lineHeight = lineHeight?.clamped(to: Self.lineHeightRange)
         horizontalMargins = horizontalMargins.clamped(to: Self.horizontalMarginsRange)
         verticalMargins = verticalMargins.clamped(to: Self.verticalMarginsRange)
+        // Le mode sombre est désormais l'identité globale de Lore. Cette
+        // normalisation migre aussi les préférences enregistrées en mode clair.
+        appearance = .dark
     }
 
     mutating func adjustFontSize(by steps: Int) {

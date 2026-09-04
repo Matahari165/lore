@@ -4,6 +4,7 @@ import SwiftUI
 struct ReaderScreen: View {
     let presentation: LibraryViewModel.ReaderPresentation
     let onRequestClose: @MainActor () async -> Void
+    let onReadingProgress: @MainActor () -> Void
 
     @State private var showsControls = false
     @State private var showsQuickPreferences = false
@@ -23,6 +24,7 @@ struct ReaderScreen: View {
     @State private var showsDiscussion = false
     @State private var citationNavigationError: String?
     @State private var readerPresentationState: ReaderPresentationState = .appearing
+    @State private var goalRefreshTask: Task<Void, Never>?
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -30,10 +32,12 @@ struct ReaderScreen: View {
 
     init(
         presentation: LibraryViewModel.ReaderPresentation,
-        onRequestClose: @escaping @MainActor () async -> Void
+        onRequestClose: @escaping @MainActor () async -> Void,
+        onReadingProgress: @escaping @MainActor () -> Void = {}
     ) {
         self.presentation = presentation
         self.onRequestClose = onRequestClose
+        self.onReadingProgress = onReadingProgress
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
         _scrubProgression = State(initialValue: presentation.session.currentProgression)
@@ -63,7 +67,7 @@ struct ReaderScreen: View {
             .offset(presentationOffset(in: geometry))
             .opacity(readerPresentationState.opacity)
         }
-        .preferredColorScheme(preferences.appearance == .dark ? .dark : .light)
+        .preferredColorScheme(.dark)
         .statusBarHidden(!showsControls)
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
         .accessibilityAction(.escape) { closeReader() }
@@ -79,6 +83,7 @@ struct ReaderScreen: View {
             presentation.session.setProgressionHandler {
                 progression = $0
                 if !isScrubbing { scrubProgression = $0 }
+                scheduleGoalRefresh()
             }
             presentation.session.setNavigationHistoryHandler { canGoBackAfterJump = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
@@ -100,6 +105,7 @@ struct ReaderScreen: View {
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
             previewTask?.cancel()
+            goalRefreshTask?.cancel()
         }
         .onAppear(perform: animateReaderEntrance)
         .sheet(item: $presentedPanel) { panel in
@@ -264,7 +270,7 @@ struct ReaderScreen: View {
                     onEditingChanged: scrubberEditingChanged
                 )
                 .frame(minHeight: 44)
-                .tint(preferences.appearance == .dark ? .white : LoreTheme.ink)
+                .tint(.white)
                 .accessibilityLabel("Position dans le livre")
                 .accessibilityValue(Text(scrubProgression, format: .percent.precision(.fractionLength(0))))
                 .accessibilityHint("Ajustez puis relâchez pour aller à cette position")
@@ -363,9 +369,18 @@ struct ReaderScreen: View {
         // the whole Readium surface in one transform avoids rebuilding its
         // WebView during the transition.
         DispatchQueue.main.async {
-            withAnimation(.spring(duration: 0.38, bounce: 0.06)) {
+            withAnimation(.smooth(duration: 0.42)) {
                 readerPresentationState = .visible
             }
+        }
+    }
+
+    private func scheduleGoalRefresh() {
+        goalRefreshTask?.cancel()
+        goalRefreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            onReadingProgress()
         }
     }
 
@@ -411,18 +426,18 @@ struct ReaderScreen: View {
             return
         }
 
-        withAnimation(.easeIn(duration: 0.22)) {
+        withAnimation(.smooth(duration: 0.30)) {
             readerPresentationState = .closing
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(220))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await onRequestClose()
 
             // If closing failed (for example, a pending Locator could not be
             // saved), keep the reader usable instead of leaving it invisible.
             if readerPresentationState == .closing {
-                withAnimation(.spring(duration: 0.32, bounce: 0.05)) {
+                withAnimation(.smooth(duration: 0.30)) {
                     readerPresentationState = .visible
                 }
             }
@@ -441,7 +456,7 @@ struct ReaderScreen: View {
 
         var opacity: Double {
             switch self {
-            case .appearing: 0.35
+            case .appearing: 0.72
             case .closing: 0
             case .visible: 1
             }
@@ -453,10 +468,12 @@ struct ReaderScreen: View {
         guard readerPresentationState != .visible, let source = presentation.sourceFrame else {
             return CGSize(width: 1, height: 1)
         }
-        return CGSize(
-            width: max(0.08, source.width / max(geometry.size.width, 1)),
-            height: max(0.08, source.height / max(geometry.size.height, 1))
-        )
+        // Une réduction uniforme évite l'écrasement de la page tout en gardant
+        // une continuité spatiale nette avec la pochette touchée.
+        let widthRatio = source.width / max(geometry.size.width, 1)
+        let heightRatio = source.height / max(geometry.size.height, 1)
+        let scale = max(0.18, min(0.72, sqrt(widthRatio * heightRatio)))
+        return CGSize(width: scale, height: scale)
     }
 
     private func presentationOffset(in geometry: GeometryProxy) -> CGSize {
@@ -464,11 +481,14 @@ struct ReaderScreen: View {
             return CGSize(width: 0, height: readerPresentationState == .visible ? 0 : 44)
         }
         let container = geometry.frame(in: .global)
-        return CGSize(width: source.midX - container.midX, height: source.midY - container.midY)
+        return CGSize(
+            width: source.midX - container.midX,
+            height: source.midY - container.midY
+        )
     }
 
     private var readerBackground: Color {
-        preferences.appearance == .dark ? .black : Color(uiColor: .systemBackground)
+        .black
     }
 }
 
@@ -737,10 +757,6 @@ private struct ReaderQuickPreferences: View {
                     commit()
                 }
                 Divider().frame(height: 20)
-                preferenceButton("Thème clair", systemImage: "sun.max", selected: preferences.appearance == .light) {
-                    preferences.appearance = .light
-                    commit()
-                }
                 preferenceButton("Thème sombre", systemImage: "moon", selected: preferences.appearance == .dark) {
                     preferences.appearance = .dark
                     commit()
@@ -837,13 +853,8 @@ private struct ReaderPreferencesPage: View {
                 }
 
                 Section("Thème") {
-                    Picker("Thème de lecture", selection: $preferences.appearance) {
-                        ForEach(ReaderPreferences.Appearance.allCases, id: \.self) { appearance in
-                            Text(appearance.label).tag(appearance)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: preferences.appearance) { _, _ in commit() }
+                    Label("Mode sombre permanent", systemImage: "moon.fill")
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {

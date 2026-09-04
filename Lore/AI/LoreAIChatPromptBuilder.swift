@@ -186,7 +186,7 @@ struct LoreAIChatPromptBuilder: Sendable {
         Réponds en français clair et agréable. N’invente ni intrigue, ni citation, ni fait. Lorsque le contexte ne suffit pas, dis-le explicitement.
         Retourne une réponse structurée avec le texte Markdown dans `answer` et les identifiants des seuls extraits réellement utilisés dans `source_ids`. N’utilise jamais un identifiant absent des champs `source_id` de `excerpts`. Si aucun extrait ne fonde la réponse, retourne une liste vide.
         \(stageInstruction)
-        Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
+        Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Idée essentielle : ». Aucun texte hors puces.
         \(summaryInstruction)
         """
     }

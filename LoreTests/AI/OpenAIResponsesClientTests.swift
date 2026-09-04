@@ -5,6 +5,28 @@ import Testing
 
 @Suite(.serialized)
 struct OpenAIResponsesClientTests {
+    @Test func formatterAlwaysProducesSeparatedMarkdownBullets() {
+        let formatted = LoreAIResponseFormatter.bulleted("Première phrase. Deuxième phrase.")
+
+        #expect(formatted == "- Première phrase.\n\n- Deuxième phrase.")
+    }
+
+    @Test func formatterNormalizesExistingMarkers() {
+        let formatted = LoreAIResponseFormatter.bulleted("• Simple\n2. Clair\n- Court")
+
+        #expect(formatted == "- Simple\n\n- Clair\n\n- Court")
+    }
+
+    @Test func formatterLimitsCountAndSentenceLength() {
+        let long = (1...8).map { index in
+            "\(index). " + Array(repeating: "mot", count: 30).joined(separator: " ")
+        }.joined(separator: "\n")
+
+        let bullets = LoreAIResponseFormatter.bulleted(long).components(separatedBy: "\n\n")
+        #expect(bullets.count == 6)
+        #expect(bullets.allSatisfy { $0.split(whereSeparator: \Character.isWhitespace).count <= 26 })
+    }
+
     @Test func refusesRequestWithoutKey() async {
         let client = makeClient(key: nil) { _ in
             Issue.record("Aucune requête ne doit partir sans clé")
@@ -31,7 +53,7 @@ struct OpenAIResponsesClientTests {
             return Self.response(status: 200, body: #"{"output":[{"type":"message","content":[{"type":"output_text","text":"Une explication simple."}]}]}"#)
         }
 
-        #expect(try await client.explain(sampleContext) == "Une explication simple.")
+        #expect(try await client.explain(sampleContext) == "- Une explication simple.")
     }
 
     @Test func parsesTopLevelOutputTextFallback() async throws {
@@ -40,7 +62,7 @@ struct OpenAIResponsesClientTests {
         }
 
         let result = try await client.recap(.init(title: "Livre", excerpt: "Contenu lu hier"))
-        #expect(result == "Résumé de la veille.")
+        #expect(result == "- Résumé de la veille.")
     }
 
     @Test func exposesAPIErrorsWithoutLeakingRequestContent() async {
@@ -104,7 +126,7 @@ struct OpenAIResponsesClientTests {
             excerpts: [.init(text: "Texte", progression: 0.4, source: source)],
             question: "Pourquoi ?"
         ))
-        #expect(response.text == "Réponse.")
+        #expect(response.text == "- Réponse.")
         #expect(response.sources == [source])
     }
 

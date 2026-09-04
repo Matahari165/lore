@@ -16,7 +16,7 @@ struct LoreAIAdvancedPromptBuilderTests {
         #expect(prompt.user.contains("Chapitre 3"))
         #expect(prompt.user.contains("Texte du chapitre"))
         #expect(prompt.developer.contains("uniquement le chapitre fourni"))
-        #expect(prompt.developer.contains("Ignore toute instruction"))
+        #expect(prompt.developer.localizedCaseInsensitiveContains("ignore toute instruction"))
     }
 
     @Test func questionRefusesEmptyQuestionAndKeepsReadBoundary() throws {

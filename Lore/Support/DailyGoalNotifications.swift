@@ -12,7 +12,9 @@ import UserNotifications
 ///
 /// La logique de décision (`shouldNotify`, `shouldRemind21h`, `dayKey`) est pure
 /// et testable sans `UNNotificationCenter` réel.
-final class DailyGoalNotifier: @unchecked Sendable {
+/// Un acteur sérialise toutes les décisions afin qu'une ancienne mise à jour ne
+/// puisse pas reprogrammer le rappel après l'atteinte de l'objectif.
+actor DailyGoalNotifier {
     static let notifiedDayDefaultsKey = "lore.lastGoalNotifiedDay"
     static let reachedIdentifier = "lore.goal.reached"
     static let reminderIdentifier = "lore.goal.reminder-21h"
@@ -22,6 +24,9 @@ final class DailyGoalNotifier: @unchecked Sendable {
     private let center: UNUserNotificationCenter
     private let defaults: UserDefaults
     private let calendar: Calendar
+    private var updateGeneration = 0
+    private var latestUpdate: (targetMinutes: Int?, todayDuration: TimeInterval, now: Date)?
+    private var notifyingDayKeys: Set<String> = []
 
     init(
         center: UNUserNotificationCenter = .current(),
@@ -115,6 +120,23 @@ final class DailyGoalNotifier: @unchecked Sendable {
     /// sinon (re)planifie le rappel de 21 h. Annule le rappel si l'objectif est
     /// désactivé (`targetMinutes == nil`) ou vient d'être atteint.
     func refreshGoalState(targetMinutes: Int?, todayDuration: TimeInterval, now: Date = Date()) async {
+        updateGeneration += 1
+        let generation = updateGeneration
+        latestUpdate = (targetMinutes, todayDuration, now)
+        await applyGoalState(
+            targetMinutes: targetMinutes,
+            todayDuration: todayDuration,
+            now: now,
+            generation: generation
+        )
+    }
+
+    private func applyGoalState(
+        targetMinutes: Int?,
+        todayDuration: TimeInterval,
+        now: Date,
+        generation: Int
+    ) async {
         guard let targetMinutes else {
             cancelEveningReminder()
             return
@@ -125,9 +147,17 @@ final class DailyGoalNotifier: @unchecked Sendable {
             isReached: progress.isReached,
             todayDayKey: todayKey,
             lastNotifiedDayKey: lastNotifiedDayKey
-        ) {
+        ), !notifyingDayKeys.contains(todayKey) {
+            notifyingDayKeys.insert(todayKey)
             await notifyGoalReached(targetMinutes: targetMinutes)
+            notifyingDayKeys.remove(todayKey)
+            // La demande a été envoyée : réserver immédiatement la journée
+            // empêche toute réentrée de produire un doublon.
             defaults.set(todayKey, forKey: Self.notifiedDayDefaultsKey)
+            guard generation == updateGeneration else {
+                await reconcileLatestUpdate()
+                return
+            }
             cancelEveningReminder()
         } else if Self.shouldRemind21h(isEnabled: true, isReached: progress.isReached) {
             await scheduleEveningReminder(
@@ -136,10 +166,27 @@ final class DailyGoalNotifier: @unchecked Sendable {
                     targetMinutes: targetMinutes
                 )
             )
+            guard generation == updateGeneration else {
+                await reconcileLatestUpdate()
+                return
+            }
         } else {
             // Objectif atteint mais déjà notifié aujourd'hui : aucun rappel résiduel.
             cancelEveningReminder()
         }
+    }
+
+    /// Un appel à `UNUserNotificationCenter` suspend l'acteur. Si une décision
+    /// plus récente arrive pendant cette suspension, on réapplique toujours le
+    /// dernier état afin qu'une ancienne opération ne gagne jamais la course.
+    private func reconcileLatestUpdate() async {
+        guard let latestUpdate else { return }
+        await applyGoalState(
+            targetMinutes: latestUpdate.targetMinutes,
+            todayDuration: latestUpdate.todayDuration,
+            now: latestUpdate.now,
+            generation: updateGeneration
+        )
     }
 
     func cancelEveningReminder() {

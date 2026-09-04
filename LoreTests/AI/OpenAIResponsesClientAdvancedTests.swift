@@ -5,7 +5,7 @@ import Testing
 struct OpenAIResponsesClientAdvancedTests {
     @Test func advancedRequestsUseTheSamePrivateModelContract() async throws {
         AdvancedMockURLProtocol.handler = { request in
-            let body = try #require(request.httpBody)
+            let body = try Self.requestBody(of: request)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(json["model"] as? String == "gpt-5.6-luna")
             #expect(json["store"] as? Bool == false)
@@ -23,9 +23,25 @@ struct OpenAIResponsesClientAdvancedTests {
             configuration: .init(endpoint: URL(string: "https://example.test/v1/responses")!)
         )
 
-        #expect(try await client.summarizeChapter(.init(title: "Livre", chapterText: "Chapitre lu")) == "Réponse bornée au contexte.")
-        #expect(try await client.answerQuestion(.init(title: "Livre", readText: "Texte lu", question: "Que signifie ce passage ?")) == "Réponse bornée au contexte.")
-        #expect(try await client.discussEnding(.init(title: "Livre", readText: "Texte lu")) == "Réponse bornée au contexte.")
+        #expect(try await client.summarizeChapter(.init(title: "Livre", chapterText: "Chapitre lu")) == "- Réponse bornée au contexte.")
+        #expect(try await client.answerQuestion(.init(title: "Livre", readText: "Texte lu", question: "Que signifie ce passage ?")) == "- Réponse bornée au contexte.")
+        #expect(try await client.discussEnding(.init(title: "Livre", readText: "Texte lu")) == "- Réponse bornée au contexte.")
+    }
+
+    private static func requestBody(of request: URLRequest) throws -> Data {
+        if let body = request.httpBody { return body }
+        let stream = try #require(request.httpBodyStream)
+        stream.open()
+        defer { stream.close() }
+        var result = Data()
+        var buffer = [UInt8](repeating: 0, count: 4_096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count >= 0 else { throw stream.streamError ?? URLError(.cannotDecodeContentData) }
+            if count == 0 { break }
+            result.append(buffer, count: count)
+        }
+        return result
     }
 }
 

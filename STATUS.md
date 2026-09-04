@@ -89,6 +89,11 @@ Dernière mise à jour : 4 septembre 2026
 - Un livre peut être retiré de Reprendre sans perdre sa progression. L’ouverture ne redécode plus la couverture et utilise une animation de page qui grandit depuis le bas, avec respect de Réduire les animations.
 - La section sous Hier est désormais limitée aux trois derniers livres réellement terminés. Les barres d’objectif et de lecture sont épaissies ; la progression du lecteur devient blanche en thème sombre.
 - L’animation d’ouverture et de fermeture prend la position globale de la pochette touchée comme origine, puis agrandit la surface Readium jusqu’au plein écran.
+- Lore est maintenant sombre sur tous les écrans et dans le contenu EPUB ; une ancienne préférence claire est migrée automatiquement.
+- La transition du lecteur ne déforme plus la page : elle utilise une réduction uniforme, un déplacement court vers la pochette et une animation douce sans rebond, désactivée avec Réduire les animations.
+- Les sorties IA passent par une dernière normalisation locale en puces courtes séparées par des retours à la ligne.
+- Les longues lectures de la veille sont résumées par morceaux couvrant tout l’intervalle first…last et tous les livres lus, puis réunies en une synthèse finale.
+- La progression visible dans le lecteur rafraîchit aussi l’objectif quotidien afin de déclencher la notification sans attendre la fermeture. Un résumé échoué est retenté lors de la prochaine activation de l’app.
 - Un quatrième onglet Podcasts est ajouté : import local de MP4, lecture audio/vidéo avec `AVPlayer`, détection des doublons par SHA-256 et sauvegarde de la position en secondes pour reprendre plus tard.
 - Le son du lecteur podcast est corrigé : session audio `.playback` (audible même en mode silencieux), volume/`isMuted` imposés, diagnostic de piste audio manquante, pause et sauvegarde sur interruption (appel/Siri). Compilation réussie sur simulateur iPhone 13 ; écoute réelle sur appareil restant à faire.
 - Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
@@ -107,6 +112,7 @@ Dernière mise à jour : 4 septembre 2026
 ## En cours
 
 - Vérification réelle du nouveau lecteur Liquid Glass, des réglages rapides et de l’import multiple dans le simulateur puis sur l’iPhone 13.
+- Vérification visuelle du mode sombre global et de la transition douce du lecteur sur iPhone `390 × 844`, avec et sans Réduire les animations.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
 - Vérification réelle sur l’iPhone et avec VoiceOver des boutons « Passages cités » et du retour au passage depuis les trois points d’entrée.
 - Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.

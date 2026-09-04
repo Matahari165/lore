@@ -566,6 +566,7 @@ final class LibraryViewModel {
             return
         }
 
+        if case .loading = yesterdayReadingSummaryState { return }
         if !force {
             switch yesterdayReadingSummaryState {
             case .loading, .available, .missingAPIKey, .failed:
@@ -595,12 +596,13 @@ final class LibraryViewModel {
 
         do {
             let store = UserDefaultsReadingRecapStateStore()
-            let extractor = ReadiumReadingRecapContextExtractor(maximumCharacters: 7_000)
+            // L'extraction conserve tout l'intervalle first…last. Les grands
+            // intervalles sont ensuite résumés par morceaux afin qu'aucune page
+            // intermédiaire ne soit silencieusement supprimée.
+            let extractor = ReadiumReadingRecapContextExtractor(maximumCharacters: .max)
             var contexts: [ReaderAIReadingRecapContext] = []
 
-            // A single recap request combines at most the three books actually
-            // read yesterday. This keeps the context, latency and energy bounded.
-            for book in activity.books.prefix(3) {
+            for book in activity.books {
                 try Task.checkCancellation()
                 guard let checkpoint = try store.checkpoint(
                     for: book.id,
@@ -638,16 +640,25 @@ final class LibraryViewModel {
                 return
             }
 
-            let combinedExcerpt = contexts.map { context in
-                "LIVRE : \(context.title)\n\(context.excerpt)"
-            }.joined(separator: "\n\n")
-            let answer = try await aiService.recap(PreviousReadingContext(
+            var partialRecaps: [String] = []
+            for context in contexts {
+                for chunk in Self.recapChunks(context.excerpt) {
+                    try Task.checkCancellation()
+                    partialRecaps.append(try await aiService.recap(PreviousReadingContext(
+                        title: context.title,
+                        author: context.author,
+                        chapterTitles: context.chapterTitles,
+                        excerpt: chunk,
+                        lastReadPositionDescription: context.lastReadPositionDescription
+                    )))
+                }
+            }
+            let answer = try await synthesizeRecaps(
+                partialRecaps,
                 title: contexts.map(\.title).joined(separator: " · "),
-                author: nil,
                 chapterTitles: contexts.flatMap(\.chapterTitles),
-                excerpt: combinedExcerpt,
                 lastReadPositionDescription: contexts.last?.lastReadPositionDescription
-            ))
+            )
             let conciseAnswer = Self.conciseRecap(answer)
 
             try? yesterdayRecapCache.save(
@@ -888,9 +899,67 @@ final class LibraryViewModel {
         }
         var output = shortBullets.joined(separator: "\n")
         if let resumeLine, !shortBullets.contains(resumeLine) {
-            output += "\n\n" + String(resumeLine.prefix(260))
+            let normalizedResume = resumeLine.hasPrefix("-") ? resumeLine : "- \(resumeLine)"
+            output += "\n\n" + String(normalizedResume.prefix(260))
         }
-        return output.isEmpty ? String(source.prefix(900)) : output
+        return LoreAIResponseFormatter.bulleted(output.isEmpty ? String(source.prefix(900)) : output)
+    }
+
+    private static func recapChunks(_ source: String, maximumCharacters: Int = 15_000) -> [String] {
+        guard maximumCharacters > 0 else { return [] }
+        var chunks: [String] = []
+        var start = source.startIndex
+        while start < source.endIndex {
+            let end = source.index(start, offsetBy: maximumCharacters, limitedBy: source.endIndex)
+                ?? source.endIndex
+            chunks.append(String(source[start..<end]))
+            start = end
+        }
+        return chunks.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    private func synthesizeRecaps(
+        _ initial: [String],
+        title: String,
+        chapterTitles: [String],
+        lastReadPositionDescription: String?
+    ) async throws -> String {
+        guard !initial.isEmpty else { throw LoreAIError.emptyContext }
+        var level = initial
+        while level.count > 1 {
+            var groups: [[String]] = []
+            var current: [String] = []
+            var currentLength = 0
+            for recap in level {
+                if !current.isEmpty, currentLength + recap.count > 12_000 {
+                    groups.append(current)
+                    current = []
+                    currentLength = 0
+                }
+                current.append(recap)
+                currentLength += recap.count
+            }
+            if !current.isEmpty { groups.append(current) }
+
+            var next: [String] = []
+            for group in groups {
+                try Task.checkCancellation()
+                if group.count == 1 {
+                    next.append(group[0])
+                } else {
+                    next.append(try await aiService.recap(PreviousReadingContext(
+                        title: title,
+                        author: nil,
+                        chapterTitles: chapterTitles,
+                        excerpt: group.joined(separator: "\n\n"),
+                        lastReadPositionDescription: lastReadPositionDescription
+                    )))
+                }
+            }
+            guard next.count < level.count else { return next.joined(separator: "\n\n") }
+            level = next
+        }
+        return level[0]
     }
 }
 

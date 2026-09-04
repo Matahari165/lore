@@ -5,19 +5,23 @@ import Testing
 
 struct LoreAIChatPromptBuilderTests {
     @Test func summaryRequestsShortMarkdownAndDropsPotentiallyLaterHistory() throws {
+        let bookID = UUID()
+        let source = try makeSource(bookID: bookID, text: "Texte effectivement lu", progression: 0.4)
         let prompt = try LoreAIChatPromptBuilder().chat(for: LoreAIChatContext(
+            bookID: bookID,
             title: "Livre",
             stage: .inProgress,
             chapterTitle: "Chapitre 2",
             readFrontierProgression: 0.4,
-            excerpts: [.init(text: "Texte effectivement lu", progression: 0.4)],
+            excerpts: [.init(text: "Texte effectivement lu", progression: 0.4, source: source)],
             summaryScope: .currentChapter,
             history: [.init(role: .assistant, text: "Information d'un ancien tour")],
             question: "Résume ce chapitre"
         ))
 
         #expect(prompt.developer.contains("résumé court"))
-        #expect(prompt.developer.contains("5 à 6 puces"))
+        #expect(prompt.developer.contains("Maximum 6 puces"))
+        #expect(prompt.developer.contains("La dernière puce commence par « Idée essentielle : »"))
         #expect(prompt.history.isEmpty)
         #expect(!prompt.user.contains("Information d'un ancien tour"))
     }
@@ -31,7 +35,7 @@ struct LoreAIChatPromptBuilderTests {
             question: "Résume hier"
         ))
 
-        #expect(prompt.user.contains("Aucun extrait"))
+        #expect(prompt.user.contains(#""excerpts":[]"#))
         #expect(prompt.developer.contains("contexte local est insuffisant"))
     }
 

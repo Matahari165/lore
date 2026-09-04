@@ -6,6 +6,19 @@ import Testing
 
 @MainActor
 struct ReaderPreferencesTests {
+    @Test func defaultsToPermanentDarkAppearance() {
+        #expect(ReaderPreferences.default.appearance == .dark)
+        #expect(ReaderPreferences.default.readiumValue.theme == .dark)
+    }
+
+    @Test func normalizingMigratesAStoredLightAppearanceToDark() throws {
+        let data = Data(#"{"fontSize":1,"typeface":"publisher","appearance":"light"}"#.utf8)
+        let decoded = try JSONDecoder().decode(ReaderPreferences.self, from: data)
+
+        #expect(decoded.appearance == .dark)
+        #expect(decoded.readiumValue.theme == .dark)
+    }
+
     @Test func defaultsAreSafeWhenStorageIsMissingOrCorrupt() {
         let fixture = DefaultsFixture()
         #expect(fixture.store.load() == .default)

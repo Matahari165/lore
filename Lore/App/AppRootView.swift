@@ -104,6 +104,8 @@ struct AppRootView: View {
                     if libraryModel.readerPresentation == nil {
                         reloadDailyGoal()
                     }
+                } onReadingProgress: {
+                    reloadDailyGoal()
                 }
                 .zIndex(1)
             }
@@ -111,6 +113,7 @@ struct AppRootView: View {
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             reloadDailyGoal()
+            await libraryModel.loadYesterdayAIRecapIfNeeded(force: true)
         }
         .onChange(of: selectedTab) { _, _ in reloadDailyGoal() }
         .onOpenURL { url in
@@ -203,7 +206,7 @@ struct AppRootView: View {
                 }
             }
         case .disabled, .failed:
-            Task { await goalNotifier.cancelEveningReminder() }
+            Task { await goalNotifier.refreshGoalState(targetMinutes: nil, todayDuration: 0) }
         }
     }
 
@@ -219,7 +222,7 @@ struct AppRootView: View {
                 todayDuration: progress.readSeconds
             )
         case .disabled, .failed:
-            await goalNotifier.cancelEveningReminder()
+            await goalNotifier.refreshGoalState(targetMinutes: nil, todayDuration: 0)
         }
     }
 

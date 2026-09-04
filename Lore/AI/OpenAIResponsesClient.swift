@@ -54,7 +54,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         } catch {
             throw LoreAIError.invalidResponse
         }
-        let answer = payload.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let answer = LoreAIResponseFormatter.bulleted(payload.answer)
         guard !answer.isEmpty else { throw LoreAIError.invalidResponse }
 
         var allowed: [String: LoreAIChatSource] = [:]
@@ -93,7 +93,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         let data = try await respondData(to: prompt, structuredChat: false)
         guard let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else { throw LoreAIError.invalidResponse }
-        return text
+        return LoreAIResponseFormatter.bulleted(text)
     }
 
     private func respondData(to prompt: LoreAIPrompt, structuredChat: Bool) async throws -> Data {
@@ -143,6 +143,52 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
         } catch {
             throw LoreAIError.transport(error.localizedDescription)
         }
+    }
+}
+
+/// Dernière barrière de lisibilité : même si le modèle s'écarte du prompt,
+/// l'interface reçoit toujours des puces courtes séparées par des retours à la ligne.
+enum LoreAIResponseFormatter {
+    static func bulleted(_ source: String) -> String {
+        let cleaned = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return "" }
+
+        let lines = cleaned
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var result: [String] = []
+        for line in lines {
+            let withoutMarker = line.replacingOccurrences(
+                of: #"^(?:[-*•]\s*|\d+[.)]\s*)"#,
+                with: "",
+                options: .regularExpression
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !withoutMarker.isEmpty else { continue }
+            result.append("- \(shortened(withoutMarker))")
+        }
+
+        if result.count == 1, !cleaned.contains("\n") {
+            var sentences: [String] = []
+            let prose = result[0].dropFirst(2).trimmingCharacters(in: .whitespaces)
+            prose.enumerateSubstrings(
+                in: prose.startIndex..<prose.endIndex,
+                options: [.bySentences, .substringNotRequired]
+            ) { _, range, _, _ in
+                let sentence = prose[range].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !sentence.isEmpty { sentences.append("- \(shortened(sentence))") }
+            }
+            if sentences.count > 1 { result = sentences }
+        }
+
+        return result.prefix(6).joined(separator: "\n\n")
+    }
+
+    private static func shortened(_ source: String, maximumWords: Int = 25) -> String {
+        let words = source.split(whereSeparator: \Character.isWhitespace)
+        guard words.count > maximumWords else { return source }
+        return words.prefix(maximumWords).joined(separator: " ") + "…"
     }
 }
 

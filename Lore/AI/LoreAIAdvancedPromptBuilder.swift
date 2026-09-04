@@ -21,7 +21,7 @@ struct LoreAIAdvancedPromptBuilder: Sendable {
             developer: Self.safetyInstructions + """
 
             Résume uniquement le chapitre fourni, en français simple. Ne révèle rien qui n'est pas dans le texte fourni et signale clairement si le contexte est insuffisant.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Idée essentielle : ». Aucun texte hors puces.
             """,
             user: """
             LIVRE
@@ -43,7 +43,7 @@ struct LoreAIAdvancedPromptBuilder: Sendable {
             developer: Self.safetyInstructions + """
 
             Réponds à la question en français simple, uniquement à partir du contexte de lecture fourni. Si la réponse nécessite un passage non fourni ou situé après la dernière position lue, dis que tu ne peux pas le confirmer au lieu d'inventer ou de divulguer un spoiler.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Idée essentielle : ». Aucun texte hors puces.
             """,
             user: """
             LIVRE
@@ -69,7 +69,7 @@ struct LoreAIAdvancedPromptBuilder: Sendable {
             developer: Self.safetyInstructions + """
 
             Prépare une discussion de fin de lecture à partir du contexte fourni. Ne présente pas d'interprétation comme un fait, n'invente rien et ne révèle rien au-delà de la dernière position fournie.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 5 à 6 puces (trois observations puis deux questions ouvertes), une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. Termine par une ligne séparée « Idée essentielle : ... ». Aucun texte hors puces et cette dernière ligne.
+            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces (trois observations puis deux questions ouvertes), une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Idée essentielle : ». Aucun texte hors puces.
             """,
             user: """
             LIVRE
