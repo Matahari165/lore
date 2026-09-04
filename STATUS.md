@@ -4,6 +4,7 @@ Dernière mise à jour : 4 septembre 2026
 
 ## Terminé
 
+- Un mode Lecture interne facultatif peut rendre silencieuses les notifications propres à Lore pendant l’ouverture du lecteur. Les réglages expliquent séparément comment associer Lore à un mode Concentration iOS, sans prétendre que l’app contrôle Ne pas déranger.
 - La récupération des imports Podcast interrompus est retentée à chaque lancement, y compris après un premier échec. Les fichiers temporaires et finaux encore rattachés à une récupération sont protégés du nettoyage automatique. Les tests de régression sont ajoutés et le diff est valide ; leur compilation et leur exécution restent à confirmer, Xcode étant resté bloqué pendant cette vérification.
 - Format IA en puces imposé aux 6 prompts (explication, résumé veille, chat 3 stades, résumé chapitre, réponse question, discussion fin) : 5-6 puces max, phrases courtes, termes techniques expliqués simplement, ligne finale Idée essentielle / Où reprendre. `conciseRecap` aligné à 6 puces. Prompts seuls modifiés, envois inchangés.
 - Notifications objectif quotidien : bannière unique par jour local à l'atteinte + rappel 21 h replanifié tant que non atteint, textes avec durées uniquement, autorisation demandée une fois, délégué avant-plan. Build + 6 tests `DailyGoalNotificationTests` verts sur `Lore iPhone 13`.
