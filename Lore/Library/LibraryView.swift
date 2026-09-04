@@ -19,6 +19,8 @@ struct LibraryView: View {
     @State private var selectedHighlights: [ReaderHighlight] = []
     @State private var discussionDraft: String?
     @State private var pendingHighlightDiscussion: PendingHighlightDiscussion?
+    @State private var presentsCollections = false
+    @State private var detailsBook: BookRecord?
 
     init(
         mode: Mode = .library,
@@ -96,6 +98,16 @@ struct LibraryView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $presentsCollections) {
+            CollectionsView(model: model)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $detailsBook) { book in
+            BookDetailsView(book: book, model: model)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [UTType(filenameExtension: "epub") ?? .data], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
         }
@@ -117,6 +129,13 @@ struct LibraryView: View {
                     .labelStyle(.iconOnly)
                     .frame(width: 44, height: 44)
                     .accessibilityHint("Configurer l’objectif quotidien")
+            }
+
+            if mode == .library {
+                Button("Collections", systemImage: "books.vertical") { presentsCollections = true }
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .accessibilityHint("Afficher les collections manuelles et intelligentes")
             }
 
             Button("Importer des EPUB", systemImage: "plus") { presentsImporter = true }
@@ -388,6 +407,20 @@ struct LibraryView: View {
 
     @ViewBuilder
     private func bookContextMenu(for book: BookRecord) -> some View {
+        Button("Fiche du livre", systemImage: "info.circle") { detailsBook = book }
+
+        if !model.manualCollections.isEmpty {
+            Menu("Collections", systemImage: "books.vertical") {
+                ForEach(model.manualCollections) { collection in
+                    Button {
+                        model.toggleMembership(of: book, in: collection)
+                    } label: {
+                        Label(collection.name, systemImage: model.isMember(book, of: collection) ? "checkmark.circle.fill" : "circle")
+                    }
+                }
+            }
+        }
+
         if book.readingStatus == .inProgress {
             Button("Retirer de Reprendre", systemImage: "rectangle.badge.minus") {
                 model.setHiddenFromResume(true, for: book)

@@ -17,7 +17,9 @@ struct LoreApp: App {
                 VocabularyRecord.self,
                 AIConversationRecord.self,
                 AIMessageRecord.self,
-                PodcastRecord.self
+                PodcastRecord.self,
+                ManualCollectionRecord.self,
+                CollectionMembershipRecord.self
             )
             fileStore = try BookFileStore()
             podcastFileStore = try PodcastFileStore()

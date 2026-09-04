@@ -61,7 +61,10 @@ struct BookRepositoryTests {
     @Test func failedInsertIsRemovedFromTheContext() throws {
         enum Expected: Error { case save }
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: BookRecord.self, configurations: configuration)
+        let container = try ModelContainer(
+            for: BookRecord.self, ManualCollectionRecord.self, CollectionMembershipRecord.self,
+            configurations: configuration
+        )
         let repository = BookRepository(context: container.mainContext) { _ in throw Expected.save }
         let book = BookRecord(title: "Unsaved", relativeFilePath: "")
 
@@ -129,6 +132,82 @@ struct BookRepositoryTests {
         #expect(book.readingStatus == .inProgress)
     }
 
+    @Test func manualMembershipIsUniqueAndDoesNotDuplicateTheBook() throws {
+        let fixture = try makeRepository()
+        let book = BookRecord(title: "Unique", relativeFilePath: "book.epub")
+        try fixture.repository.add(book)
+        let collection = try fixture.repository.createCollection(named: "Essais")
+
+        try fixture.repository.setMembership(true, bookID: book.id, collectionID: collection.id)
+        try fixture.repository.setMembership(true, bookID: book.id, collectionID: collection.id)
+
+        #expect(try fixture.repository.books().count == 1)
+        #expect(try fixture.repository.collectionMemberships().count == 1)
+        #expect(try fixture.repository.collectionMemberships().first?.bookID == book.id)
+
+        try fixture.repository.setMembership(false, bookID: book.id, collectionID: collection.id)
+        try fixture.repository.setMembership(false, bookID: book.id, collectionID: collection.id)
+        #expect(try fixture.repository.collectionMemberships().isEmpty)
+    }
+
+    @Test func membershipRejectsMissingBookOrCollection() throws {
+        let fixture = try makeRepository()
+        let book = BookRecord(title: "Présent", relativeFilePath: "book.epub")
+        try fixture.repository.add(book)
+        let collection = try fixture.repository.createCollection(named: "Présente")
+
+        #expect(throws: BookRepositoryError.bookNotFound) {
+            try fixture.repository.setMembership(true, bookID: UUID(), collectionID: collection.id)
+        }
+        #expect(throws: BookRepositoryError.collectionNotFound) {
+            try fixture.repository.setMembership(true, bookID: book.id, collectionID: UUID())
+        }
+        #expect(try fixture.repository.collectionMemberships().isEmpty)
+    }
+
+    @Test func deletingCollectionOrBookOnlyCleansMemberships() throws {
+        let fixture = try makeRepository()
+        let first = BookRecord(title: "First", relativeFilePath: "Books/first/book.epub")
+        let second = BookRecord(title: "Second", relativeFilePath: "Books/second/book.epub")
+        try fixture.repository.add(first)
+        try fixture.repository.add(second)
+        let collection = try fixture.repository.createCollection(named: "À garder")
+        try fixture.repository.setMembership(true, bookID: first.id, collectionID: collection.id)
+        try fixture.repository.setMembership(true, bookID: second.id, collectionID: collection.id)
+
+        try fixture.repository.delete(first)
+        #expect(try fixture.repository.books().map(\.id) == [second.id])
+        #expect(try fixture.repository.collectionMemberships().map(\.bookID) == [second.id])
+
+        try fixture.repository.deleteCollection(collection)
+        #expect(try fixture.repository.books().map(\.id) == [second.id])
+        #expect(try fixture.repository.collectionMemberships().isEmpty)
+    }
+
+    @Test func additiveCollectionSchemaReopensAnExistingPersistentStore() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Lore-CollectionMigration-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let storeURL = directory.appendingPathComponent("Lore.store")
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        do {
+            let oldConfiguration = ModelConfiguration(url: storeURL)
+            let oldContainer = try ModelContainer(for: BookRecord.self, configurations: oldConfiguration)
+            oldContainer.mainContext.insert(BookRecord(title: "Avant migration", relativeFilePath: "book.epub"))
+            try oldContainer.mainContext.save()
+        }
+
+        let migratedConfiguration = ModelConfiguration(url: storeURL)
+        let migrated = try ModelContainer(
+            for: BookRecord.self, ManualCollectionRecord.self, CollectionMembershipRecord.self,
+            configurations: migratedConfiguration
+        )
+        let repository = BookRepository(context: migrated.mainContext)
+        #expect(try repository.books().map(\.title) == ["Avant migration"])
+        #expect(try repository.collections().isEmpty)
+    }
+
     private func makeRepository() throws -> RepositoryFixture {
         try RepositoryFixture()
     }
@@ -141,7 +220,10 @@ private final class RepositoryFixture {
 
     init() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        container = try ModelContainer(for: BookRecord.self, configurations: configuration)
+        container = try ModelContainer(
+            for: BookRecord.self, ManualCollectionRecord.self, CollectionMembershipRecord.self,
+            configurations: configuration
+        )
         repository = BookRepository(context: container.mainContext)
     }
 }

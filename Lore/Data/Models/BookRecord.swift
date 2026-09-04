@@ -98,3 +98,39 @@ enum BookImportState: String, Codable, Sendable {
     case ready
     case recoveryRequired
 }
+
+/// A user-defined shelf. Books remain owned by `BookRecord`; this model only
+/// names a grouping and never duplicates an EPUB or its metadata.
+@Model
+final class ManualCollectionRecord {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    @Attribute(.unique) var normalizedName: String
+    var createdAt: Date
+
+    init(id: UUID = UUID(), name: String, normalizedName: String, createdAt: Date = .now) {
+        self.id = id
+        self.name = name
+        self.normalizedName = normalizedName
+        self.createdAt = createdAt
+    }
+}
+
+/// Lightweight join between a book and a manual collection. The stable key
+/// prevents duplicate memberships while keeping the EPUB stored only once.
+@Model
+final class CollectionMembershipRecord {
+    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var membershipKey: String
+    var collectionID: UUID
+    var bookID: UUID
+    var addedAt: Date
+
+    init(id: UUID = UUID(), collectionID: UUID, bookID: UUID, addedAt: Date = .now) {
+        self.id = id
+        self.collectionID = collectionID
+        self.bookID = bookID
+        membershipKey = "\(collectionID.uuidString.lowercased())|\(bookID.uuidString.lowercased())"
+        self.addedAt = addedAt
+    }
+}

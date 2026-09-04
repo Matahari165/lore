@@ -77,6 +77,48 @@ struct LibraryViewModelTests {
         #expect(model.visibleBooks.map(\.id) == [book.id])
         #expect(model.visibleBooks.first?.lastProgression == 0.35)
     }
+
+    @Test func smartAndManualCollectionsReferenceExistingBooks() throws {
+        let fixture = try LibraryViewModelFixture()
+        let active = BookRecord(
+            title: "Active", author: " Ada ", relativeFilePath: "active.epub",
+            lastLocatorJSON: Data("{}".utf8), lastProgression: 0.2
+        )
+        let finished = BookRecord(
+            title: "Finished", author: "Ada", relativeFilePath: "finished.epub",
+            finishedAt: .now, readingYear: 2026
+        )
+        try fixture.repository.add(active)
+        try fixture.repository.add(finished)
+        let collection = try fixture.repository.createCollection(named: "Favoris")
+        try fixture.repository.setMembership(true, bookID: active.id, collectionID: collection.id)
+
+        let model = fixture.makeModel()
+
+        #expect(model.books(in: .inProgress).map(\.id) == [active.id])
+        #expect(model.books(in: .year(2026)).map(\.id) == [finished.id])
+        #expect(model.books(in: .author("Ada")).count == 2)
+        #expect(model.books(in: collection).map(\.id) == [active.id])
+        #expect(model.books(in: collection).first === active)
+    }
+
+    @Test func recentCollectionKeepsNewestFirstAndLimitsResults() throws {
+        let fixture = try LibraryViewModelFixture()
+        let origin = Date(timeIntervalSince1970: 1_700_000_000)
+        for index in 0..<13 {
+            try fixture.repository.add(BookRecord(
+                title: "Livre \(index)",
+                relativeFilePath: "book-\(index).epub",
+                importedAt: origin.addingTimeInterval(Double(index))
+            ))
+        }
+
+        let recent = fixture.makeModel().books(in: .recent)
+
+        #expect(recent.count == 12)
+        #expect(recent.map(\.title).first == "Livre 12")
+        #expect(recent.map(\.title).last == "Livre 1")
+    }
 }
 
 @MainActor
@@ -92,6 +134,8 @@ private final class LibraryViewModelFixture {
             for: BookRecord.self,
             ReadingSessionRecord.self,
             HighlightRecord.self,
+            ManualCollectionRecord.self,
+            CollectionMembershipRecord.self,
             configurations: configuration
         )
         repository = BookRepository(context: container.mainContext)
@@ -116,4 +160,5 @@ private final class LibraryViewModelFixture {
             publicationService: ReadiumPublicationService()
         )
     }
+
 }
