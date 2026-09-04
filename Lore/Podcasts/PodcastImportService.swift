@@ -104,21 +104,33 @@ final class PodcastImportService {
 
     func reconcileImports(now: Date = .now) throws -> PodcastFileReconciliationReport {
         var report = PodcastFileReconciliationReport()
-        for podcast in try repository.pendingImports() {
+        for podcast in try repository.recoverableImports() {
             do {
                 try recoverImport(podcast)
+            } catch PodcastFileStoreError.storedFileMissing,
+                    PodcastFileStoreError.invalidStagingToken {
+                try repository.markRecoveryRequired(podcastID: podcast.id)
+                report.missingPodcastIDs.append(podcast.id)
             } catch {
                 try repository.markRecoveryRequired(podcastID: podcast.id)
+                report.retryableRecoveryPodcastIDs.append(podcast.id)
             }
         }
 
-        let podcasts = try repository.podcasts()
+        // Les éléments en récupération restent volontairement masqués de la
+        // bibliothèque, mais leurs fichiers doivent rester protégés du nettoyage.
+        let podcasts = try repository.allPodcasts()
         let fileReport = try fileStore.reconcile(
             referencedPodcastIDs: Set(podcasts.map(\.id)),
             referencedStagingTokens: Set(podcasts.compactMap(\.stagingToken)),
             now: now
         )
-        report = fileReport
+        report.removedStagingTokens = fileReport.removedStagingTokens
+        report.orphanPodcastIDs = fileReport.orphanPodcastIDs
+        report.quarantinedPodcastIDs = fileReport.quarantinedPodcastIDs
+        report.missingPodcastIDs.append(contentsOf: fileReport.missingPodcastIDs)
+        report.missingPodcastIDs = Array(Set(report.missingPodcastIDs))
+        report.quarantineReviewAfter = fileReport.quarantineReviewAfter
         return report
     }
 

@@ -38,6 +38,7 @@ struct PodcastFileReconciliationReport: Sendable, Equatable {
     var orphanPodcastIDs: [UUID] = []
     var quarantinedPodcastIDs: [UUID] = []
     var missingPodcastIDs: [UUID] = []
+    var retryableRecoveryPodcastIDs: [UUID] = []
     var quarantineReviewAfter: Date?
 }
 

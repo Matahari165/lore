@@ -74,6 +74,68 @@ struct PodcastImportServiceTests {
         #expect(try fixture.store.fileURL(for: pending.relativeFilePath).lastPathComponent == "episode.mp4")
     }
 
+    @Test func recoveryRequiredImportIsRetriedOnTheNextLaunch() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let token = UUID()
+        let bytes = Data("recovered".utf8)
+        let source = try fixture.source(named: "recovered.mp4", contents: "recovered")
+        let digest = try fixture.store.contentSHA256(of: source)
+        let recovery = PodcastRecord(
+            contentSHA256: digest,
+            title: "À récupérer",
+            originalFilename: "recovered.mp4",
+            relativeFilePath: "",
+            importState: .recoveryRequired,
+            stagingToken: token
+        )
+        try fixture.repository.add(recovery)
+
+        let firstReport = try fixture.service.reconcileImports()
+        #expect(firstReport.missingPodcastIDs.contains(recovery.id))
+        #expect(recovery.importState == .recoveryRequired)
+
+        let stagingDirectory = fixture.support
+            .appendingPathComponent("Podcasts/.staging")
+            .appendingPathComponent(token.uuidString)
+        try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+        try bytes.write(to: stagingDirectory.appendingPathComponent("episode.mp4"))
+
+        let secondReport = try fixture.service.reconcileImports()
+        #expect(!secondReport.missingPodcastIDs.contains(recovery.id))
+        #expect(recovery.importState == .ready)
+        #expect(recovery.stagingToken == nil)
+        #expect(try fixture.repository.podcasts().map(\.id) == [recovery.id])
+    }
+
+    @Test func staleStagingForRecoveryRecordIsProtectedFromCleanup() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let staged = try fixture.store.stageMP4(
+            from: fixture.source(named: "protected.mp4", contents: "protected")
+        )
+        let recovery = PodcastRecord(
+            contentSHA256: "digest-that-does-not-match-yet",
+            title: "Protégé",
+            originalFilename: "protected.mp4",
+            relativeFilePath: "",
+            importState: .recoveryRequired,
+            stagingToken: staged.token
+        )
+        try fixture.repository.add(recovery)
+        let stagingDirectory = fixture.support
+            .appendingPathComponent("Podcasts/.staging")
+            .appendingPathComponent(staged.token.uuidString)
+        let oldDate = Date(timeIntervalSince1970: 1)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: stagingDirectory.path)
+
+        let report = try fixture.service.reconcileImports(now: oldDate.addingTimeInterval(8 * 24 * 60 * 60))
+
+        #expect(report.missingPodcastIDs.contains(recovery.id))
+        #expect(!report.removedStagingTokens.contains(staged.token))
+        #expect(FileManager.default.fileExists(atPath: stagingDirectory.path))
+    }
+
     @Test func pendingAndRecoveryImportsStayHiddenFromTheLibrary() throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }

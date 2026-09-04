@@ -33,6 +33,12 @@ final class PodcastRepository {
         return try context.fetch(descriptor)
     }
 
+    /// Tous les enregistrements, y compris ceux masqués pendant une récupération.
+    /// Utilisé uniquement pour protéger leurs fichiers du nettoyage automatique.
+    func allPodcasts() throws -> [PodcastRecord] {
+        try context.fetch(FetchDescriptor<PodcastRecord>())
+    }
+
     func podcast(id: UUID) throws -> PodcastRecord? {
         var descriptor = FetchDescriptor<PodcastRecord>(
             predicate: #Predicate { $0.id == id }
@@ -49,10 +55,13 @@ final class PodcastRepository {
         return try context.fetch(descriptor).first
     }
 
-    func pendingImports() throws -> [PodcastRecord] {
+    func recoverableImports() throws -> [PodcastRecord] {
         let pending = PodcastImportState.pending.rawValue
+        let recoveryRequired = PodcastImportState.recoveryRequired.rawValue
         let descriptor = FetchDescriptor<PodcastRecord>(
-            predicate: #Predicate { $0.importStateRawValue == pending }
+            predicate: #Predicate {
+                $0.importStateRawValue == pending || $0.importStateRawValue == recoveryRequired
+            }
         )
         return try context.fetch(descriptor)
     }

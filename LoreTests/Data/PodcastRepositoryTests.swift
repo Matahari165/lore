@@ -52,6 +52,19 @@ struct PodcastRepositoryTests {
         }
     }
 
+    @Test func recoverableImportsIncludesPendingAndRecoveryRequired() throws {
+        let fixture = try Fixture()
+        let ready = PodcastRecord(title: "Prêt", originalFilename: "ready.mp4", relativeFilePath: "Podcasts/ready/episode.mp4")
+        let pending = PodcastRecord(title: "Attente", originalFilename: "pending.mp4", relativeFilePath: "", importState: .pending)
+        let recovery = PodcastRecord(title: "Reprise", originalFilename: "recovery.mp4", relativeFilePath: "", importState: .recoveryRequired)
+        try fixture.repository.add(ready)
+        try fixture.repository.add(pending)
+        try fixture.repository.add(recovery)
+
+        #expect(Set(try fixture.repository.recoverableImports().map(\.id)) == [pending.id, recovery.id])
+        #expect(Set(try fixture.repository.allPodcasts().map(\.id)) == [ready.id, pending.id, recovery.id])
+    }
+
     @MainActor
     private final class Fixture {
         let container: ModelContainer

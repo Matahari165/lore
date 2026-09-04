@@ -4,6 +4,7 @@ Dernière mise à jour : 3 septembre 2026
 
 ## Terminé
 
+- La récupération des imports Podcast interrompus est retentée à chaque lancement, y compris après un premier échec. Les fichiers temporaires et finaux encore rattachés à une récupération sont protégés du nettoyage automatique. La compilation de la cible de tests réussit ; leur exécution reste bloquée par le lanceur XCTest.
 - Format IA en puces imposé aux 6 prompts (explication, résumé veille, chat 3 stades, résumé chapitre, réponse question, discussion fin) : 5-6 puces max, phrases courtes, termes techniques expliqués simplement, ligne finale Idée essentielle / Où reprendre. `conciseRecap` aligné à 6 puces. Prompts seuls modifiés, envois inchangés.
 - Notifications objectif quotidien : bannière unique par jour local à l'atteinte + rappel 21 h replanifié tant que non atteint, textes avec durées uniquement, autorisation demandée une fois, délégué avant-plan. Build + 6 tests `DailyGoalNotificationTests` verts sur `Lore iPhone 13`.
 - Progression offline fiabilisée : checkpoint initial enregistré dès l'ouverture (même 1 page, même hors-ligne, 100 % local) + première observation `locationDidChange`. Échec résumé veille non bloquant, non mis en cache, réessayable via Réessayer une fois connecté.
