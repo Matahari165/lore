@@ -575,7 +575,14 @@ struct LibraryView: View {
     }
 
     private func presentHighlights(for book: BookRecord) {
-        selectedHighlights = model.highlights(for: book)
+        do {
+            selectedHighlights = try model.highlights(for: book)
+            highlightsLoadError = nil
+        } catch {
+            selectedHighlights = []
+            highlightsLoadError = (error as? LocalizedError)?.errorDescription
+                ?? "Les passages surlignés n’ont pas pu être chargés."
+        }
         highlightsBook = book
     }
 
