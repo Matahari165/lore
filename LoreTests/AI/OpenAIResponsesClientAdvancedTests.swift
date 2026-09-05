@@ -23,9 +23,9 @@ struct OpenAIResponsesClientAdvancedTests {
             configuration: .init(endpoint: URL(string: "https://example.test/v1/responses")!)
         )
 
-        #expect(try await client.summarizeChapter(.init(title: "Livre", chapterText: "Chapitre lu")) == "- Réponse bornée au contexte.")
-        #expect(try await client.answerQuestion(.init(title: "Livre", readText: "Texte lu", question: "Que signifie ce passage ?")) == "- Réponse bornée au contexte.")
-        #expect(try await client.discussEnding(.init(title: "Livre", readText: "Texte lu")) == "- Réponse bornée au contexte.")
+        #expect(try await client.summarizeChapter(.init(title: "Livre", chapterText: "Chapitre lu")) == "- Idée essentielle : Réponse bornée au contexte.")
+        #expect(try await client.answerQuestion(.init(title: "Livre", readText: "Texte lu", question: "Que signifie ce passage ?")) == "- Idée essentielle : Réponse bornée au contexte.")
+        #expect(try await client.discussEnding(.init(title: "Livre", readText: "Texte lu")) == "- Idée essentielle : Réponse bornée au contexte.")
     }
 
     private static func requestBody(of request: URLRequest) throws -> Data {

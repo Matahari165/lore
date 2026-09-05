@@ -26,8 +26,10 @@ final class ReaderSessionController {
     private let preferencesStore: any ReaderPreferencesStoring
     private let navigatorDelegate: ReaderNavigatorDelegate?
     private let onError: @MainActor (Error) -> Void
+    private var lastKnownLocation: Locator?
     private var highlightChangeHandler: (@MainActor ([ReaderHighlight]) -> Void)?
     private var vocabularyChangeHandler: (@MainActor ([VocabularyItem]) -> Void)?
+    private var locationHandler: (@MainActor (Locator?) -> Void)?
     private var explanationHandler: (@MainActor (ReaderAIExplanationState) -> Void)?
     private var recapHandler: (@MainActor (ReaderAIRecapState) -> Void)?
     private var explanationTask: Task<Void, Never>?
@@ -110,6 +112,7 @@ final class ReaderSessionController {
         }
         let qualifiedLocatorBox = QualifiedLocatorBox(initialLocation)
         self.qualifiedLocatorBox = qualifiedLocatorBox
+        self.lastKnownLocation = initialLocation
 
         let positionController = ReadingPositionController(
             bookID: bookID,
@@ -158,6 +161,9 @@ final class ReaderSessionController {
             onError: onError
         )
         navigatorDelegate = delegate
+        delegate.onLocationChange = { [weak self] locator in
+            self?.observeLocation(locator)
+        }
         navigator.delegate = delegate
         // Première ouverture du jour : le Locator initial (restauration ou position de
         // départ) est enregistré immédiatement, même sans réseau et même sans session
@@ -222,6 +228,7 @@ final class ReaderSessionController {
         contentViewController = locationProvider.viewController
         navigatorDelegate = nil
         self.onError = onError
+        self.lastKnownLocation = locationProvider.currentLocation
     }
 
     func updatePreferences(_ newValue: ReaderPreferences) throws {
@@ -263,6 +270,14 @@ final class ReaderSessionController {
     func setVocabularyChangeHandler(_ handler: (@MainActor ([VocabularyItem]) -> Void)?) {
         vocabularyChangeHandler = handler
         handler?(vocabulary)
+    }
+
+    /// Publishes the complete Locator currently known by the reader.
+    /// The initial value is delivered synchronously so the chrome never starts
+    /// with an empty position while the provider already has one.
+    func setLocationHandler(_ handler: (@MainActor (Locator?) -> Void)?) {
+        locationHandler = handler
+        handler?(bestKnownLocation)
     }
 
     func setExplanationHandler(_ handler: (@MainActor (ReaderAIExplanationState) -> Void)?) {
@@ -606,7 +621,7 @@ final class ReaderSessionController {
 
     func setProgressionHandler(_ handler: (@MainActor (Double) -> Void)?) {
         navigatorDelegate?.onProgressionChange = handler
-        handler?(currentProgression)
+        handler?(bestKnownLocation?.locations.totalProgression ?? 0)
     }
 
     func setNavigationHistoryHandler(_ handler: (@MainActor (Bool) -> Void)?) {
@@ -642,6 +657,7 @@ final class ReaderSessionController {
         defer { isNavigating = false }
         let didNavigate = await readerController?.go(to: destination, options: .animated) ?? false
         guard didNavigate else { return false }
+        observeLocation(destination)
         positionController.record(destination)
         navigationHistory.removeLast()
         navigationHistoryHandler?(!navigationHistory.isEmpty)
@@ -650,7 +666,7 @@ final class ReaderSessionController {
     }
 
     var currentProgression: Double {
-        locationProvider.currentLocation?.locations.totalProgression ?? 0
+        bestKnownLocation?.locations.totalProgression ?? 0
     }
 
     @discardableResult
@@ -660,13 +676,14 @@ final class ReaderSessionController {
 
     private func navigate(to locator: Locator) async -> Bool {
         guard !isNavigating else { return false }
-        let origin = locationProvider.currentLocation
+        let origin = bestKnownLocation
         guard origin != locator else { return true }
         isNavigating = true
         defer { isNavigating = false }
         let didNavigate = await readerController?.go(to: locator, options: .animated) ?? false
         if didNavigate {
             rememberNavigationOrigin(origin)
+            observeLocation(locator)
             positionController.record(locator)
             await reinforceSelectionAppearance()
         }
@@ -675,7 +692,7 @@ final class ReaderSessionController {
 
     private func navigate(to link: Link) async -> Bool {
         guard !isNavigating else { return false }
-        let origin = locationProvider.currentLocation
+        let origin = bestKnownLocation
         isNavigating = true
         defer { isNavigating = false }
         let didNavigate = await readerController?.go(to: link, options: .animated) ?? false
@@ -690,6 +707,19 @@ final class ReaderSessionController {
         guard let locator, navigationHistory.last != locator else { return }
         navigationHistory.append(locator)
         navigationHistoryHandler?(true)
+    }
+
+    /// Testable seam shared by Readium's `locationDidChange` and `didJumpTo`
+    /// callbacks. It deliberately carries the complete Locator, not only its
+    /// progression, so a lifecycle flush can recover the exact reading point.
+    func observeLocation(_ locator: Locator) {
+        guard lastKnownLocation != locator else { return }
+        lastKnownLocation = locator
+        locationHandler?(locator)
+    }
+
+    private var bestKnownLocation: Locator? {
+        lastKnownLocation ?? locationProvider.currentLocation
     }
 
     static func restoreInitialLocation(
@@ -709,7 +739,7 @@ final class ReaderSessionController {
         switch state {
         case .active:
             do {
-                try await positionController.flush(currentLocator: nil)
+                try await positionController.flush(currentLocator: bestKnownLocation)
                 try readingActivity.readerDidBecomeActive()
             } catch {
                 onError(error)
@@ -717,7 +747,7 @@ final class ReaderSessionController {
             }
         case .inactive, .background:
             do {
-                let location = locationProvider.currentLocation
+                let location = bestKnownLocation
                 var firstError: Error?
                 do { try await positionController.flush(currentLocator: location) } catch { firstError = error }
                 do { try await readingActivity.readerBecameInactive() } catch {
@@ -733,7 +763,7 @@ final class ReaderSessionController {
 
     func close() async throws {
         do {
-            let location = locationProvider.currentLocation
+            let location = bestKnownLocation
             var firstError: Error?
             do { try await positionController.flush(currentLocator: location) } catch { firstError = error }
             do { try await readingActivity.close() } catch {
@@ -770,6 +800,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     private var selectionActivityPolicy = SelectionActivityPolicy()
     var onChromeTap: (@MainActor () -> Void)?
     var onProgressionChange: (@MainActor (Double) -> Void)?
+    var onLocationChange: (@MainActor (Locator) -> Void)?
     var onContentStyleRefresh: (@MainActor () -> Void)?
 
     init(
@@ -787,6 +818,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         selectionActivityPolicy.reset()
         positionController.record(locator)
+        onLocationChange?(locator)
         onProgressionChange?(locator.locations.totalProgression ?? 0)
         // Readium may rebuild the same resource after applying preferences.
         // Reapply Lore's final CSS rule after every confirmed location update.
@@ -813,6 +845,7 @@ private final class ReaderNavigatorDelegate: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, didJumpTo locator: Locator) {
         selectionActivityPolicy.reset()
         positionController.record(locator)
+        onLocationChange?(locator)
         onProgressionChange?(locator.locations.totalProgression ?? 0)
         // Un saut par le sommaire ou vers un surlignage n'est pas une preuve
         // que les chapitres intermédiaires ont été lus.

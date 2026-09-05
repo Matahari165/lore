@@ -99,19 +99,20 @@ struct YesterdayReadingSummaryView: View {
             .disabled(!canGoPrevious)
             .accessibilityHint("Voir le résumé du jour précédent")
 
-            Spacer(minLength: 8)
+            if canGoNext {
+                Spacer(minLength: 8)
 
-            Button(action: onNext) {
-                HStack(spacing: 4) {
-                    Text("Jour suivant")
-                    Image(systemName: "chevron.right")
+                Button(action: onNext) {
+                    HStack(spacing: 4) {
+                        Text("Jour suivant")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .frame(minWidth: 44, minHeight: 44)
                 }
-                .font(.subheadline.weight(.medium))
-                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityLabel("Jour suivant")
+                .accessibilityHint("Revenir vers un jour plus récent")
             }
-            .disabled(!canGoNext)
-            .accessibilityLabel("Jour suivant")
-            .accessibilityHint("Revenir vers un jour plus récent")
         }
         .foregroundStyle(LoreTheme.secondaryInk)
     }

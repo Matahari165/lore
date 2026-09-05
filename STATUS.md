@@ -1,8 +1,14 @@
 # État du projet Lore
 
-Dernière mise à jour : 4 septembre 2026
+Dernière mise à jour : 5 septembre 2026
 
 ## Terminé
+
+- Nouveau lot lecteur et Accueil : le mode sombre global est confirmé par défaut ; le panneau du lecteur est plus aéré et centré, son curseur est un tube de progression, et son panneau inférieur affiche « Page N » quand Readium fournit une position. Les mentions « encore X min » et « Série actuelle » de l’Accueil ont été retirées au profit d’un objectif en cours et de « Flamme N jour(s) ». « Jour suivant » disparaît quand aucun jour plus récent n’existe.
+- Progression de lecture durcie : le dernier Locator complet observé est conservé comme source de vérité, puis écrit immédiatement à l’activation, à l’inactivation, en arrière-plan et à la fermeture. Une position fournisseur plus ancienne ne peut plus remplacer une observation récente ; le retour après un saut réactualise aussi la position sauvegardée.
+- Informations de livre simplifiées : les boutons `i` visibles ont été retirés des bibliothèques, de Reprendre et des pochettes récentes ; les détails restent accessibles par appui long et menu contextuel.
+- Discussion par livre refondue en surface plus minimale. Depuis la fiche/Reprendre, le contexte local ouvre l’EPUB privé et extrait uniquement le texte jusqu’au Locator sauvegardé, notamment pour « Résumer le chapitre » et « Résumer tout ce que j’ai lu ». Les réponses IA restent normalisées en puces courtes, avec une dernière puce « Idée essentielle ».
+- Vérification technique du lot : `build-for-testing` de l’application et de `LoreTests` réussi avec Xcode 26.6 / iOS 26.5, sans signature. Les tests compilent ; leur exécution reste bloquée par `CoreSimulatorService` indisponible dans l’environnement actuel.
 
 - Nettoyage du code mort vérifié : suppression de l’ancien type d’erreur générique, d’un enum IA sans consommateur, de quatre méthodes et d’une propriété sans appel, ainsi que des anciennes ressources d’icône remplacées. Les migrations de données et contrats futurs documentés ont été conservés. L’application et la cible de tests compilent ; l’exécution XCTest reste bloquée avant tout résultat.
 - Un mode Lecture interne facultatif peut rendre silencieuses les notifications propres à Lore pendant l’ouverture du lecteur. Les réglages expliquent séparément comment associer Lore à un mode Concentration iOS, sans prétendre que l’app contrôle Ne pas déranger.

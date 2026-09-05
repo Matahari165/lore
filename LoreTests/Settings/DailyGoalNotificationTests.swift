@@ -68,7 +68,7 @@ struct DailyGoalNotificationTests {
         let reminder = DailyGoalNotifier.reminderBody(remainingMinutes: 8)
 
         #expect(reached == "Objectif atteint : 20 min de lecture. Bravo !")
-        #expect(reminder == "Il vous reste 8 min pour atteindre votre objectif du jour.")
+        #expect(reminder == "Objectif quotidien : 8 min à lire.")
         #expect(!reached.contains("Deep Work"))
         #expect(!reminder.contains("Deep Work"))
     }

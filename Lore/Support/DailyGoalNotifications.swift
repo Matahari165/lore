@@ -77,7 +77,7 @@ actor DailyGoalNotifier {
     static func reminderTitle() -> String { "Rappel de lecture" }
 
     static func reminderBody(remainingMinutes: Int) -> String {
-        "Il vous reste \(remainingMinutes) min pour atteindre votre objectif du jour."
+        "Objectif quotidien : \(remainingMinutes) min à lire."
     }
 
     // MARK: - État persistant

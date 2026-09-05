@@ -358,13 +358,6 @@ struct LibraryView: View {
                     if model.openingBookID == book.id {
                         ProgressView()
                             .frame(width: 44, height: 44)
-                    } else {
-                        resumeActionButton(
-                            title: "Voir les détails de \(book.title)",
-                            systemImage: "info.circle"
-                        ) {
-                            presentDetails(for: book)
-                        }
                     }
 
                     resumeActionButton(
@@ -376,6 +369,7 @@ struct LibraryView: View {
                     }
                 }
                 .contentShape(Rectangle())
+                .accessibilityHint("Appui long pour les détails et les autres actions du livre")
                 .contextMenu { bookContextMenu(for: book) }
             }
         }
@@ -434,77 +428,54 @@ struct LibraryView: View {
     }
 
     private func bookButton(_ book: BookRecord) -> some View {
-        ZStack(alignment: .top) {
-            Button { Task { await model.open(book) } } label: {
-                VStack(alignment: .leading, spacing: 7) {
-                    trackedCover(book)
-                        .overlay {
-                            if model.openingBookID == book.id {
-                                LoreTheme.canvas.opacity(0.68)
-                                ProgressView()
-                            }
-                        }
-                    // Fixed label slots prevent a long title or a missing author
-                    // from changing the height of a grid row.
-                    Text(book.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(LoreTheme.ink)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .topLeading)
-                    Group {
-                        if let author = book.author {
-                            Text(author)
-                                .font(.caption)
-                                .foregroundStyle(LoreTheme.secondaryInk)
-                                .lineLimit(1)
-                        } else {
-                            Color.clear
+        Button { Task { await model.open(book) } } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                trackedCover(book)
+                    .overlay {
+                        if model.openingBookID == book.id {
+                            LoreTheme.canvas.opacity(0.68)
+                            ProgressView()
                         }
                     }
+                // Fixed label slots prevent a long title or a missing author
+                // from changing the height of a grid row.
+                Text(book.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(LoreTheme.ink)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .topLeading)
+                Group {
+                    if let author = book.author {
+                        Text(author)
+                            .font(.caption)
+                            .foregroundStyle(LoreTheme.secondaryInk)
+                            .lineLimit(1)
+                    } else {
+                        Color.clear
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
+                Text(book.readingStatus.title)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(LoreTheme.secondaryInk)
                     .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
-                    Text(book.readingStatus.title)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(LoreTheme.secondaryInk)
-                        .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
-
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .aspectRatio(LoreTheme.coverAspectRatio, contentMode: .fit)
-                .overlay(alignment: .bottomTrailing) {
-                    detailsButton(for: book)
-                }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ouvrir \(book.title), \(book.readingStatus.title)")
+        .accessibilityHint("Appui long pour les détails et les autres actions du livre")
         .accessibilityElement(children: .contain)
         .contextMenu { bookContextMenu(for: book) }
     }
 
     private func coverActions(_ book: BookRecord) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            Button { Task { await model.open(book) } } label: {
-                trackedCover(book)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ouvrir \(book.title)")
-
-            detailsButton(for: book)
+        Button { Task { await model.open(book) } } label: {
+            trackedCover(book)
         }
-    }
-
-    private func detailsButton(for book: BookRecord) -> some View {
-        Button("Voir les détails de \(book.title)", systemImage: "info.circle.fill") {
-            presentDetails(for: book)
-        }
-        .labelStyle(.iconOnly)
-        .font(.title3)
-        .foregroundStyle(LoreTheme.ink)
-        .frame(width: 44, height: 44)
-        .background(.regularMaterial, in: Circle())
-        .padding(2)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ouvrir \(book.title)")
+        .accessibilityHint("Appui long pour les détails et les autres actions du livre")
     }
 
     @ViewBuilder

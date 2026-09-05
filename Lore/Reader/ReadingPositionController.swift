@@ -16,6 +16,7 @@ final class ReadingPositionController: ReadingPositionManaging {
     private let sleep: Sleep
     private let onError: @MainActor (Error) -> Void
     private var pendingPosition: PendingPosition?
+    private var latestKnownLocator: Locator?
     private var nextRevision: UInt64 = 0
     private var pendingSave: Task<Void, Never>?
 
@@ -34,6 +35,7 @@ final class ReadingPositionController: ReadingPositionManaging {
     }
 
     func record(_ locator: Locator) {
+        latestKnownLocator = locator
         nextRevision &+= 1
         pendingPosition = PendingPosition(locator: locator, revision: nextRevision)
         pendingSave?.cancel()
@@ -53,11 +55,18 @@ final class ReadingPositionController: ReadingPositionManaging {
     func flush(currentLocator: Locator? = nil) async throws {
         pendingSave?.cancel()
         pendingSave = nil
-        if let currentLocator { recordWithoutDebounce(currentLocator) }
+        if pendingPosition == nil, latestKnownLocator == nil, let currentLocator {
+            recordWithoutDebounce(currentLocator)
+        }
         try savePending()
     }
 
     private func recordWithoutDebounce(_ locator: Locator) {
+        // A location event is more authoritative than the provider snapshot
+        // supplied by a lifecycle callback. Once a newer event is pending, an
+        // older explicit snapshot must not replace it before the save.
+        if pendingPosition != nil { return }
+        latestKnownLocator = locator
         nextRevision &+= 1
         pendingPosition = PendingPosition(locator: locator, revision: nextRevision)
     }

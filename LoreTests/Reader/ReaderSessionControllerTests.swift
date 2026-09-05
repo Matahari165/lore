@@ -22,7 +22,7 @@ struct ReaderSessionControllerTests {
 
         #expect(positions.flushLocations.count == 2)
         #expect(positions.flushLocations[0] == locator)
-        #expect(positions.flushLocations[1] == nil)
+        #expect(positions.flushLocations[1] == locator)
         #expect(positions.successfulFlushes == 1)
     }
 
@@ -39,7 +39,42 @@ struct ReaderSessionControllerTests {
         try await session.handleLifecycle(.active)
         try await session.close()
 
-        #expect(positions.flushLocations == [locator, locator, nil, locator])
+        #expect(positions.flushLocations == [locator, locator, locator, locator])
+    }
+
+    @Test func newerObservedLocationWinsWhenProviderIsBehind() async throws {
+        let providerLocation = makeLocator(0.2)
+        let observedLocation = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: 0.46, totalProgression: 0.46),
+            text: .init(before: "avant", highlight: "position récente")
+        )
+        let positions = PositionManagerSpy()
+        let session = ReaderSessionController(
+            locationProvider: LocationProviderSpy(locator: providerLocation),
+            positionController: positions
+        )
+
+        session.observeLocation(observedLocation)
+        try await session.handleLifecycle(.background)
+        try await session.close()
+
+        #expect(positions.flushLocations == [observedLocation, observedLocation])
+    }
+
+    @Test func locationHandlerPublishesCurrentAndObservedLocations() {
+        let initial = makeLocator(0.12)
+        let observed = makeLocator(0.38)
+        let session = ReaderSessionController(
+            locationProvider: LocationProviderSpy(locator: initial),
+            positionController: PositionManagerSpy()
+        )
+        var received: [Locator?] = []
+
+        session.setLocationHandler { received.append($0) }
+        session.observeLocation(observed)
+
+        #expect(received == [initial, observed])
     }
 
     @Test func closePropagatesStoreFailureAndReportsIt() async {

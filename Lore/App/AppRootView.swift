@@ -160,7 +160,7 @@ struct AppRootView: View {
             }
             Button("Plus tard", role: .cancel) {}
         } message: {
-            Text("Lore vous prévient quand votre objectif quotidien est atteint et vous rappelle à 21 h s'il vous reste du temps. Les notifications ne contiennent que des durées, jamais vos livres.")
+            Text("Lore vous prévient quand votre objectif quotidien est atteint et vous rappelle à 21 h si l’objectif n’est pas atteint. Les notifications ne contiennent que des durées, jamais vos livres.")
         }
     }
 

@@ -58,6 +58,21 @@ struct ReadingPositionControllerTests {
         #expect(try LocatorPersistenceCodec.decode(store.saved[0].stored).locator == current)
     }
 
+    @Test func explicitOlderLocationCannotReplacePendingObservedLocation() async throws {
+        let store = ProgressStoreSpy()
+        let controller = ReadingPositionController(bookID: UUID(), store: store, debounceDuration: .seconds(60))
+        let latestObserved = makeLocator(progression: 0.91)
+        let staleProviderLocation = makeLocator(progression: 0.24)
+
+        controller.record(latestObserved)
+        try await controller.flush(currentLocator: staleProviderLocation)
+        try await controller.flush(currentLocator: staleProviderLocation)
+
+        #expect(store.saved.count == 1)
+        let decoded = try store.saved.map { try LocatorPersistenceCodec.decode($0.stored).locator }
+        #expect(decoded == [latestObserved])
+    }
+
     private func makeLocator(progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,

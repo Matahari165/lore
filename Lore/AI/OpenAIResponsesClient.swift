@@ -182,7 +182,19 @@ enum LoreAIResponseFormatter {
             if sentences.count > 1 { result = sentences }
         }
 
-        return result.prefix(6).joined(separator: "\n\n")
+        let limited = Array(result.prefix(6))
+        guard !limited.isEmpty else { return "" }
+
+        let last = limited[limited.count - 1]
+        let folded = last.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        guard !folded.contains("idee essentielle"), !folded.contains("ou reprendre") else {
+            return limited.joined(separator: "\n\n")
+        }
+
+        var normalized = limited
+        let content = last.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines)
+        normalized[normalized.count - 1] = "- Idée essentielle : \(shortened(String(content), maximumWords: 23))"
+        return normalized.joined(separator: "\n\n")
     }
 
     private static func shortened(_ source: String, maximumWords: Int = 25) -> String {

@@ -13,6 +13,7 @@ struct ReaderScreen: View {
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
     @State private var scrubProgression: Double
+    @State private var pageNumber: Int?
     @State private var navigationPreview: ReaderNavigationPreview?
     @State private var isScrubbing = false
     @State private var canGoBackAfterJump = false
@@ -85,6 +86,9 @@ struct ReaderScreen: View {
                 if !isScrubbing { scrubProgression = $0 }
                 scheduleGoalRefresh()
             }
+            presentation.session.setLocationHandler { locator in
+                pageNumber = locator?.locations.position
+            }
             presentation.session.setNavigationHistoryHandler { canGoBackAfterJump = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
             presentation.session.setVocabularyChangeHandler { vocabulary = $0 }
@@ -99,6 +103,7 @@ struct ReaderScreen: View {
             ReadingFocusMode.shared.setReaderActive(false)
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
+            presentation.session.setLocationHandler(nil)
             presentation.session.setNavigationHistoryHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)
             presentation.session.setVocabularyChangeHandler(nil)
@@ -185,7 +190,7 @@ struct ReaderScreen: View {
 
     private var controls: some View {
         VStack {
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(presentation.title)
                         .font(.footnote.weight(.medium))
@@ -201,11 +206,11 @@ struct ReaderScreen: View {
                 }
                 controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .readerGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous), reduceTransparency: reduceTransparency)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .center)
+            .readerGlass(in: RoundedRectangle(cornerRadius: 20), reduceTransparency: reduceTransparency)
+            .padding(.horizontal, 16)
 
             Spacer()
 
@@ -232,7 +237,7 @@ struct ReaderScreen: View {
                             }
                             Divider().frame(height: 20)
                         } else {
-                            progressLabel
+                            pageLabel
                             Divider().frame(height: 20)
                         }
                         controlButton("Sommaire", systemImage: "list.bullet") { presentedPanel = .chapters }
@@ -242,44 +247,54 @@ struct ReaderScreen: View {
                             animateChrome { showsQuickPreferences.toggle() }
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 52)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 68)
                     .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency, interactive: true)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 16)
         }
         .foregroundStyle(.primary)
-        .padding(.vertical, 8)
+        .safeAreaPadding(.top, 12)
+        .safeAreaPadding(.bottom, 12)
     }
 
-    private var progressLabel: some View {
-        Text(progression, format: .percent.precision(.fractionLength(0)))
+    private var pageLabel: some View {
+        Text(pageNumber.map { "Page \($0)" } ?? "Page indisponible")
             .font(.caption.monospacedDigit().weight(.medium))
             .contentTransition(.numericText())
-            .frame(minWidth: 52, minHeight: 44)
-            .accessibilityLabel("Progression")
+            .lineLimit(1)
+            .frame(minWidth: 84, minHeight: 44)
+            .accessibilityLabel("Page")
+            .accessibilityValue(pageNumber.map(String.init) ?? "indisponible")
     }
 
     private var navigationScrubber: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
+            ZStack {
+                LoreProgressBar(
+                    value: scrubProgression,
+                    fill: .white,
+                    track: .white.opacity(0.22),
+                    height: 8
+                )
+                .padding(.horizontal, 2)
+                .allowsHitTesting(false)
+
                 Slider(
                     value: $scrubProgression,
                     in: 0...1,
                     onEditingChanged: scrubberEditingChanged
                 )
                 .frame(minHeight: 44)
-                .tint(.white)
+                .tint(.clear)
                 .accessibilityLabel("Position dans le livre")
                 .accessibilityValue(Text(scrubProgression, format: .percent.precision(.fractionLength(0))))
                 .accessibilityHint("Ajustez puis relâchez pour aller à cette position")
-
-                Text(scrubProgression, format: .percent.precision(.fractionLength(0)))
-                    .font(.caption.monospacedDigit().weight(.medium))
-                    .contentTransition(.numericText())
-                    .frame(minWidth: 40, alignment: .trailing)
             }
+            .frame(minHeight: 44)
 
             if isScrubbing {
                 Text(navigationPreviewText)

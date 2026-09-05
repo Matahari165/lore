@@ -8,13 +8,13 @@ struct OpenAIResponsesClientTests {
     @Test func formatterAlwaysProducesSeparatedMarkdownBullets() {
         let formatted = LoreAIResponseFormatter.bulleted("Première phrase. Deuxième phrase.")
 
-        #expect(formatted == "- Première phrase.\n\n- Deuxième phrase.")
+        #expect(formatted == "- Première phrase.\n\n- Idée essentielle : Deuxième phrase.")
     }
 
     @Test func formatterNormalizesExistingMarkers() {
         let formatted = LoreAIResponseFormatter.bulleted("• Simple\n2. Clair\n- Court")
 
-        #expect(formatted == "- Simple\n\n- Clair\n\n- Court")
+        #expect(formatted == "- Simple\n\n- Clair\n\n- Idée essentielle : Court")
     }
 
     @Test func formatterLimitsCountAndSentenceLength() {
@@ -53,7 +53,7 @@ struct OpenAIResponsesClientTests {
             return Self.response(status: 200, body: #"{"output":[{"type":"message","content":[{"type":"output_text","text":"Une explication simple."}]}]}"#)
         }
 
-        #expect(try await client.explain(sampleContext) == "- Une explication simple.")
+        #expect(try await client.explain(sampleContext) == "- Idée essentielle : Une explication simple.")
     }
 
     @Test func parsesTopLevelOutputTextFallback() async throws {
@@ -62,7 +62,7 @@ struct OpenAIResponsesClientTests {
         }
 
         let result = try await client.recap(.init(title: "Livre", excerpt: "Contenu lu hier"))
-        #expect(result == "- Résumé de la veille.")
+        #expect(result == "- Idée essentielle : Résumé de la veille.")
     }
 
     @Test func exposesAPIErrorsWithoutLeakingRequestContent() async {
@@ -126,7 +126,7 @@ struct OpenAIResponsesClientTests {
             excerpts: [.init(text: "Texte", progression: 0.4, source: source)],
             question: "Pourquoi ?"
         ))
-        #expect(response.text == "- Réponse.")
+        #expect(response.text == "- Idée essentielle : Réponse.")
         #expect(response.sources == [source])
     }
 

@@ -57,7 +57,7 @@ struct DailyGoalProgressView: View {
 
             LoreProgressBar(value: progress.visualFraction, height: 8)
 
-            Text(progress.isReached ? "Objectif atteint" : "Encore \(progress.displayedRemainingMinutes) min")
+            Text(progress.isReached ? "Objectif atteint" : "Objectif en cours")
                 .font(.caption)
                 .foregroundStyle(LoreTheme.secondaryInk)
 
@@ -71,13 +71,13 @@ struct DailyGoalProgressView: View {
     }
 
     private func streakLabel(_ days: Int) -> String {
-        days == 1 ? "Série actuelle : 1 jour" : "Série actuelle : \(days) jours"
+        days == 1 ? "Flamme 1 jour" : "Flamme \(days) jours"
     }
 
     private func accessibilityValue(_ progress: DailyGoalProgress) -> String {
         if progress.isReached {
             return "Atteint. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
         }
-        return "\(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). Encore \(progress.displayedRemainingMinutes) minutes. \(streakLabel(progress.streak.currentDays))."
+        return "Objectif en cours. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
     }
 }
