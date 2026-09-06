@@ -25,6 +25,7 @@ struct ReaderScreen: View {
     @State private var showsDiscussion = false
     @State private var citationNavigationError: String?
     @State private var readerPresentationState: ReaderPresentationState = .appearing
+    @State private var coverTransitionOpacity: Double = 1.0
     @State private var goalRefreshTask: Task<Void, Never>?
     @Namespace private var glassNamespace
 
@@ -48,27 +49,57 @@ struct ReaderScreen: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let cardRect = currentCardRect(in: geometry)
+            let cornerRadius = currentCornerRadius()
+            let isVisible = readerPresentationState == .visible
+
             ZStack {
                 readerBackground
                     .ignoresSafeArea()
+                    .opacity(isVisible ? 1 : 0)
 
                 ReaderView(session: presentation.session)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .opacity(isVisible ? 1 : 0)
+                    .allowsHitTesting(isVisible)
 
-                if showsControls {
+                if readerPresentationState != .visible || coverTransitionOpacity > 0 {
+                    ZStack {
+                        LoreTheme.canvas
+
+                        BookCoverView(
+                            coverData: presentation.coverData,
+                            title: presentation.title,
+                            cornerRadius: cornerRadius
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(width: cardRect.width, height: cardRect.height)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(LoreTheme.hairline, lineWidth: 0.5)
+                            .opacity(isVisible ? 0 : 1)
+                    }
+                    .shadow(
+                        color: Color.black.opacity(isVisible ? 0 : 0.20),
+                        radius: isVisible ? 0 : 12,
+                        y: isVisible ? 0 : 6
+                    )
+                    .position(x: cardRect.midX, y: cardRect.midY)
+                    .opacity(coverTransitionOpacity)
+                    .allowsHitTesting(false)
+                }
+
+                if showsControls && isVisible {
                     controls
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scaleEffect(
-                x: presentationScale(in: geometry).width,
-                y: presentationScale(in: geometry).height,
-                anchor: .center
-            )
-            .offset(presentationOffset(in: geometry))
-            .opacity(readerPresentationState.opacity)
         }
-        .preferredColorScheme(.dark)
+        .ignoresSafeArea()
+        .preferredColorScheme(preferences.appearance == .light ? .light : .dark)
         .statusBarHidden(!showsControls)
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
         .accessibilityAction(.escape) { closeReader() }
@@ -377,15 +408,19 @@ struct ReaderScreen: View {
         guard readerPresentationState == .appearing else { return }
         guard !reduceMotion else {
             readerPresentationState = .visible
+            coverTransitionOpacity = 0
             return
         }
 
-        // The reader grows from a small page resting near the bottom. Keeping
-        // the whole Readium surface in one transform avoids rebuilding its
-        // WebView during the transition.
+        // Expands smoothly from the cover frame using an authentic iOS spring curve.
+        // The Readium WebView sits stationary underneath, letting it complete its
+        // initial layout without stuttering, while the cover card cross-fades out.
         DispatchQueue.main.async {
-            withAnimation(.smooth(duration: 0.42)) {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
                 readerPresentationState = .visible
+            }
+            withAnimation(.easeOut(duration: 0.20).delay(0.18)) {
+                coverTransitionOpacity = 0
             }
         }
     }
@@ -441,19 +476,27 @@ struct ReaderScreen: View {
             return
         }
 
-        withAnimation(.smooth(duration: 0.30)) {
+        showsControls = false
+        showsQuickPreferences = false
+
+        withAnimation(.easeIn(duration: 0.12)) {
+            coverTransitionOpacity = 1.0
+        }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
             readerPresentationState = .closing
         }
+
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(360))
             guard !Task.isCancelled else { return }
             await onRequestClose()
 
             // If closing failed (for example, a pending Locator could not be
             // saved), keep the reader usable instead of leaving it invisible.
             if readerPresentationState == .closing {
-                withAnimation(.smooth(duration: 0.30)) {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                     readerPresentationState = .visible
+                    coverTransitionOpacity = 0
                 }
             }
         }
@@ -468,42 +511,55 @@ struct ReaderScreen: View {
         case appearing
         case visible
         case closing
+    }
 
-        var opacity: Double {
-            switch self {
-            case .appearing: 0.72
-            case .closing: 0
-            case .visible: 1
+    private func sourceRect(in geometry: GeometryProxy) -> CGRect {
+        let screenBounds = geometry.frame(in: .global)
+        let screenSize = geometry.size
+
+        if let source = presentation.sourceFrame,
+           source.width > 0, source.height > 0 {
+            let localX = source.minX - screenBounds.minX
+            let localY = source.minY - screenBounds.minY
+            let localRect = CGRect(x: localX, y: localY, width: source.width, height: source.height)
+
+            let screenRect = CGRect(origin: .zero, size: screenSize)
+            if localRect.intersects(screenRect) {
+                return localRect
             }
         }
 
+        let fallbackWidth = min(screenSize.width * 0.40, 140)
+        let fallbackHeight = fallbackWidth / LoreTheme.coverAspectRatio
+        let fallbackX = (screenSize.width - fallbackWidth) / 2
+        let fallbackY = (screenSize.height - fallbackHeight) / 2
+        return CGRect(x: fallbackX, y: fallbackY, width: fallbackWidth, height: fallbackHeight)
     }
 
-    private func presentationScale(in geometry: GeometryProxy) -> CGSize {
-        guard readerPresentationState != .visible, let source = presentation.sourceFrame else {
-            return CGSize(width: 1, height: 1)
-        }
-        // Une réduction uniforme évite l'écrasement de la page tout en gardant
-        // une continuité spatiale nette avec la pochette touchée.
-        let widthRatio = source.width / max(geometry.size.width, 1)
-        let heightRatio = source.height / max(geometry.size.height, 1)
-        let scale = max(0.18, min(0.72, sqrt(widthRatio * heightRatio)))
-        return CGSize(width: scale, height: scale)
+    private func targetRect(in geometry: GeometryProxy) -> CGRect {
+        CGRect(origin: .zero, size: geometry.size)
     }
 
-    private func presentationOffset(in geometry: GeometryProxy) -> CGSize {
-        guard readerPresentationState != .visible, let source = presentation.sourceFrame else {
-            return CGSize(width: 0, height: readerPresentationState == .visible ? 0 : 44)
+    private func currentCardRect(in geometry: GeometryProxy) -> CGRect {
+        switch readerPresentationState {
+        case .visible:
+            return targetRect(in: geometry)
+        case .appearing, .closing:
+            return sourceRect(in: geometry)
         }
-        let container = geometry.frame(in: .global)
-        return CGSize(
-            width: source.midX - container.midX,
-            height: source.midY - container.midY
-        )
+    }
+
+    private func currentCornerRadius() -> CGFloat {
+        switch readerPresentationState {
+        case .visible:
+            return 0
+        case .appearing, .closing:
+            return LoreTheme.coverRadius
+        }
     }
 
     private var readerBackground: Color {
-        .black
+        preferences.appearance == .light ? Color(UIColor.systemBackground) : .black
     }
 }
 

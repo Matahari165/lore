@@ -84,7 +84,13 @@ private struct CollectionBooksView: View {
                 List(books) { book in
                     Button { Task { await model.open(book) } } label: {
                         HStack(spacing: 12) {
-                            BookCoverView(book: book).frame(width: 48)
+                            BookCoverView(book: book)
+                                .frame(width: 48)
+                                .onGeometryChange(for: CGRect.self) { proxy in
+                                    proxy.frame(in: .global)
+                                } action: { frame in
+                                    model.recordCoverFrame(frame, for: book.id)
+                                }
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(book.title).font(.headline).foregroundStyle(.primary)
                                 if let author = book.author { Text(author).font(.subheadline).foregroundStyle(.secondary) }

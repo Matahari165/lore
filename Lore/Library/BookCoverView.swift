@@ -4,17 +4,20 @@ import UIKit
 struct BookCoverView: View {
     private let coverData: Data?
     private let title: String
+    private let cornerRadius: CGFloat?
 
-    init(book: BookRecord) {
-        self.init(coverData: book.coverData, title: book.title)
+    init(book: BookRecord, cornerRadius: CGFloat? = nil) {
+        self.init(coverData: book.coverData, title: book.title, cornerRadius: cornerRadius)
     }
 
-    init(coverData: Data?, title: String) {
+    init(coverData: Data?, title: String, cornerRadius: CGFloat? = nil) {
         self.coverData = coverData
         self.title = title
+        self.cornerRadius = cornerRadius
     }
 
     var body: some View {
+        let radius = cornerRadius ?? LoreTheme.coverRadius
         ZStack {
             // The cover slot stays portrait even when an EPUB provides a wide,
             // square, or otherwise unusual image. The neutral surface becomes
@@ -41,9 +44,9 @@ struct BookCoverView: View {
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(LoreTheme.coverAspectRatio, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: LoreTheme.coverRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(LoreTheme.hairline, lineWidth: 0.5)
         }
         .accessibilityHidden(true)
