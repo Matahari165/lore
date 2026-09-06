@@ -47,6 +47,7 @@ struct OpenAIResponsesClientTests {
             let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
             #expect(json["model"] as? String == "gpt-5.6-luna")
             #expect(json["store"] as? Bool == false)
+            #expect(json["max_output_tokens"] as? Int == 800)
             #expect((json["reasoning"] as? [String: Any])?["effort"] as? String == "low")
             let input = try #require(json["input"] as? [[String: Any]])
             #expect(input.map { $0["role"] as? String } == ["developer", "user"])

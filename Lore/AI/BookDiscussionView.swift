@@ -13,6 +13,7 @@ struct BookDiscussionView: View {
     private let session: ReaderSessionController?
     private let aiService: any LoreAIChatService
     private let localContextLoader: LocalBookAIContextLoader?
+    private let initialExcerpt: LoreAIChatExcerpt?
     private let onOpenSettings: (() -> Void)?
     private let onOpenSource: ((LoreAIChatSource) -> Void)?
 
@@ -33,6 +34,8 @@ struct BookDiscussionView: View {
     @State private var contextLoadError: String?
     @State private var didLoadHistory = false
     @State private var confirmsDeletion = false
+    @State private var activeConversationID: UUID?
+    @State private var conversations: [DiscussionSummary] = []
 
     init(
         book: BookRecord,
@@ -41,6 +44,7 @@ struct BookDiscussionView: View {
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
         initialDraft: String? = nil,
+        initialHighlight: ReaderHighlight? = nil,
         onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
         let localContextLoader = LocalBookAIContextLoader.makeDefault(book: book)
@@ -55,6 +59,7 @@ struct BookDiscussionView: View {
             onOpenSettings: onOpenSettings,
             aiService: aiService,
             initialDraft: initialDraft,
+            initialExcerpt: Self.chatExcerpt(bookID: book.id, highlight: initialHighlight),
             localContextLoader: localContextLoader,
             onOpenSource: onOpenSource
         )
@@ -71,6 +76,7 @@ struct BookDiscussionView: View {
         onOpenSettings: (() -> Void)? = nil,
         aiService: any LoreAIChatService = OpenAIResponsesClient(),
         initialDraft: String? = nil,
+        initialExcerpt: LoreAIChatExcerpt? = nil,
         localContextLoader: LocalBookAIContextLoader? = nil,
         onOpenSource: ((LoreAIChatSource) -> Void)? = nil
     ) {
@@ -84,6 +90,7 @@ struct BookDiscussionView: View {
         self.onOpenSettings = onOpenSettings
         self.aiService = aiService
         self.localContextLoader = localContextLoader
+        self.initialExcerpt = initialExcerpt
         self.onOpenSource = onOpenSource
         _draft = State(initialValue: initialDraft ?? "")
     }
@@ -93,7 +100,7 @@ struct BookDiscussionView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        scopeBanner
+                        contextHeader
 
                         if let scopeWarning {
                             Label(scopeWarning, systemImage: "info.circle")
@@ -138,14 +145,39 @@ struct BookDiscussionView: View {
                     scrollToLatest(using: proxy)
                 }
             }
-            .navigationTitle("Discussion")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Fermer") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button("Nouvelle discussion", systemImage: "plus") {
+                        startNewConversation()
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .disabled(isLoading)
+                    .accessibilityLabel("Nouvelle discussion")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        if !conversations.isEmpty {
+                            Section("Discussions") {
+                                ForEach(conversations) { conversation in
+                                    Button {
+                                        selectConversation(conversation.id)
+                                    } label: {
+                                        Label(
+                                            conversation.label,
+                                            systemImage: conversation.id == activeConversationID
+                                                ? "checkmark.bubble"
+                                                : "bubble.left"
+                                        )
+                                    }
+                                    .disabled(conversation.id == activeConversationID || isLoading)
+                                }
+                            }
+                        }
                         if let onOpenSettings {
                             Button("Ouvrir les réglages", systemImage: "gearshape", action: onOpenSettings)
                         }
@@ -175,13 +207,13 @@ struct BookDiscussionView: View {
             Button("Effacer", role: .destructive) { deleteHistory() }
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("Les questions et réponses locales de ce livre seront supprimées.")
+            Text("Cette discussion locale sera supprimée.")
         }
     }
 
-    private var scopeBanner: some View {
+    private var contextHeader: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: stage == .finished ? "checkmark.circle" : "lock.shield")
+            Image(systemName: stage == .finished ? "book.closed" : "lock.shield")
                 .font(.headline)
                 .foregroundStyle(LoreTheme.ink)
                 .accessibilityHidden(true)
@@ -196,24 +228,20 @@ struct BookDiscussionView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(LoreTheme.hairline.opacity(0.7))
                 .frame(height: 0.5)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Portée de la discussion : \(scopeTitle). \(scopeDescription)")
+        .accessibilityLabel("Contexte de lecture : \(scopeTitle). \(scopeDescription)")
     }
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: "text.bubble.fill")
-                    .font(.title2)
-                    .foregroundStyle(LoreTheme.ink)
-                    .accessibilityHidden(true)
-                Text("Parlez à \(title)")
+                Text("Discuter de \(title)")
                     .font(.title2.weight(.semibold))
                 Text(welcomeDescription)
                     .font(.body)
@@ -306,15 +334,6 @@ struct BookDiscussionView: View {
                     : Color.clear,
                 in: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
-            .overlay(alignment: .leading) {
-                if message.role == .assistant {
-                    Capsule()
-                        .fill(Color(red: 0.0, green: 0.72, blue: 0.82))
-                        .frame(width: 3)
-                        .padding(.vertical, 7)
-                }
-            }
-
             if message.role == .assistant { Spacer(minLength: 12) }
         }
         .accessibilityElement(children: message.sources.isEmpty ? .combine : .contain)
@@ -354,13 +373,13 @@ struct BookDiscussionView: View {
             Label(label, systemImage: systemImage)
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 12)
-                .frame(minHeight: 42)
+                .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
         .foregroundStyle(LoreTheme.ink)
         .background(LoreTheme.ink.opacity(0.08), in: Capsule())
         .contentShape(Capsule())
-        .accessibilityHint("Envoie cette demande à Lore")
+        .accessibilityHint(label == "Question libre" ? "Ouvre le champ de question" : "Envoie cette demande à Lore")
     }
 
     private var composer: some View {
@@ -455,21 +474,15 @@ struct BookDiscussionView: View {
         case .notStarted:
             "Aucun texte n’est envoyé avant votre première lecture."
         case .inProgress:
-            if contextCharacters > 0 {
-                "\(contextCharacters.formatted()) caractères de texte local sont disponibles pour ce tour."
-            } else if let contextLoadError {
-                contextLoadError
+            if let contextLoadError { contextLoadError }
+            else if let initialProgression {
+                "Contexte limité à votre progression (\(initialProgression.formatted(.percent.precision(.fractionLength(0))))) ; aucun passage futur."
             } else {
-                "Le texte envoyé reste limité aux passages déjà lus, jamais à la suite."
+                "Contexte limité à votre progression de lecture ; aucun passage futur."
             }
         case .finished:
-            if contextCharacters > 0 {
-                "\(contextCharacters.formatted()) caractères de texte local sont disponibles pour ce tour."
-            } else if let contextLoadError {
-                contextLoadError
-            } else {
-                "Le texte envoyé reste limité aux passages déjà lus et sauvegardés."
-            }
+            if let contextLoadError { contextLoadError }
+            else { "Le texte local du livre est disponible pour discuter de votre lecture." }
         }
     }
 
@@ -489,10 +502,55 @@ struct BookDiscussionView: View {
         didLoadHistory = true
         guard let conversationRepository else { return }
         do {
-            messages = try conversationRepository.history(for: bookID)
+            let records = try conversationRepository.conversations(for: bookID)
+            conversations = records.map(DiscussionSummary.init)
+            guard let record = records.first else { return }
+            activeConversationID = record.id
+            messages = try conversationRepository.history(
+                for: bookID,
+                conversationID: record.id,
+                maximumFrontierProgression: currentHistoryFrontier,
+                readingStage: stage
+            )
         } catch {
             errorMessage = "L’historique local est indisponible pour le moment."
         }
+    }
+
+    private var currentHistoryFrontier: Double? {
+        guard stage != .finished else { return nil }
+        if let session { return session.chatFrontierProgression }
+        return initialProgression
+    }
+
+    private func selectConversation(_ id: UUID) {
+        guard !isLoading, id != activeConversationID, let conversationRepository else { return }
+        do {
+            messages = try conversationRepository.history(
+                for: bookID,
+                conversationID: id,
+                maximumFrontierProgression: currentHistoryFrontier,
+                readingStage: stage
+            )
+            activeConversationID = id
+            errorMessage = nil
+            failedQuestion = nil
+            scopeWarning = nil
+        } catch {
+            errorMessage = "Cette discussion n’a pas pu être ouverte."
+        }
+    }
+
+    private func startNewConversation() {
+        guard !isLoading else { return }
+        activeConversationID = nil
+        messages = []
+        draft = ""
+        pendingQuestion = nil
+        failedQuestion = nil
+        errorMessage = nil
+        scopeWarning = nil
+        inputFocused = true
     }
 
     private func prepareLocalContext() async {
@@ -541,13 +599,18 @@ struct BookDiscussionView: View {
                         loaderMessage: contextLoadError
                     )
                     if let conversationRepository {
-                        _ = try conversationRepository.appendTurn(
+                        let record = try conversationRepository.appendTurn(
                             bookID: bookID,
+                            conversationID: activeConversationID,
                             question: value,
                             answer: answer,
+                            readingStage: stage,
                             frontierProgression: context.readFrontierProgression,
-                            frontierDescription: context.readFrontierDescription
+                            frontierDescription: context.readFrontierDescription,
+                            fullBookAccessGranted: context.fullBookAccessGranted
                         )
+                        activeConversationID = record.id
+                        refreshConversations()
                     }
                     messages.append(LoreAIChatMessage(role: .user, text: value))
                     messages.append(LoreAIChatMessage(role: .assistant, text: answer))
@@ -556,15 +619,19 @@ struct BookDiscussionView: View {
                 }
                 let response = try await aiService.chat(context)
                 if let conversationRepository {
-                    _ = try conversationRepository.appendTurn(
+                    let record = try conversationRepository.appendTurn(
                         bookID: bookID,
+                        conversationID: activeConversationID,
                         question: value,
                         answer: response.text,
                         sources: response.sources,
                         readingStage: stage,
                         frontierProgression: context.readFrontierProgression,
-                        frontierDescription: context.readFrontierDescription
+                        frontierDescription: context.readFrontierDescription,
+                        fullBookAccessGranted: context.fullBookAccessGranted
                     )
+                    activeConversationID = record.id
+                    refreshConversations()
                 }
                 messages.append(LoreAIChatMessage(role: .user, text: value))
                 messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
@@ -587,7 +654,7 @@ struct BookDiscussionView: View {
             question: question,
             history: history
         ) {
-            return context
+            return addingInitialExcerpt(to: context)
         }
 
         let summaryScope = LoreAISummaryIntentRouter().route(question)
@@ -596,18 +663,18 @@ struct BookDiscussionView: View {
                 let snapshot = try await localContextLoader.snapshot(for: summaryScope)
                 contextCharacters = snapshot.excerpts.reduce(0) { $0 + $1.text.count }
                 contextLoadError = snapshot.isAvailable ? nil : snapshot.unavailableMessage
-                return snapshot.chatContext(
+                return addingInitialExcerpt(to: snapshot.chatContext(
                     summaryScope: summaryScope,
                     question: question,
                     history: history
-                )
+                ))
             } catch {
                 contextLoadError = (error as? LocalizedError)?.errorDescription
                     ?? "Le contexte local n’a pas pu être chargé."
             }
         }
 
-        return LoreAIChatContext(
+        return addingInitialExcerpt(to: LoreAIChatContext(
             bookID: bookID,
             title: title,
             author: author,
@@ -619,7 +686,38 @@ struct BookDiscussionView: View {
             summaryScope: summaryScope,
             history: history,
             question: question
+        ))
+    }
+
+    private func addingInitialExcerpt(to context: LoreAIChatContext) -> LoreAIChatContext {
+        guard let initialExcerpt,
+              let progression = initialExcerpt.progression,
+              context.fullBookAccessGranted
+                || context.readFrontierProgression.map({ progression <= $0 + 0.000_001 }) == true,
+              !context.excerpts.contains(where: { $0.source?.id == initialExcerpt.source?.id })
+        else { return context }
+
+        return LoreAIChatContext(
+            bookID: context.bookID,
+            title: context.title,
+            author: context.author,
+            stage: context.stage,
+            chapterTitle: context.chapterTitle,
+            readFrontierProgression: context.readFrontierProgression,
+            readFrontierDescription: context.readFrontierDescription,
+            excerpts: [initialExcerpt] + context.excerpts,
+            fullBookAccessGranted: context.fullBookAccessGranted,
+            summaryScope: context.summaryScope,
+            history: context.history,
+            question: context.question
         )
+    }
+
+    private func refreshConversations() {
+        guard let conversationRepository,
+              let records = try? conversationRepository.conversations(for: bookID)
+        else { return }
+        conversations = records.map(DiscussionSummary.init)
     }
 
     private func insufficientContextMessage(
@@ -648,8 +746,12 @@ struct BookDiscussionView: View {
 
     private func deleteHistory() {
         do {
-            try conversationRepository?.deleteConversation(for: bookID)
+            if let activeConversationID {
+                try conversationRepository?.deleteConversation(id: activeConversationID, for: bookID)
+                conversations.removeAll { $0.id == activeConversationID }
+            }
             messages = []
+            activeConversationID = nil
             errorMessage = nil
             failedQuestion = nil
         } catch {
@@ -664,6 +766,49 @@ struct BookDiscussionView: View {
                 proxy.scrollTo("discussion-end", anchor: .bottom)
             }
         }
+    }
+
+    private static func chatExcerpt(
+        bookID: UUID,
+        highlight: ReaderHighlight?
+    ) -> LoreAIChatExcerpt? {
+        guard let highlight,
+              highlight.bookID == bookID,
+              let progression = highlight.locator.locations.totalProgression,
+              let text = highlight.text.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+              let locatorJSON = try? highlight.locator.jsonData()
+        else { return nil }
+
+        let source = LoreAIChatSource(
+            id: "highlight-\(highlight.id.uuidString)",
+            bookID: bookID,
+            label: "Passage surligné",
+            locatorJSON: locatorJSON,
+            locatorSchemaVersion: LocatorPersistenceCodec.currentSchemaVersion,
+            progression: progression
+        )
+        return LoreAIChatExcerpt(
+            text: text,
+            sourceDescription: "Passage surligné",
+            progression: progression,
+            source: source
+        )
+    }
+}
+
+private struct DiscussionSummary: Identifiable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ record: AIConversationRecord) {
+        id = record.id
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var label: String {
+        "Discussion du \(updatedAt.formatted(date: .abbreviated, time: .shortened))"
     }
 }
 
@@ -693,4 +838,8 @@ extension BookReadingStatus {
         case .finished: .finished
         }
     }
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

@@ -12,12 +12,26 @@ final class AIConversationRepository {
         saveContext = save ?? { try $0.save() }
     }
 
-    func conversation(for bookID: UUID) throws -> AIConversationRecord? {
+    func conversations(for bookID: UUID) throws -> [AIConversationRecord] {
         var descriptor = FetchDescriptor<AIConversationRecord>(
             predicate: #Predicate { $0.bookID == bookID }
         )
-        descriptor.fetchLimit = 1
-        descriptor.sortBy = [SortDescriptor(\AIConversationRecord.createdAt)]
+        descriptor.sortBy = [
+            SortDescriptor(\AIConversationRecord.updatedAt, order: .reverse),
+            SortDescriptor(\AIConversationRecord.createdAt, order: .reverse)
+        ]
+        return try context.fetch(descriptor)
+    }
+
+    /// Le fil le plus récemment modifié est le fil rouvert par défaut.
+    func conversation(for bookID: UUID) throws -> AIConversationRecord? {
+        try conversations(for: bookID).first
+    }
+
+    func conversation(id: UUID, for bookID: UUID) throws -> AIConversationRecord? {
+        let descriptor = FetchDescriptor<AIConversationRecord>(
+            predicate: #Predicate { $0.id == id && $0.bookID == bookID }
+        )
         return try context.fetch(descriptor).first
     }
 
@@ -36,11 +50,60 @@ final class AIConversationRepository {
     /// d'empêcher l'ouverture de la discussion.
     func history(for bookID: UUID) throws -> [LoreAIChatMessage] {
         guard let conversation = try conversation(for: bookID) else { return [] }
-        return try messages(for: conversation.id).compactMap { message in
+        return try history(for: bookID, conversationID: conversation.id)
+    }
+
+    /// Charge un fil en pouvant masquer les messages produits après la
+    /// frontière actuelle. Les anciens messages sans frontière sont conservés
+    /// pour les appels historiques, mais ne sont jamais réinjectés dans une
+    /// discussion en cours de lecture.
+    func history(
+        for bookID: UUID,
+        conversationID: UUID,
+        maximumFrontierProgression: Double? = nil,
+        readingStage: LoreAIReadingStage = .finished
+    ) throws -> [LoreAIChatMessage] {
+        guard try conversation(id: conversationID, for: bookID) != nil else {
+            throw AIConversationRepositoryError.conversationNotFound
+        }
+        if let maximumFrontierProgression,
+           !(0...1).contains(maximumFrontierProgression)
+        {
+            throw AIConversationRepositoryError.invalidFrontier
+        }
+        return visibleHistory(
+            try messages(for: conversationID),
+            bookID: bookID,
+            maximumFrontierProgression: maximumFrontierProgression,
+            readingStage: readingStage
+        )
+    }
+
+    private func visibleHistory(
+        _ messages: [AIMessageRecord],
+        bookID: UUID,
+        maximumFrontierProgression: Double?,
+        readingStage: LoreAIReadingStage
+    ) -> [LoreAIChatMessage] {
+        messages.compactMap { message in
+            guard readingStage == .finished || isVisible(
+                message,
+                maximumFrontierProgression: maximumFrontierProgression
+            ) else { return nil }
             guard let role = message.role else { return nil }
             let sources = storedSources(for: message, bookID: bookID)
             return LoreAIChatMessage(role: role, text: message.text, sources: sources)
         }
+    }
+
+    private func isVisible(
+        _ message: AIMessageRecord,
+        maximumFrontierProgression: Double?
+    ) -> Bool {
+        guard let maximumFrontierProgression,
+              let messageFrontier = message.frontierProgression
+        else { return false }
+        return messageFrontier <= maximumFrontierProgression + 0.000_001
     }
 
     /// Persiste un tour complet uniquement après le succès de la réponse IA.
@@ -48,12 +111,14 @@ final class AIConversationRepository {
     @discardableResult
     func appendTurn(
         bookID: UUID,
+        conversationID: UUID? = nil,
         question: String,
         answer: String,
         sources: [LoreAIChatSource] = [],
         readingStage: LoreAIReadingStage = .inProgress,
         frontierProgression: Double? = nil,
         frontierDescription: String? = nil,
+        fullBookAccessGranted: Bool = false,
         at date: Date = .now
     ) throws -> AIConversationRecord {
         let question = question.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -64,11 +129,14 @@ final class AIConversationRepository {
         if let frontierProgression, !(0...1).contains(frontierProgression) {
             throw AIConversationRepositoryError.invalidFrontier
         }
+        guard !fullBookAccessGranted || readingStage == .finished else {
+            throw AIConversationRepositoryError.invalidSource
+        }
         guard sources.allSatisfy({ source in
             source.bookID == bookID
                 && source.hasValidIdentityAndProgression
                 && source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion
-                && (readingStage == .finished || source.progression.map { progression in
+                && (fullBookAccessGranted || source.progression.map { progression in
                     frontierProgression.map { progression <= $0 + 0.000_001 } ?? false
                 } == true)
                 && ((try? LocatorPersistenceCodec.decode(.init(
@@ -87,7 +155,10 @@ final class AIConversationRepository {
 
         let conversationRecord: AIConversationRecord
         let isNewConversation: Bool
-        if let existing = try conversation(for: bookID) {
+        if let conversationID {
+            guard let existing = try conversation(id: conversationID, for: bookID) else {
+                throw AIConversationRepositoryError.conversationNotFound
+            }
             conversationRecord = existing
             isNewConversation = false
         } else {
@@ -170,6 +241,12 @@ final class AIConversationRepository {
     @discardableResult
     func deleteConversation(for bookID: UUID) throws -> Bool {
         guard let conversation = try conversation(for: bookID) else { return false }
+        return try deleteConversation(id: conversation.id, for: bookID)
+    }
+
+    @discardableResult
+    func deleteConversation(id: UUID, for bookID: UUID) throws -> Bool {
+        guard let conversation = try conversation(id: id, for: bookID) else { return false }
         try delete(conversation)
         return true
     }
@@ -216,12 +293,14 @@ enum AIConversationRepositoryError: LocalizedError, Equatable {
     case emptyMessage
     case invalidFrontier
     case invalidSource
+    case conversationNotFound
 
     var errorDescription: String? {
         switch self {
         case .emptyMessage: "La question et la réponse ne peuvent pas être vides."
         case .invalidFrontier: "La progression de lecture doit être comprise entre 0 et 1."
         case .invalidSource: "Une source de la réponse ne correspond pas au passage lu."
+        case .conversationNotFound: "Cette discussion n’existe plus."
         }
     }
 }
