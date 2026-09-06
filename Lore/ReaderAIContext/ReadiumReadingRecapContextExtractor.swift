@@ -67,6 +67,91 @@ final class ReadiumReadingRecapContextExtractor {
         )
     }
 
+    /// Extrait des passages couvrant le livre entier pour une discussion
+    /// explicitement autorisée après la fin de lecture. Le texte reste borné
+    /// avant l'envoi ; le fichier EPUB complet reste toujours sur l'appareil.
+    func extractEntireBook(from publication: Publication) async throws -> ReaderAIReadingRecapContext {
+        nonisolated(unsafe) let uncheckedPublication = publication
+        return try await Self.extractEntireBookUnchecked(
+            from: uncheckedPublication,
+            maximumCharacters: maximumCharacters
+        )
+    }
+
+    nonisolated private static func extractEntireBookUnchecked(
+        from publication: Publication,
+        maximumCharacters: Int
+    ) async throws -> ReaderAIReadingRecapContext {
+        let title = publication.metadata.title ?? "Livre sans titre"
+        let author = publication.metadata.authors.map(\.name).joined(separator: ", ").nilIfEmpty
+        var pieces: [ReaderAISourcedExcerpt] = []
+        var chapters: [String] = []
+        var firstLocator: Locator?
+        var lastLocator: Locator?
+
+        guard let content = publication.content() else {
+            throw ReadiumReadingRecapContextError.contentUnavailable
+        }
+
+        let iterator = content.iterator()
+        while let element = try await iterator.next() {
+            guard let rawText = (element as? TextualContentElement)?.text,
+                  !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { continue }
+
+            if firstLocator == nil { firstLocator = element.locator }
+            lastLocator = element.locator
+
+            let normalizedText = ReaderAIContextWindowing.normalize(rawText)
+            if let textElement = element as? TextContentElement,
+               case .heading = textElement.role,
+               !normalizedText.isEmpty,
+               !chapters.contains(normalizedText)
+            {
+                chapters.append(normalizedText)
+            }
+            if let locatorTitle = element.locator.title,
+               !locatorTitle.isEmpty,
+               !chapters.contains(locatorTitle)
+            {
+                chapters.append(locatorTitle)
+            }
+
+            if let piece = boundedElement(
+                rawText,
+                locator: element.locator,
+                firstLocator: nil,
+                lastLocator: nil
+            ) {
+                pieces.append(piece)
+            }
+        }
+
+        // Keep a representative sample of the beginning, middle and end rather
+        // than sending only the final pages of a finished book. The prompt has
+        // a 12,000-character budget, so this limit keeps the whole selected
+        // sample available to the prompt builder without a second truncation.
+        let sourcedExcerpts = representativePieces(
+            pieces,
+            maximum: min(maximumCharacters, 12_000)
+        )
+        let excerpt = sourcedExcerpts.map(\.text).joined(separator: "\n")
+        guard !excerpt.isEmpty, let firstLocator, let lastLocator else {
+            throw ReadiumReadingRecapContextError.contentUnavailable
+        }
+
+        return ReaderAIReadingRecapContext(
+            title: title,
+            author: author,
+            chapterTitles: chapters.isEmpty
+                ? Array(ofNotNil: firstLocator.title ?? lastLocator.title)
+                : chapters,
+            excerpt: excerpt,
+            sourcedExcerpts: sourcedExcerpts,
+            lastReadPositionDescription: "Livre terminé"
+        )
+    }
+
     nonisolated private static func extractUnchecked(
         from publication: Publication,
         firstLocator: Locator,
@@ -114,12 +199,25 @@ final class ReadiumReadingRecapContextExtractor {
             }
 
             let normalizedText = ReaderAIContextWindowing.normalize(rawText)
-            if let piece = Self.boundedElement(
-                rawText,
-                locator: element.locator,
-                firstLocator: firstElement ? firstLocator : nil,
-                lastLocator: sameResourceAsLast ? lastLocator : nil
-            ) { pieces.append(piece) }
+            let piece: ReaderAISourcedExcerpt?
+            if sameResourceAsLast && Self.isStrictlyBefore(element.locator, target: lastLocator) {
+                // A progression-only frontier cannot safely clip the current
+                // element, but complete elements strictly before it are safe.
+                piece = Self.boundedElement(
+                    rawText,
+                    locator: element.locator,
+                    firstLocator: firstElement ? firstLocator : nil,
+                    lastLocator: nil
+                )
+            } else {
+                piece = Self.boundedElement(
+                    rawText,
+                    locator: element.locator,
+                    firstLocator: firstElement ? firstLocator : nil,
+                    lastLocator: sameResourceAsLast ? lastLocator : nil
+                )
+            }
+            if let piece { pieces.append(piece) }
 
             if let textElement = element as? TextContentElement,
                case .heading = textElement.role,
@@ -206,6 +304,21 @@ final class ReadiumReadingRecapContextExtractor {
         return false
     }
 
+    nonisolated private static func isStrictlyBefore(_ locator: Locator, target: Locator) -> Bool {
+        guard locator.href.isEquivalentTo(target.href) else { return false }
+        if let targetProgression = target.locations.progression,
+           let progression = locator.locations.progression
+        {
+            return progression < targetProgression
+        }
+        if let targetPosition = target.locations.position,
+           let position = locator.locations.position
+        {
+            return position < targetPosition
+        }
+        return false
+    }
+
     nonisolated static func boundedElement(
         _ text: String,
         locator: Locator,
@@ -268,6 +381,32 @@ final class ReadiumReadingRecapContextExtractor {
             }
         }
         return result.reversed()
+    }
+
+    /// Selects bounded excerpts distributed across an entire finished book.
+    /// Each returned Locator remains aligned with its clipped text.
+    nonisolated static func representativePieces(
+        _ pieces: [ReaderAISourcedExcerpt],
+        maximum: Int
+    ) -> [ReaderAISourcedExcerpt] {
+        guard maximum > 0, !pieces.isEmpty else { return [] }
+        let total = pieces.reduce(0) { $0 + $1.text.count }
+        guard total > maximum else { return pieces }
+
+        let slotCount = min(pieces.count, max(3, maximum / 600))
+        let perSlot = max(1, maximum / slotCount)
+        var indices: [Int] = []
+        var seen = Set<Int>()
+        for slot in 0..<slotCount {
+            let index = slotCount == 1
+                ? 0
+                : Int((Double(slot) * Double(pieces.count - 1)) / Double(slotCount - 1))
+            if seen.insert(index).inserted { indices.append(index) }
+        }
+
+        return indices.flatMap { index in
+            boundedPieces([pieces[index]], maximum: perSlot)
+        }
     }
 
     nonisolated private static func rawHighlight(_ value: String?) -> String? {

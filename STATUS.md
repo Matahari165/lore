@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 5 septembre 2026
+Dernière mise à jour : 6 septembre 2026
 
 ## Terminé
 
@@ -8,6 +8,9 @@ Dernière mise à jour : 5 septembre 2026
 - Progression de lecture durcie : le dernier Locator complet observé est conservé comme source de vérité, puis écrit immédiatement à l’activation, à l’inactivation, en arrière-plan et à la fermeture. Une position fournisseur plus ancienne ne peut plus remplacer une observation récente ; le retour après un saut réactualise aussi la position sauvegardée.
 - Informations de livre simplifiées : les boutons `i` visibles ont été retirés des bibliothèques, de Reprendre et des pochettes récentes ; les détails restent accessibles par appui long et menu contextuel.
 - Discussion par livre refondue en surface plus minimale. Depuis la fiche/Reprendre, le contexte local ouvre l’EPUB privé et extrait uniquement le texte jusqu’au Locator sauvegardé, notamment pour « Résumer le chapitre » et « Résumer tout ce que j’ai lu ». Les réponses IA restent normalisées en puces courtes, avec une dernière puce « Idée essentielle ».
+- Lot IA lecteur corrigé en profondeur : un nouveau fil local est réellement séparé de l’historique précédent ; le fil courant peut être choisi dans le menu ; l’historique visible et réinjecté est borné par la progression actuelle ; un surlignage est transmis comme extrait sourcé depuis le lecteur, la Bibliothèque et les listes.
+- Contexte IA unifié : le lecteur fournit le Locator qualifié, la sélection et le texte lu jusqu’à la frontière courante ; une discussion ouverte livre fermé relit l’EPUB privé et utilise la même chaîne. Après le statut « terminé », des extraits répartis sur le début, le milieu et la fin du livre sont sélectionnés dans une limite de coût ; aucun passage futur n’est admis avant cette étape.
+- Sécurité de l’envoi renforcée : les citations sont revalidées localement, l’historique n’est plus copié deux fois dans la requête Responses, la sortie est bornée à 800 tokens et les Locators restent locaux. L’interface Discussion supprime les éléments décoratifs inutiles et conserve des actions accessibles de 44 × 44.
 - Vérification technique du lot : `build-for-testing` de l’application et de `LoreTests` réussi avec Xcode 26.6 / iOS 26.5, sans signature. Les tests compilent ; leur exécution reste bloquée par `CoreSimulatorService` indisponible dans l’environnement actuel.
 
 - Nettoyage du code mort vérifié : suppression de l’ancien type d’erreur générique, d’un enum IA sans consommateur, de quatre méthodes et d’une propriété sans appel, ainsi que des anciennes ressources d’icône remplacées. Les migrations de données et contrats futurs documentés ont été conservés. L’application et la cible de tests compilent ; l’exécution XCTest reste bloquée avant tout résultat.
@@ -121,7 +124,7 @@ Dernière mise à jour : 5 septembre 2026
 - Vérification visuelle du mode sombre global et de la transition douce du lecteur sur iPhone `390 × 844`, avec et sans Réduire les animations.
 - Vérification réelle sur l’iPhone des taps, du menu de sélection, du contraste cyan, de la création puis du retour à un surlignage, et des écrans IA sans clé.
 - Vérification réelle sur l’iPhone et avec VoiceOver des boutons « Passages cités » et du retour au passage depuis les trois points d’entrée.
-- Raccorder l’analyse complète d’un livre terminé : l’écran Discussion utilise actuellement uniquement les extraits disponibles jusqu’au repère courant.
+- Vérifier sur appareil le parcours complet d’un livre terminé : extraction des extraits répartis sur le livre, discussion et absence de spoiler avant le statut terminé.
 - Vérification accessibilité complète : Dynamic Type, VoiceOver et réduction de transparence.
 - Mesure réelle sur iPhone du gain de vitesse apporté par le cache des deux derniers livres et vérification visuelle des animations et des rangées de couvertures.
 - Profilage Énergie/CPU sur l’iPhone : l’audit statique soupçonne les sauvegardes SwiftData et la réécriture des checkpoints de récap lors du défilement, mais aucune mesure Instruments n’a encore été réalisée.
@@ -184,9 +187,9 @@ Dernière mise à jour : 5 septembre 2026
 ### Plus tard — Après le premier lot IA
 
 - Application Mac complète.
-- Questions-réponses approfondies sur un livre.
-- Analyse complète des livres terminés et recommandations fondées sur les lectures et notes.
-- Analyse et discussion de fin de livre avec l'IA.
+- Évaluation approfondie des réponses sur plusieurs livres et amélioration de la recherche locale d’extraits.
+- Recommandations fondées sur les lectures et notes.
+- Vérification réelle et itération de l’analyse de fin de livre avec l’IA.
 
 ## Problèmes et risques connus
 
@@ -200,7 +203,7 @@ Dernière mise à jour : 5 septembre 2026
 - La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
 - Aucun miroir CloudKit, entitlement ou schéma distant n’est activé et aucune preuve réelle sur deux appareils n’a été obtenue. Le futur contrat devra borner les champs proches de 1 Mo ou employer `CKAsset`.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
-- L’analyse IA d’un livre complet reste hors périmètre ; seules des fenêtres bornées sont envoyées.
+- L’analyse IA d’un livre complet reste bornée : Lore sélectionne des extraits répartis sur l’EPUB local ; le fichier complet n’est jamais envoyé comme un seul bloc.
 - Les catégories éditoriales des EPUB ne sont pas encore extraites ni persistées ; aucune collection intelligente par sujet n’est donc affichée.
 
 ## Décisions en attente

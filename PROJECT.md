@@ -84,10 +84,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - EPUB protégés par DRM, notamment les livres Apple Books protégés.
 - Boutique de livres.
 - Comptes multiples et fonctions sociales.
-- Questions sur tout le livre.
-- Interface générale de discussion avec le livre, incluant les résumés de chapitres et les questions sur le texte lu. *(Architecture validée ; interface à construire.)*
 - Recommandations avancées.
-- Interface complète de discussion et analyse de fin de livre. *(Contrat et prompt prêts.)*
 - Statistiques complexes au-delà des séries liées à l’objectif quotidien.
 
 ## Définition de terminé de la V1
@@ -125,7 +122,7 @@ La V1 est terminée lorsque :
 - **iCloud :** un miroir privé manuel est prévu pour synchroniser les données entre les appareils personnels ; il n’est pas encore activé.
 - **Moteur EPUB :** Readium Swift Toolkit 3.11 ouvre le livre et fournit le Locator stable utilisé pour reprendre la lecture.
 - **Mesure de lecture :** enregistre des sessions actives, puis calcule les statistiques à partir de ces sessions.
-- **IA :** module séparé utilisant l’API Responses d’OpenAI avec `gpt-5.6-luna`, une clé conservée dans le trousseau de l’iPhone et `store: false`.
+- **IA :** module séparé utilisant l’API Responses d’OpenAI avec `gpt-5.6-luna`, une clé conservée dans le trousseau de l’iPhone et `store: false`. Les conversations restent locales ; les extraits envoyés sont bornés et validés avant chaque requête.
 
 Les choix techniques détaillés doivent privilégier les outils natifs Apple, la simplicité et l’absence de serveur quand il n’apporte pas de bénéfice nécessaire.
 
@@ -199,10 +196,10 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les collections manuelles conservent uniquement des références vers les livres existants ; elles ne dupliquent ni EPUB, ni couverture, ni progression. Les collections intelligentes sont calculées depuis le statut, l’import récent, l’année de lecture et l’auteur.
 - Les catégories éditoriales EPUB ne sont pas encore conservées et ne sont donc pas proposées comme collections intelligentes.
 - Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
-- La prochaine surface IA est une conversation unique avec chaque livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
+- La surface IA propose plusieurs conversations locales par livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
 - La surface Discussion est accessible depuis le lecteur et les listes de livres. Elle conserve ses messages localement et affiche explicitement la portée du texte envoyé.
 - Les réponses de Discussion peuvent citer les seuls blocs EPUB réellement envoyés. Lore attribue des identifiants opaques, conserve localement le Locator Readium exact et versionné, valide chaque citation contre le livre et la frontière lue, puis permet le retour au passage depuis le lecteur, l’Accueil ou la Bibliothèque. Aucun Locator n’est transmis à l’API.
-- Lorsqu’un livre est explicitement terminé, l’utilisateur autorise Lore à sélectionner et envoyer à OpenAI des extraits pertinents provenant de l’ensemble du livre pour l’analyse finale. L’EPUB complet n’est pas envoyé en un seul bloc et aucun envoi ne se déclenche automatiquement.
+- Lorsqu’un livre est explicitement terminé, l’utilisateur autorise Lore à sélectionner et envoyer à OpenAI des extraits bornés répartis sur l’ensemble du livre pour l’analyse finale. L’EPUB complet n’est pas envoyé en un seul bloc et aucun envoi ne se déclenche automatiquement.
 - Le mode Lecture interne est facultatif et désactivé par défaut. Quand il est activé, Lore conserve ses rappels dans le Centre de notifications sans bannière ni son pendant que le lecteur est ouvert. Les interruptions des autres apps restent sous le contrôle de Concentration d’iOS, que Lore ne peut pas activer directement.
 - Toutes les réponses IA (explication, résumé de veille, discussion, résumé de chapitre, réponse question, discussion de fin) sont imposées puis normalisées localement en six puces Markdown maximum (`- `), phrases courtes simples avec retours ligne et termes techniques définis. La dernière ligne « Idée essentielle » ou « Où reprendre » est elle aussi une puce.
 - Lore utilise un mode sombre permanent, y compris dans Readium. Les anciennes préférences claires sont migrées automatiquement.
@@ -215,7 +212,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 
 ## Décisions nécessitant une consultation
 
-- L’envoi volontaire d’un passage et de son contexte borné à OpenAI est autorisé lorsque la clé est configurée ; aucun texte n’est envoyé avant.
+- L’envoi volontaire d’un passage et de son contexte borné à OpenAI est autorisé lorsque la clé est configurée ; après le statut terminé, des extraits répartis sur le livre peuvent aussi être sélectionnés. Aucun texte n’est envoyé sans question ni avant la lecture.
 - Budget mensuel maximal éventuel pour l’IA.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
 - Ajout, retrait ou changement important d’une fonction de la V1.

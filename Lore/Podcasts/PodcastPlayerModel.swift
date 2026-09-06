@@ -98,15 +98,21 @@ final class PodcastPlayerModel {
             isPlaying = false
             persist()
         } else {
-            if duration > 0, currentTime >= duration - 0.5 {
-                seek(to: 0)
-            }
-            activateSessionForPlayback()
-            player.isMuted = false
-            player.volume = 1.0
-            player.rate = playbackRate
-            isPlaying = true
+            play()
         }
+        updateNowPlaying()
+    }
+
+    func play() {
+        guard isReady else { return }
+        if duration > 0, currentTime >= duration - 0.5 {
+            seek(to: 0)
+        }
+        activateSessionForPlayback()
+        player.isMuted = false
+        player.volume = 1.0
+        player.playImmediately(atRate: playbackRate)
+        isPlaying = true
         updateNowPlaying()
     }
 

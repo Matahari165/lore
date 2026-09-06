@@ -56,10 +56,39 @@ struct LoreAIChatPromptBuilderTests {
         let payload = try decodePayload(prompt.user)
         #expect(payload.book.title == hostile)
         #expect(payload.excerpts.first?.text == hostile)
-        #expect(payload.history.first?.text == hostile)
         #expect(payload.question == hostile)
+        #expect(!prompt.user.contains("\"history\""))
         #expect(!prompt.user.contains("chapter.xhtml"))
         #expect(!prompt.user.contains("\"href\""))
+    }
+
+    @Test func finishedContextRejectsFutureExcerptWithoutWholeBookAccess() throws {
+        let bookID = UUID()
+        let source = try makeSource(bookID: bookID, text: "Passage futur", progression: 0.8)
+        #expect(throws: LoreAIError.futureReadingContext) {
+            try LoreAIChatPromptBuilder().chat(for: .init(
+                bookID: bookID,
+                title: "Livre",
+                stage: .finished,
+                readFrontierProgression: 0.4,
+                excerpts: [.init(text: "Passage futur", progression: 0.8, source: source)],
+                question: "Question"
+            ))
+        }
+    }
+
+    @Test func finishedContextCanUseTheWholeBookWindowExplicitly() throws {
+        let bookID = UUID()
+        let source = try makeSource(bookID: bookID, text: "Passage final", progression: 0.8)
+        let prompt = try LoreAIChatPromptBuilder().chat(for: .init(
+            bookID: bookID,
+            title: "Livre",
+            stage: .finished,
+            excerpts: [.init(text: "Passage final", progression: 0.8, source: source)],
+            fullBookAccessGranted: true,
+            question: "Question"
+        ))
+        #expect(prompt.user.contains("livre entier"))
     }
 
     @Test func inProgressRejectsEveryNonEmptyUntraceableExcerpt() {
@@ -126,9 +155,7 @@ private struct PromptPayload: Decodable {
         let text: String
         enum CodingKeys: String, CodingKey { case sourceID = "source_id", text }
     }
-    struct Turn: Decodable { let text: String }
     let book: Book
     let excerpts: [Excerpt]
-    let history: [Turn]
     let question: String
 }

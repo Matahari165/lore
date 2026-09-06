@@ -34,6 +34,7 @@ final class ReaderSessionController {
     private var recapHandler: (@MainActor (ReaderAIRecapState) -> Void)?
     private var explanationTask: Task<Void, Never>?
     private var recapTask: Task<Void, Never>?
+    private var cachedFinishedBookContext: ReaderAIReadingRecapContext?
     private var navigationHistory: [Locator] = []
     private var navigationHistoryHandler: (@MainActor (Bool) -> Void)?
     private let progressionLocator: @MainActor (Double) async -> Locator?
@@ -377,6 +378,38 @@ final class ReaderSessionController {
         recapTask = nil
     }
 
+    /// Retourne la sélection actuellement visible comme extrait sourcé pour la
+    /// discussion. Le texte reste local ; seul l'extrait passera par le prompt
+    /// si sa progression et son Locator sont valides.
+    func currentChatExcerpt() -> LoreAIChatExcerpt? {
+        guard let bookID,
+              let navigator = readerController as? any SelectableNavigator,
+              let selection = navigator.currentSelection,
+              let text = selection.locator.text.highlight?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty,
+              let progression = selection.locator.locations.totalProgression,
+              let source = try? Self.chatSource(
+                  bookID: bookID,
+                  locator: selection.locator,
+                  label: selection.locator.title ?? "Passage sélectionné"
+              )
+        else { return nil }
+
+        return LoreAIChatExcerpt(
+            text: text,
+            sourceDescription: selection.locator.title ?? "Passage sélectionné",
+            progression: progression,
+            source: source
+        )
+    }
+
+    /// Frontière qualifiée pour l’affichage de l’historique dans une discussion
+    /// ouverte depuis le lecteur. Une position absente reste inconnue : elle ne
+    /// doit pas être remplacée par une ancienne progression sauvegardée.
+    var chatFrontierProgression: Double? {
+        qualifiedLocatorBox.locator?.locations.totalProgression
+    }
+
     /// Builds the chat context from the position currently known by Readium.
     /// The extractor starts at the first reading-order resource but stops at
     /// the current Locator and remains bounded, so a jump cannot silently
@@ -395,60 +428,74 @@ final class ReaderSessionController {
         var excerpts: [LoreAIChatExcerpt] = []
         var chapterTitle = currentLocation?.title
         var frontierDescription: String?
-        let frontierProgression = currentLocation?.locations.totalProgression
+        let fullBookAccessGranted = stage == .finished && summaryScope == nil
+        let frontierProgression = fullBookAccessGranted
+            ? nil
+            : currentLocation?.locations.totalProgression
 
         if stage != .notStarted {
-            let requestedInterval: (Locator, Locator, String)? = try? await {
-                switch summaryScope {
-                case .yesterday:
-                    guard let recapEngine,
-                          let window = try recapEngine.previousDayWindow(for: bookID, at: .now)
-                    else { return nil }
-                    return (
-                        try LocatorPersistenceCodec.decode(window.firstLocator.storedLocator).locator,
-                        try LocatorPersistenceCodec.decode(window.lastLocator.storedLocator).locator,
-                        "Portion lue hier"
-                    )
-                case .currentChapter:
-                    guard let currentLocation else { return nil }
-                    guard let link = publication.readingOrder.first(where: {
-                        $0.url().isEquivalentTo(currentLocation.href)
-                    }), let start = await publication.locate(link) else { return nil }
-                    return (start, currentLocation, "Chapitre courant déjà lu")
-                case .sinceLastSession:
-                    // Les sessions enregistrent aujourd'hui leur durée, pas un Locator de départ.
-                    // Refuser l'approximation évite d'inclure une autre session ou du texte futur.
-                    return nil
-                case nil:
-                    guard let currentLocation else { return nil }
-                    let start: Locator = if let firstLink = publication.readingOrder.first,
-                                            let located = await publication.locate(firstLink) {
-                        located
-                    } else { currentLocation }
-                    return (start, currentLocation, "Texte lu jusqu’à la position actuelle")
+            if fullBookAccessGranted {
+                let extracted: ReaderAIReadingRecapContext?
+                if let cachedFinishedBookContext {
+                    extracted = cachedFinishedBookContext
+                } else if let loaded = try? await recapContextExtractor.extractEntireBook(from: publication) {
+                    cachedFinishedBookContext = loaded
+                    extracted = loaded
+                } else {
+                    extracted = nil
                 }
-            }()
+                if let extracted {
+                    chapterTitle = extracted.chapterTitles.last
+                    frontierDescription = extracted.lastReadPositionDescription
+                    excerpts = chatExcerpts(
+                        from: extracted,
+                        bookID: bookID,
+                        sourceDescription: "Livre entier"
+                    )
+                }
+            } else {
+                let requestedInterval: (Locator, Locator, String)? = try? await {
+                    switch summaryScope {
+                    case .yesterday:
+                        guard let recapEngine,
+                              let window = try recapEngine.previousDayWindow(for: bookID, at: .now)
+                        else { return nil }
+                        return (
+                            try LocatorPersistenceCodec.decode(window.firstLocator.storedLocator).locator,
+                            try LocatorPersistenceCodec.decode(window.lastLocator.storedLocator).locator,
+                            "Portion lue hier"
+                        )
+                    case .currentChapter:
+                        guard let currentLocation else { return nil }
+                        guard let link = publication.readingOrder.first(where: {
+                            $0.url().isEquivalentTo(currentLocation.href)
+                        }), let start = await publication.locate(link) else { return nil }
+                        return (start, currentLocation, "Chapitre courant déjà lu")
+                    case .sinceLastSession:
+                        // Les sessions enregistrent aujourd'hui leur durée, pas un Locator de départ.
+                        // Refuser l'approximation évite d'inclure une autre session ou du texte futur.
+                        return nil
+                    case nil:
+                        guard let currentLocation else { return nil }
+                        let start: Locator = if let firstLink = publication.readingOrder.first,
+                                                let located = await publication.locate(firstLink) {
+                            located
+                        } else { currentLocation }
+                        return (start, currentLocation, "Texte lu jusqu’à la position actuelle")
+                    }
+                }()
 
-            if let requestedInterval, let extracted = try? await recapContextExtractor.extract(
-                from: publication,
-                firstLocator: requestedInterval.0,
-                lastLocator: requestedInterval.1
-            ) {
-                chapterTitle = requestedInterval.1.title ?? extracted.chapterTitles.last
-                frontierDescription = extracted.lastReadPositionDescription
-                excerpts = extracted.sourcedExcerpts.enumerated().compactMap { index, excerpt in
-                    guard let progression = excerpt.locator.locations.totalProgression,
-                          let source = try? Self.chatSource(
-                              bookID: bookID,
-                              locator: excerpt.locator,
-                              label: excerpt.locator.title ?? "Passage \(index + 1)"
-                          )
-                    else { return nil }
-                    return LoreAIChatExcerpt(
-                        text: excerpt.text,
-                        sourceDescription: excerpt.locator.title ?? requestedInterval.2,
-                        progression: progression,
-                        source: source
+                if let requestedInterval, let extracted = try? await recapContextExtractor.extract(
+                    from: publication,
+                    firstLocator: requestedInterval.0,
+                    lastLocator: requestedInterval.1
+                ) {
+                    chapterTitle = requestedInterval.1.title ?? extracted.chapterTitles.last
+                    frontierDescription = extracted.lastReadPositionDescription
+                    excerpts = chatExcerpts(
+                        from: extracted,
+                        bookID: bookID,
+                        sourceDescription: requestedInterval.2
                     )
                 }
             }
@@ -464,14 +511,33 @@ final class ReaderSessionController {
             readFrontierProgression: frontierProgression,
             readFrontierDescription: frontierDescription,
             excerpts: excerpts,
-            // Full-book extraction is intentionally not claimed here. Until a
-            // dedicated, user-confirmed extractor is wired, the current
-            // Locator remains the only source of text after the end as well.
-            fullBookAccessGranted: false,
+            fullBookAccessGranted: fullBookAccessGranted,
             summaryScope: summaryScope,
             history: history,
             question: question
         )
+    }
+
+    private func chatExcerpts(
+        from extracted: ReaderAIReadingRecapContext,
+        bookID: UUID,
+        sourceDescription: String
+    ) -> [LoreAIChatExcerpt] {
+        extracted.sourcedExcerpts.enumerated().compactMap { index, excerpt in
+            guard let progression = excerpt.locator.locations.totalProgression,
+                  let source = try? Self.chatSource(
+                      bookID: bookID,
+                      locator: excerpt.locator,
+                      label: excerpt.locator.title ?? "Passage \(index + 1)"
+                  )
+            else { return nil }
+            return LoreAIChatExcerpt(
+                text: excerpt.text,
+                sourceDescription: excerpt.locator.title ?? sourceDescription,
+                progression: progression,
+                source: source
+            )
+        }
     }
 
     private static func chatSource(bookID: UUID, locator: Locator, label: String) throws -> LoreAIChatSource {
