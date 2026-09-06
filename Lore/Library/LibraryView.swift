@@ -226,7 +226,7 @@ struct LibraryView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             if mode == .home {
-                DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
+                DailyGoalProgressView(state: dailyGoalState, compact: true, onTap: onOpenActivityChart)
                     .padding(.horizontal, LoreTheme.pageMargin)
             }
             ContentUnavailableView {
@@ -243,7 +243,7 @@ struct LibraryView: View {
     private var homeContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                DailyGoalProgressView(state: dailyGoalState, onTap: onOpenActivityChart)
+                DailyGoalProgressView(state: dailyGoalState, compact: true, onTap: onOpenActivityChart)
                 if !model.resumableBooks.isEmpty { resumeSection(model.resumableBooks) }
                 YesterdayReadingSummaryView(
                     state: model.isShowingHistoryPastDay ? model.historyRecapState : model.yesterdayReadingSummaryState,

@@ -3,6 +3,7 @@ import SwiftUI
 struct DailyGoalProgressView: View {
     let state: DailyGoalState
     var showsDisabledState = true
+    var compact = false
     /// Optional navigation hook used by Accueil and Statistiques. Keeping it
     /// optional preserves the compact, non-interactive presentation elsewhere.
     var onTap: (() -> Void)?
@@ -10,10 +11,12 @@ struct DailyGoalProgressView: View {
     init(
         state: DailyGoalState,
         showsDisabledState: Bool = true,
+        compact: Bool = false,
         onTap: (() -> Void)? = nil
     ) {
         self.state = state
         self.showsDisabledState = showsDisabledState
+        self.compact = compact
         self.onTap = onTap
     }
 
@@ -57,9 +60,11 @@ struct DailyGoalProgressView: View {
 
             LoreProgressBar(value: progress.visualFraction, height: 8)
 
-            Text(progress.isReached ? "Objectif atteint" : "Objectif en cours")
-                .font(.caption)
-                .foregroundStyle(LoreTheme.secondaryInk)
+            if !compact {
+                Text(progress.isReached ? "Objectif atteint" : "Objectif en cours")
+                    .font(.caption)
+                    .foregroundStyle(LoreTheme.secondaryInk)
+            }
 
             Label(streakLabel(progress.streak.currentDays), systemImage: "flame")
                 .font(.caption.weight(.medium))
@@ -71,13 +76,16 @@ struct DailyGoalProgressView: View {
     }
 
     private func streakLabel(_ days: Int) -> String {
-        days == 1 ? "Flamme 1 jour" : "Flamme \(days) jours"
+        if compact {
+            return days == 1 ? "1 jour" : "\(days) jours"
+        }
+        return days == 1 ? "Flamme 1 jour" : "Flamme \(days) jours"
     }
 
     private func accessibilityValue(_ progress: DailyGoalProgress) -> String {
-        if progress.isReached {
-            return "Atteint. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
-        }
-        return "Objectif en cours. \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
+        let status = compact
+            ? (progress.isReached ? "Atteint." : "En cours.")
+            : (progress.isReached ? "Atteint." : "Objectif en cours.")
+        return "\(status) \(progress.displayedReadMinutes) minutes lues sur \(progress.targetMinutes). \(streakLabel(progress.streak.currentDays))."
     }
 }

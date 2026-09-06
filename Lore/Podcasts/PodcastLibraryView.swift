@@ -407,6 +407,8 @@ struct PodcastPlayerView: View {
             let model = PodcastPlayerModel(podcast: podcast, repository: repository)
             playerModel = model
             await model.load(fileURL: fileURL)
+            guard !Task.isCancelled else { return }
+            model.play()
             if let error = model.errorMessage { loadError = error }
         } catch {
             loadError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
