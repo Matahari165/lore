@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Fil local unique d'une conversation par livre. Les extraits EPUB ne sont
-/// jamais stockés dans ce modèle.
+/// Fil local d'une conversation rattachée à un livre. Plusieurs fils peuvent
+/// coexister pour le même livre ; les extraits EPUB ne sont jamais stockés ici.
 @Model
 final class AIConversationRecord {
     @Attribute(.unique) var id: UUID

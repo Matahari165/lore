@@ -102,9 +102,69 @@ struct AIConversationRepositoryTests {
             answer: "Réponse",
             sources: [source],
             readingStage: .finished,
-            frontierProgression: nil
+            frontierProgression: nil,
+            fullBookAccessGranted: true
         )
         #expect(try fixture.repository.history(for: bookID).last?.sources == [source])
+    }
+
+    @Test func createsIndependentConversationsAndReopensTheMostRecent() throws {
+        let fixture = try Fixture()
+        let bookID = UUID()
+        let first = try fixture.repository.appendTurn(
+            bookID: bookID,
+            question: "Première question",
+            answer: "Première réponse",
+            at: Date(timeIntervalSince1970: 1)
+        )
+        let second = try fixture.repository.appendTurn(
+            bookID: bookID,
+            question: "Nouvelle question",
+            answer: "Nouvelle réponse",
+            at: Date(timeIntervalSince1970: 2)
+        )
+
+        #expect(first.id != second.id)
+        #expect(try fixture.repository.conversations(for: bookID).map(\.id) == [second.id, first.id])
+        #expect(try fixture.repository.history(for: bookID).last?.text == "Nouvelle réponse")
+        #expect(try fixture.repository.history(for: bookID, conversationID: first.id).last?.text == "Première réponse")
+    }
+
+    @Test func hidesTurnsWrittenAfterTheCurrentReadingFrontier() throws {
+        let fixture = try Fixture()
+        let bookID = UUID()
+        let conversation = try fixture.repository.appendTurn(
+            bookID: bookID,
+            question: "Question déjà lue",
+            answer: "Réponse déjà lue",
+            readingStage: .inProgress,
+            frontierProgression: 0.4,
+            at: Date(timeIntervalSince1970: 1)
+        )
+        try fixture.repository.appendTurn(
+            bookID: bookID,
+            conversationID: conversation.id,
+            question: "Question future",
+            answer: "Réponse future",
+            readingStage: .inProgress,
+            frontierProgression: 0.8,
+            at: Date(timeIntervalSince1970: 2)
+        )
+
+        let beforeFuture = try fixture.repository.history(
+            for: bookID,
+            conversationID: conversation.id,
+            maximumFrontierProgression: 0.5,
+            readingStage: .inProgress
+        )
+        let afterFuture = try fixture.repository.history(
+            for: bookID,
+            conversationID: conversation.id,
+            maximumFrontierProgression: 0.9,
+            readingStage: .inProgress
+        )
+        #expect(beforeFuture.map(\.text) == ["Question déjà lue", "Réponse déjà lue"])
+        #expect(afterFuture.count == 4)
     }
 
     @Test func invalidSourceSchemaIsRejected() throws {

@@ -19,6 +19,7 @@ struct ReaderScreen: View {
     @State private var aiExplanation: ReaderAIExplanationState?
     @State private var aiRecap: ReaderAIRecapState?
     @State private var showsDiscussion = false
+    @State private var discussionExcerpt: LoreAIChatExcerpt?
     @State private var citationNavigationError: String?
     @State private var readerPresentationState: ReaderPresentationState = .appearing
     @State private var coverTransitionOpacity: Double = 1.0
@@ -190,6 +191,7 @@ struct ReaderScreen: View {
                 initialProgression: progression,
                 conversationRepository: presentation.conversationRepository,
                 session: presentation.session,
+                initialExcerpt: discussionExcerpt,
                 onOpenSource: { source in
                     Task {
                         if await presentation.session.go(to: source) {
@@ -228,6 +230,7 @@ struct ReaderScreen: View {
 
                 Spacer(minLength: 8)
                 controlButton("Discuter avec le livre", systemImage: "sparkles") {
+                    discussionExcerpt = presentation.session.currentChatExcerpt()
                     showsDiscussion = true
                 }
                 controlButton("Fermer le lecteur", systemImage: "xmark") { closeReader() }

@@ -20,6 +20,7 @@ struct LibraryView: View {
     @State private var selectedHighlights: [ReaderHighlight] = []
     @State private var highlightsLoadError: String?
     @State private var discussionDraft: String?
+    @State private var discussionHighlight: ReaderHighlight?
     @State private var pendingHighlightDiscussion: PendingHighlightDiscussion?
     @State private var showsAllHighlights = false
     @State private var allHighlightGroups: [BookHighlightGroup] = []
@@ -72,12 +73,16 @@ struct LibraryView: View {
         }
         .loreCanvas()
         .task { model.reload() }
-        .sheet(item: $discussionBook) { book in
+        .sheet(item: $discussionBook, onDismiss: {
+            discussionHighlight = nil
+            discussionDraft = nil
+        }) { book in
             BookDiscussionView(
                 book: book,
                 conversationRepository: model.conversationRepository,
                 onOpenSettings: mode == .home ? onOpenSettings : nil,
                 initialDraft: discussionDraft,
+                initialHighlight: discussionHighlight,
                 onOpenSource: onOpenDiscussionSource.map { route in
                     { source in
                         discussionBook = nil
@@ -365,6 +370,7 @@ struct LibraryView: View {
                         systemImage: "sparkles"
                     ) {
                         discussionDraft = nil
+                        discussionHighlight = nil
                         discussionBook = book
                     }
                 }
@@ -526,6 +532,7 @@ struct LibraryView: View {
 
         Button("Discuter avec le livre", systemImage: "sparkles") {
             discussionDraft = nil
+            discussionHighlight = nil
             discussionBook = book
         }
     }
@@ -533,11 +540,8 @@ struct LibraryView: View {
     private func presentPendingHighlightDiscussion() {
         guard let pending = pendingHighlightDiscussion else { return }
         pendingHighlightDiscussion = nil
-        discussionDraft = """
-        J’aimerais comprendre et discuter de ce passage, sans dépasser ma progression de lecture :
-
-        « \(pending.highlight.text) »
-        """
+        discussionDraft = "Aide-moi à comprendre ce passage sans dépasser ma progression de lecture."
+        discussionHighlight = pending.highlight
         discussionBook = pending.book
     }
 
@@ -567,6 +571,7 @@ struct LibraryView: View {
             presentHighlights(for: book)
         case let .discussion(book):
             discussionDraft = nil
+            discussionHighlight = nil
             discussionBook = book
         }
     }

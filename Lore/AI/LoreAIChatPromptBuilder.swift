@@ -34,8 +34,9 @@ struct LoreAIChatPromptBuilder: Sendable {
         let question = try clippedNonEmpty(context.question, maximum: limits.questionCharacters)
         try validate(context)
         let excerpts = boundedExcerpts(context.excerpts)
-        // Un ancien tour peut avoir été produit avec une frontière plus avancée.
-        // Les résumés n'envoient donc que l'intervalle local explicitement extrait.
+        // L'historique est transmis une seule fois, comme messages Responses API.
+        // Le recopier dans le JSON du livre doublait les tokens et permettait deux
+        // interprétations concurrentes du même tour.
         let history = context.summaryScope == nil ? boundedHistory(context.history) : []
 
         let prompt = LoreAIPrompt(
@@ -72,6 +73,17 @@ struct LoreAIChatPromptBuilder: Sendable {
         else {
             throw LoreAIError.invalidChatContext
         }
+        guard context.excerpts.allSatisfy({ excerpt in
+            excerpt.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || excerpt.source != nil
+        }) else {
+            throw LoreAIError.invalidChatContext
+        }
+
+        guard !context.fullBookAccessGranted || context.stage == .finished else {
+            throw LoreAIError.invalidChatContext
+        }
+
         switch context.stage {
         case .notStarted:
             // The title and author are enough to start a conversation, but no
@@ -101,8 +113,17 @@ struct LoreAIChatPromptBuilder: Sendable {
                 throw LoreAIError.invalidChatContext
             }
         case .finished:
-            if let frontier = context.readFrontierProgression,
-               !(0...1).contains(frontier) {
+            if let frontier = context.readFrontierProgression {
+                guard (0...1).contains(frontier) else { throw LoreAIError.invalidChatContext }
+                guard !context.fullBookAccessGranted else { return }
+                guard context.excerpts.allSatisfy({ excerpt in
+                    guard let progression = excerpt.progression else { return true }
+                    return progression <= frontier + 0.000_001
+                }) else {
+                    throw LoreAIError.futureReadingContext
+                }
+            } else if !context.fullBookAccessGranted,
+                      context.excerpts.contains(where: { $0.progression != nil }) {
                 throw LoreAIError.invalidChatContext
             }
         }
@@ -218,7 +239,6 @@ struct LoreAIChatPromptBuilder: Sendable {
                     text: excerpt.text
                 )
             },
-            history: history.map { .init(role: $0.role.rawValue, text: $0.text) },
             question: question
         )
         guard let json = String(data: try JSONEncoder().encode(payload), encoding: .utf8) else {
@@ -281,6 +301,5 @@ private struct ChatPromptPayload: Encodable {
     struct Turn: Encodable { let role, text: String }
     let book: Book
     let excerpts: [Excerpt]
-    let history: [Turn]
     let question: String
 }

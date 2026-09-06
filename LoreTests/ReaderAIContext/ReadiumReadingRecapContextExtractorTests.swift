@@ -84,6 +84,25 @@ struct ReadiumReadingRecapContextExtractorTests {
         ) == nil)
     }
 
+    @Test func progressionOnlyFrontierStillAllowsEarlierCompleteElements() throws {
+        let raw = "Paragraphe déjà lu."
+        let element = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: 0.3, totalProgression: 0.3),
+            text: .init(highlight: raw)
+        )
+        let progressionOnlyFrontier = Locator(
+            href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
+            locations: .init(progression: 0.5, totalProgression: 0.5)
+        )
+
+        let piece = try #require(ReadiumReadingRecapContextExtractor.boundedElement(
+            raw, locator: element, firstLocator: nil, lastLocator: nil
+        ))
+        #expect(piece.text == raw)
+        #expect(element.locations.progression! < progressionOnlyFrontier.locations.progression!)
+    }
+
     @Test func suffixBoundingKeepsLocatorAlignedWithReturnedText() throws {
         let text = "0123456789ABCDEFGHIJ"
         let locator = Locator(
@@ -98,5 +117,28 @@ struct ReadiumReadingRecapContextExtractorTests {
         #expect(piece.text == "CDEFGHIJ")
         #expect(piece.locator.text.highlight == "CDEFGHIJ")
         #expect(piece.locator.text.before?.hasSuffix("0123456789AB") == true)
+    }
+
+    @Test func fullBookWindowDistributesTextAcrossTheBook() throws {
+        let pieces = (0..<5).map { index in
+            let text = "Passage \(index) " + String(repeating: "x", count: 20)
+            return ReaderAISourcedExcerpt(
+                text: text,
+                locator: Locator(
+                    href: URL(string: "chapter\(index).xhtml")!,
+                    mediaType: .xhtml,
+                    locations: .init(totalProgression: Double(index) / 4),
+                    text: .init(highlight: text)
+                )
+            )
+        }
+
+        let selected = ReadiumReadingRecapContextExtractor.representativePieces(pieces, maximum: 90)
+
+        #expect(selected.count == 3)
+        #expect(selected.first?.text.contains("Passage 0") == true)
+        #expect(selected.last?.text.contains("Passage 4") == true)
+        #expect(selected.reduce(0) { $0 + $1.text.count } <= 90)
+        #expect(selected.allSatisfy { $0.locator.text.highlight == $0.text })
     }
 }

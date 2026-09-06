@@ -17,8 +17,35 @@ final class LocalBookAIContextLoader {
         let frontierProgression: Double?
         let frontierDescription: String?
         let excerpts: [LoreAIChatExcerpt]
+        let fullBookAccessGranted: Bool
         let isAvailable: Bool
         let unavailableMessage: String?
+
+        init(
+            bookID: UUID,
+            title: String,
+            author: String?,
+            stage: LoreAIReadingStage,
+            chapterTitle: String?,
+            frontierProgression: Double?,
+            frontierDescription: String?,
+            excerpts: [LoreAIChatExcerpt],
+            fullBookAccessGranted: Bool = false,
+            isAvailable: Bool,
+            unavailableMessage: String?
+        ) {
+            self.bookID = bookID
+            self.title = title
+            self.author = author
+            self.stage = stage
+            self.chapterTitle = chapterTitle
+            self.frontierProgression = frontierProgression
+            self.frontierDescription = frontierDescription
+            self.excerpts = excerpts
+            self.fullBookAccessGranted = fullBookAccessGranted
+            self.isAvailable = isAvailable
+            self.unavailableMessage = unavailableMessage
+        }
 
         func chatContext(
             summaryScope: LoreAISummaryScope?,
@@ -34,7 +61,7 @@ final class LocalBookAIContextLoader {
                 readFrontierProgression: frontierProgression,
                 readFrontierDescription: frontierDescription,
                 excerpts: isAvailable ? excerpts : [],
-                fullBookAccessGranted: false,
+                fullBookAccessGranted: fullBookAccessGranted,
                 summaryScope: summaryScope,
                 history: history,
                 question: question
@@ -123,16 +150,23 @@ final class LocalBookAIContextLoader {
         guard !book.relativeFilePath.isEmpty else {
             throw LocalBookAIContextLoaderError.fileUnavailable
         }
-        guard let lastLocatorJSON = book.lastLocatorJSON else {
+
+        let fullBookAccessGranted = book.stage == .finished && scope == nil
+        let current: Locator?
+        if fullBookAccessGranted {
+            current = nil
+        } else if let lastLocatorJSON = book.lastLocatorJSON {
+            current = try LocatorPersistenceCodec.decode(.init(
+                data: lastLocatorJSON,
+                schemaVersion: book.locatorSchemaVersion
+            )).locator
+        } else {
             return unavailableSnapshot("Aucune position de lecture sauvegardée n’est disponible.")
         }
 
-        let current = try LocatorPersistenceCodec.decode(.init(
-            data: lastLocatorJSON,
-            schemaVersion: book.locatorSchemaVersion
-        )).locator
-        let currentProgression = current.locations.totalProgression
-        if let lastProgression = book.lastProgression,
+        let currentProgression = current?.locations.totalProgression
+        if !fullBookAccessGranted,
+           let lastProgression = book.lastProgression,
            let currentProgression,
            abs(lastProgression - currentProgression) > 0.000_001
         {
@@ -143,34 +177,43 @@ final class LocalBookAIContextLoader {
         let opened = try await publicationService.openEPUB(at: fileURL)
         nonisolated(unsafe) let publication = opened.publication
 
-        let firstLocator: Locator
+        let recap: ReaderAIReadingRecapContext
         let description: String
-        switch scope {
-        case .currentChapter:
-            guard let link = publication.readingOrder.first(where: {
-                $0.url().isEquivalentTo(current.href)
-            }), let located = await publication.locate(link) else {
+        if fullBookAccessGranted {
+            recap = try await extractor.extractEntireBook(from: publication)
+            description = "Livre entier autorisé après la fin de lecture"
+        } else {
+            guard let current else {
                 throw LocalBookAIContextLoaderError.chapterUnavailable
             }
-            firstLocator = located
-            description = "Chapitre lu jusqu’à la position sauvegardée"
-        case nil:
-            guard let link = publication.readingOrder.first,
-                  let located = await publication.locate(link)
-            else {
-                throw LocalBookAIContextLoaderError.readingOrderUnavailable
+            let firstLocator: Locator
+            switch scope {
+            case .currentChapter:
+                guard let link = publication.readingOrder.first(where: {
+                    $0.url().isEquivalentTo(current.href)
+                }), let located = await publication.locate(link) else {
+                    throw LocalBookAIContextLoaderError.chapterUnavailable
+                }
+                firstLocator = located
+                description = "Chapitre lu jusqu’à la position sauvegardée"
+            case nil:
+                guard let link = publication.readingOrder.first,
+                      let located = await publication.locate(link)
+                else {
+                    throw LocalBookAIContextLoaderError.readingOrderUnavailable
+                }
+                firstLocator = located
+                description = "Texte lu jusqu’à la position sauvegardée"
+            case .yesterday, .sinceLastSession:
+                throw LocalBookAIContextLoaderError.intervalUnavailable
             }
-            firstLocator = located
-            description = "Texte lu jusqu’à la position sauvegardée"
-        case .yesterday, .sinceLastSession:
-            throw LocalBookAIContextLoaderError.intervalUnavailable
-        }
 
-        let recap = try await extractor.extract(
-            from: publication,
-            firstLocator: firstLocator,
-            lastLocator: current
-        )
+            recap = try await extractor.extract(
+                from: publication,
+                firstLocator: firstLocator,
+                lastLocator: current
+            )
+        }
         let excerpts = recap.sourcedExcerpts.enumerated().compactMap { index, excerpt -> LoreAIChatExcerpt? in
             guard let progression = excerpt.locator.locations.totalProgression,
                   let locatorJSON = try? excerpt.locator.jsonData()
@@ -201,9 +244,12 @@ final class LocalBookAIContextLoader {
             author: opened.author ?? book.author,
             stage: book.stage,
             chapterTitle: recap.chapterTitles.last,
-            frontierProgression: currentProgression ?? book.lastProgression,
-            frontierDescription: recap.lastReadPositionDescription ?? description,
+            frontierProgression: fullBookAccessGranted ? nil : (currentProgression ?? book.lastProgression),
+            frontierDescription: fullBookAccessGranted
+                ? description
+                : (recap.lastReadPositionDescription ?? description),
             excerpts: excerpts,
+            fullBookAccessGranted: fullBookAccessGranted,
             isAvailable: true,
             unavailableMessage: nil
         )
