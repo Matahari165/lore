@@ -12,12 +12,8 @@ struct ReaderScreen: View {
     @State private var presentedPanel: Panel?
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
-    @State private var scrubProgression: Double
     @State private var pageNumber: Int?
-    @State private var navigationPreview: ReaderNavigationPreview?
-    @State private var isScrubbing = false
     @State private var canGoBackAfterJump = false
-    @State private var previewTask: Task<Void, Never>?
     @State private var highlights: [ReaderHighlight]
     @State private var vocabulary: [VocabularyItem]
     @State private var aiExplanation: ReaderAIExplanationState?
@@ -42,7 +38,6 @@ struct ReaderScreen: View {
         self.onReadingProgress = onReadingProgress
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
-        _scrubProgression = State(initialValue: presentation.session.currentProgression)
         _highlights = State(initialValue: presentation.session.highlights)
         _vocabulary = State(initialValue: presentation.session.vocabulary)
     }
@@ -93,6 +88,8 @@ struct ReaderScreen: View {
 
                 if showsControls && isVisible {
                     controls
+                        .padding(.top, geometry.safeAreaInsets.top + 12)
+                        .padding(.bottom, geometry.safeAreaInsets.bottom + 12)
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
@@ -114,7 +111,6 @@ struct ReaderScreen: View {
             }
             presentation.session.setProgressionHandler {
                 progression = $0
-                if !isScrubbing { scrubProgression = $0 }
                 scheduleGoalRefresh()
             }
             presentation.session.setLocationHandler { locator in
@@ -140,7 +136,6 @@ struct ReaderScreen: View {
             presentation.session.setVocabularyChangeHandler(nil)
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
-            previewTask?.cancel()
             goalRefreshTask?.cancel()
         }
         .onAppear(perform: animateReaderEntrance)
@@ -227,7 +222,7 @@ struct ReaderScreen: View {
                         .font(.footnote.weight(.medium))
                         .lineLimit(1)
 
-                    navigationScrubber
+                    navigationProgress
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -239,8 +234,8 @@ struct ReaderScreen: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 88, alignment: .center)
-            .readerGlass(in: RoundedRectangle(cornerRadius: 20), reduceTransparency: reduceTransparency)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .center)
+            .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency)
             .padding(.horizontal, 16)
 
             Spacer()
@@ -281,98 +276,36 @@ struct ReaderScreen: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .frame(minHeight: 68)
+                    .frame(maxWidth: .infinity, minHeight: 68, alignment: .center)
                     .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency, interactive: true)
                 }
             }
             .padding(.horizontal, 16)
         }
         .foregroundStyle(.primary)
-        .safeAreaPadding(.top, 12)
-        .safeAreaPadding(.bottom, 12)
     }
 
     private var pageLabel: some View {
         Text(pageNumber.map { "Page \($0)" } ?? "Page indisponible")
-            .font(.caption.monospacedDigit().weight(.medium))
+            .font(.subheadline.monospacedDigit().weight(.medium))
             .contentTransition(.numericText())
             .lineLimit(1)
-            .frame(minWidth: 84, minHeight: 44)
+            .frame(minWidth: 96, minHeight: 44, alignment: .center)
             .accessibilityLabel("Page")
             .accessibilityValue(pageNumber.map(String.init) ?? "indisponible")
     }
 
-    private var navigationScrubber: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ZStack {
-                LoreProgressBar(
-                    value: scrubProgression,
-                    fill: .white,
-                    track: .white.opacity(0.22),
-                    height: 8
-                )
-                .padding(.horizontal, 2)
-                .allowsHitTesting(false)
-
-                Slider(
-                    value: $scrubProgression,
-                    in: 0...1,
-                    onEditingChanged: scrubberEditingChanged
-                )
-                .frame(minHeight: 44)
-                .tint(.clear)
-                .accessibilityLabel("Position dans le livre")
-                .accessibilityValue(Text(scrubProgression, format: .percent.precision(.fractionLength(0))))
-                .accessibilityHint("Ajustez puis relâchez pour aller à cette position")
-            }
-            .frame(minHeight: 44)
-
-            if isScrubbing {
-                Text(navigationPreviewText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .accessibilityLabel("Aperçu du chapitre")
-                    .accessibilityValue(navigationPreview?.chapterTitle ?? "Indisponible")
-            }
-        }
-        .onChange(of: scrubProgression) { _, newValue in
-            guard isScrubbing else { return }
-            requestNavigationPreview(at: newValue)
-        }
-    }
-
-    private var navigationPreviewText: String {
-        guard let navigationPreview else { return "Recherche du chapitre…" }
-        guard navigationPreview.isAvailable else { return "Navigation indisponible" }
-        return navigationPreview.chapterTitle ?? "Chapitre sans titre"
-    }
-
-    private func scrubberEditingChanged(_ editing: Bool) {
-        isScrubbing = editing
-        if editing {
-            requestNavigationPreview(at: scrubProgression)
-        } else {
-            previewTask?.cancel()
-            navigationPreview = nil
-            let destination = scrubProgression
-            Task {
-                if !(await presentation.session.go(toProgression: destination)) {
-                    scrubProgression = progression
-                }
-            }
-        }
-    }
-
-    private func requestNavigationPreview(at value: Double) {
-        previewTask?.cancel()
-        previewTask = Task {
-            try? await Task.sleep(for: .milliseconds(120))
-            guard !Task.isCancelled else { return }
-            let preview = await presentation.session.previewNavigation(at: value)
-            guard !Task.isCancelled else { return }
-            navigationPreview = preview
-        }
+    private var navigationProgress: some View {
+        LoreProgressBar(
+            value: progression,
+            fill: .white,
+            track: .white.opacity(0.22),
+            height: 8
+        )
+        .padding(.horizontal, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progression dans le livre")
+        .accessibilityValue(Text(progression, format: .percent.precision(.fractionLength(0))))
     }
 
     private func goBackAfterJump() {
