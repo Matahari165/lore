@@ -6,6 +6,7 @@ struct OpenAIResponsesConfiguration: Sendable {
     var endpoint = URL(string: "https://api.openai.com/v1/responses")!
     var requestTimeout: TimeInterval = 45
     var resourceTimeout: TimeInterval = 90
+    var maxOutputTokens = 800
 }
 
 final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
@@ -65,8 +66,9 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
                       source.hasValidIdentityAndProgression,
                       source.locatorSchemaVersion == LocatorPersistenceCodec.currentSchemaVersion,
                       source.progression.map({ progression in
+                          if context.fullBookAccessGranted { return true }
                           guard let frontier = context.readFrontierProgression else {
-                              return context.stage == .finished
+                              return false
                           }
                           return progression <= frontier + 0.000_001
                       }) == true,
@@ -111,6 +113,7 @@ final class OpenAIResponsesClient: LoreAIService, @unchecked Sendable {
                 model: OpenAIResponsesConfiguration.model,
                 store: false,
                 reasoning: .init(effort: "low"),
+                maxOutputTokens: configuration.maxOutputTokens,
                 text: structuredChat ? .structuredChat : nil,
                 input: [.init(role: "developer", content: prompt.developer)]
                     + prompt.history.map { .init(role: $0.role.rawValue, content: $0.text) }
@@ -247,8 +250,15 @@ private struct ResponsesRequest: Encodable {
     let model: String
     let store: Bool
     let reasoning: Reasoning
+    let maxOutputTokens: Int
     let text: TextConfiguration?
     let input: [Input]
+
+    enum CodingKeys: String, CodingKey {
+        case model, store, reasoning
+        case maxOutputTokens = "max_output_tokens"
+        case text, input
+    }
 }
 
 private struct StructuredChatPayload: Decodable {
