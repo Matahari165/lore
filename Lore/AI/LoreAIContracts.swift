@@ -188,6 +188,17 @@ protocol LoreAIService: LoreAIChatService {
     func recap(_ context: PreviousReadingContext) async throws -> String
 }
 
+/// Consigne de présentation partagée par tous les prompts : des puces courtes
+/// et simples, structurées en parties lisibles grâce à un mini-titre en gras
+/// en début de puce, avec des retours à la ligne entre chaque puce.
+enum LoreAIResponseStyle {
+    static func bullets(lastBullet: String, bodyPlan: String) -> String {
+        """
+        Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Structure en parties avec un mini-titre en gras en début de puce (\(bodyPlan)). Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « \(lastBullet) ». Aucun texte hors puces.
+        """
+    }
+}
+
 enum LoreAIError: LocalizedError, Equatable {
     case missingAPIKey
     case invalidAPIKey

@@ -333,11 +333,23 @@ final class ReaderSessionController {
             let navigator = readerController as? any SelectableNavigator,
             let selection = navigator.currentSelection,
             let publication
-        else { return }
+        else {
+            explanationHandler?(.failure(
+                selectedText: "",
+                message: "Sélectionnez un passage dans le livre, puis touchez Expliquer. Aucun texte n’a été envoyé."
+            ))
+            return
+        }
 
         let selectedText = selection.locator.text.highlight?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !selectedText.isEmpty else { return }
+        guard !selectedText.isEmpty else {
+            explanationHandler?(.failure(
+                selectedText: "",
+                message: "Sélectionnez un passage dans le livre, puis touchez Expliquer. Aucun texte n’a été envoyé."
+            ))
+            return
+        }
         explanationHandler?(.loading(selectedText: selectedText))
 
         explanationTask?.cancel()
@@ -362,10 +374,20 @@ final class ReaderSessionController {
             } catch {
                 explanationHandler?(.failure(
                     selectedText: selectedText,
-                    message: (error as? LocalizedError)?.errorDescription ?? "L’explication est indisponible."
+                    message: explanationFailureMessage(for: error)
                 ))
             }
         }
+    }
+
+    private func explanationFailureMessage(for error: Error) -> String {
+        if let error = error as? ReadiumSelectionContextError, error == .emptySelection {
+            return "La sélection est vide. Sélectionnez un passage, puis touchez Expliquer. Aucun texte n’a été envoyé."
+        }
+        if let error = error as? LoreAIError, error == .emptyContext {
+            return "Aucun texte exploitable dans ce passage. Aucun texte n’a été envoyé."
+        }
+        return (error as? LocalizedError)?.errorDescription ?? "L’explication est indisponible."
     }
 
     func cancelExplanation() {

@@ -102,6 +102,21 @@ struct BookDiscussionView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         contextHeader
 
+                        if let initialExcerpt, stage != .notStarted {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Passage sélectionné joint à cette discussion")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(LoreTheme.secondaryInk)
+                                Text(initialExcerpt.text)
+                                    .font(.callout)
+                                    .foregroundStyle(LoreTheme.secondaryInk)
+                                    .lineLimit(4)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Passage sélectionné joint : \(initialExcerpt.text)")
+                        }
+
                         if let scopeWarning {
                             Label(scopeWarning, systemImage: "info.circle")
                                 .font(.caption)
@@ -598,12 +613,19 @@ struct BookDiscussionView: View {
                         for: context.summaryScope,
                         loaderMessage: contextLoadError
                     )
+                    appendLocalAnswer(question: value, answer: answer, context: context)
+                    scopeWarning = "Aucun texte du livre n’a été envoyé pour cette réponse."
+                    return
+                }
+                do {
+                    let response = try await aiService.chat(context)
                     if let conversationRepository {
                         let record = try conversationRepository.appendTurn(
                             bookID: bookID,
                             conversationID: activeConversationID,
                             question: value,
-                            answer: answer,
+                            answer: response.text,
+                            sources: response.sources,
                             readingStage: stage,
                             frontierProgression: context.readFrontierProgression,
                             frontierDescription: context.readFrontierDescription,
@@ -613,28 +635,19 @@ struct BookDiscussionView: View {
                         refreshConversations()
                     }
                     messages.append(LoreAIChatMessage(role: .user, text: value))
-                    messages.append(LoreAIChatMessage(role: .assistant, text: answer))
-                    scopeWarning = "Aucun texte du livre n’a été envoyé pour cette réponse."
-                    return
-                }
-                let response = try await aiService.chat(context)
-                if let conversationRepository {
-                    let record = try conversationRepository.appendTurn(
-                        bookID: bookID,
-                        conversationID: activeConversationID,
-                        question: value,
-                        answer: response.text,
-                        sources: response.sources,
-                        readingStage: stage,
-                        frontierProgression: context.readFrontierProgression,
-                        frontierDescription: context.readFrontierDescription,
-                        fullBookAccessGranted: context.fullBookAccessGranted
+                    messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
+                } catch let error as LoreAIError
+                    where error == .emptyContext || error == .invalidChatContext || error == .futureReadingContext
+                {
+                    // Le contexte est invalide ou dépasse la progression : aucun
+                    // texte n’a été envoyé. Réponse locale, sans bannière d’erreur.
+                    let answer = insufficientContextMessage(
+                        for: context.summaryScope,
+                        loaderMessage: error.errorDescription
                     )
-                    activeConversationID = record.id
-                    refreshConversations()
+                    appendLocalAnswer(question: value, answer: answer, context: context)
+                    scopeWarning = "Aucun texte du livre n’a été envoyé pour cette réponse."
                 }
-                messages.append(LoreAIChatMessage(role: .user, text: value))
-                messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
             } catch is CancellationError {
                 failedQuestion = value
             } catch {
@@ -691,10 +704,20 @@ struct BookDiscussionView: View {
 
     private func addingInitialExcerpt(to context: LoreAIChatContext) -> LoreAIChatContext {
         guard let initialExcerpt,
-              let progression = initialExcerpt.progression,
-              context.fullBookAccessGranted
-                || context.readFrontierProgression.map({ progression <= $0 + 0.000_001 }) == true,
-              !context.excerpts.contains(where: { $0.source?.id == initialExcerpt.source?.id })
+              let progression = initialExcerpt.progression
+        else { return context }
+        if context.excerpts.contains(where: { $0.source?.id == initialExcerpt.source?.id }) {
+            return context
+        }
+        if !context.fullBookAccessGranted,
+           let frontier = context.readFrontierProgression,
+           progression > frontier + 0.000_001
+        {
+            scopeWarning = "Le passage sélectionné dépasse votre progression, il n’a pas été envoyé."
+            return context
+        }
+        guard context.fullBookAccessGranted
+            || context.readFrontierProgression.map({ progression <= $0 + 0.000_001 }) == true
         else { return context }
 
         return LoreAIChatContext(
@@ -711,6 +734,30 @@ struct BookDiscussionView: View {
             history: context.history,
             question: context.question
         )
+    }
+
+    private func appendLocalAnswer(
+        question: String,
+        answer: String,
+        context: LoreAIChatContext
+    ) {
+        if let conversationRepository {
+            if let record = try? conversationRepository.appendTurn(
+                bookID: bookID,
+                conversationID: activeConversationID,
+                question: question,
+                answer: answer,
+                readingStage: stage,
+                frontierProgression: context.readFrontierProgression,
+                frontierDescription: context.readFrontierDescription,
+                fullBookAccessGranted: context.fullBookAccessGranted
+            ) {
+                activeConversationID = record.id
+                refreshConversations()
+            }
+        }
+        messages.append(LoreAIChatMessage(role: .user, text: question))
+        messages.append(LoreAIChatMessage(role: .assistant, text: answer))
     }
 
     private func refreshConversations() {

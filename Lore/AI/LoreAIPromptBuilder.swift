@@ -25,11 +25,12 @@ struct LoreAIPromptBuilder: Sendable {
         let after = clipped(context.textAfter, keeping: .start, maximum: limits.surroundingCharacters)
 
         return LoreAIPrompt(
-            developer: Self.safetyInstructions + """
-
-            Explique le passage sélectionné en français simple. Utilise le contexte uniquement pour comprendre le passage. Signale clairement toute incertitude. Ne révèle rien qui se situe après le contexte fourni.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Idée essentielle : ». Aucun texte hors puces.
-            """,
+            developer: Self.safetyInstructions + "\n\n"
+                + "Explique le passage sélectionné en français simple. Utilise le contexte uniquement pour comprendre le passage. Signale clairement toute incertitude. Ne révèle rien qui se situe après le contexte fourni.\n"
+                + LoreAIResponseStyle.bullets(
+                    lastBullet: "Idée essentielle :",
+                    bodyPlan: "par exemple « - **Ce que ça dit :** … », « - **Pourquoi c’est important :** … », « - **Exemple concret :** … »"
+                ),
             user: """
             LIVRE
             Titre : \(cleanMetadata(context.title))
@@ -59,11 +60,12 @@ struct LoreAIPromptBuilder: Sendable {
         let chapters = context.chapterTitles.prefix(12).map(cleanMetadata).joined(separator: ", ")
 
         return LoreAIPrompt(
-            developer: Self.safetyInstructions + """
-
-            Résume en français simple ce que la personne a lu lors de sa précédente journée de lecture. Reste strictement dans l’extrait et les chapitres fournis. N’annonce jamais un événement ultérieur et signale si le contexte ne suffit pas.
-            Format obligatoire : réponds UNIQUEMENT en puces Markdown commençant par "- ". Maximum 6 puces, une idée par puce, phrase courte de moins de 25 mots, mots simples. Saute une ligne entre chaque puce. Explique comme à un débutant ; définis chaque terme technique en 5 à 8 mots entre parenthèses. La dernière puce commence par « Où reprendre : ». Aucun texte hors puces.
-            """,
+            developer: Self.safetyInstructions + "\n\n"
+                + "Résume en français simple ce que la personne a lu lors de sa précédente journée de lecture. Reste strictement dans l’extrait et les chapitres fournis. N’annonce jamais un événement ultérieur et signale si le contexte ne suffit pas.\n"
+                + LoreAIResponseStyle.bullets(
+                    lastBullet: "Où reprendre :",
+                    bodyPlan: "par exemple « - **Ce qui s’est passé :** … », « - **Point clé :** … »"
+                ),
             user: """
             LIVRE
             Titre : \(cleanMetadata(context.title))

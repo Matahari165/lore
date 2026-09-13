@@ -878,7 +878,8 @@ final class LibraryViewModel {
             ) != nil
         }
         let resumeLine = lines.first {
-            $0.localizedCaseInsensitiveContains("où reprendre")
+            $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .contains("ou reprendre")
         }
 
         if bullets.isEmpty {
@@ -901,7 +902,7 @@ final class LibraryViewModel {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return String(normalized.prefix(240))
         }
-        var output = shortBullets.joined(separator: "\n")
+        var output = shortBullets.joined(separator: "\n\n")
         if let resumeLine, !shortBullets.contains(resumeLine) {
             let normalizedResume = resumeLine.hasPrefix("-") ? resumeLine : "- \(resumeLine)"
             output += "\n\n" + String(normalizedResume.prefix(260))

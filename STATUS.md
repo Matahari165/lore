@@ -117,6 +117,7 @@ Dernière mise à jour : 6 septembre 2026
 - Les collections manuelles et intelligentes sont implémentées : statuts, douze imports récents, années de lecture et auteurs. L’ajout ou le retrait est disponible depuis l’appui long et la fiche du livre, sans dupliquer les fichiers EPUB.
 - Une fiche compacte par livre est accessible séparément depuis l’Accueil et la Bibliothèque, sans remplacer l’ouverture directe du lecteur. Elle rassemble uniquement les métadonnées persistées du livre, les dates et durées calculées depuis ses sessions, ses notes de surlignage, ses collections et les accès existants au lecteur, aux surlignages et à la Discussion.
 - La Discussion par livre utilise maintenant une réponse structurée `answer + source_ids`. Les passages cités sont découpés avec leur Locator Readium exact, validés localement contre le livre et la progression, persistés atomiquement avec la réponse et ouvrables depuis le lecteur, l’Accueil ou la Bibliothèque. Les anciens messages sans source restent lisibles.
+- Réponses IA structurées en parties : consigne partagée imposant des puces avec mini-titres en gras, phrases courtes et termes définis ; récapitulatif multi-livres aligné sur la même normalisation. Contexte prouvé : le passage sélectionné joint est affiché dans la Discussion, un avertissement explicite signale l’absence d’envoi ou le dépassement de progression, et une explication sans sélection répond localement sans appel IA.
 
 ## En cours
 
