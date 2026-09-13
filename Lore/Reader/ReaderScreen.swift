@@ -89,8 +89,8 @@ struct ReaderScreen: View {
 
                 if showsControls && isVisible {
                     controls
-                        .padding(.top, geometry.safeAreaInsets.top + 12)
-                        .padding(.bottom, geometry.safeAreaInsets.bottom + 12)
+                        .safeAreaPadding(.top, 12)
+                        .safeAreaPadding(.bottom, 12)
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
