@@ -1,6 +1,29 @@
 # Réglages Xcode propres à ce Mac et à son utilisateur
 xcuserdata/
 *.xcuserstate
+DerivedData/
+build/
+*.build/
+
+# Archives, paquets et fichiers de signature
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.pem
+*.key
+*.cer
+*.certSigningRequest
+
+# Secrets et configurations locales
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
 
 # Fichiers générés par macOS
 .DS_Store

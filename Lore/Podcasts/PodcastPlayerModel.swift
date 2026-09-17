@@ -17,6 +17,7 @@ final class PodcastPlayerModel {
     private(set) var isReady = false
     var errorMessage: String?
     private var lastPersistedPosition: Double
+    // Accessed from `deinit`, which is not MainActor-isolated.
     private nonisolated(unsafe) var interruptionObserver: NSObjectProtocol?
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
     private(set) var playbackRate: Float = 1.0
@@ -184,7 +185,7 @@ final class PodcastPlayerModel {
     private static func artistName(from asset: AVURLAsset) async -> String? {
         guard let items = try? await asset.load(.commonMetadata) else { return nil }
         for item in items where item.commonKey == .commonKeyArtist {
-            if let name = item.stringValue, !name.isEmpty {
+            if let name = try? await item.load(.stringValue), !name.isEmpty {
                 return name
             }
         }
@@ -197,7 +198,7 @@ final class PodcastPlayerModel {
     private nonisolated static func artworkData(from asset: AVURLAsset, duration: Double) async -> Data? {
         if let items = try? await asset.load(.commonMetadata) {
             for item in items where item.commonKey == .commonKeyArtwork {
-                if let data = item.dataValue,
+                if let data = try? await item.load(.dataValue),
                    let image = UIImage(data: data),
                    let jpeg = image.jpegData(compressionQuality: 0.85) {
                     return jpeg

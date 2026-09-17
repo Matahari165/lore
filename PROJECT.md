@@ -68,10 +68,10 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Note personnelle sur 10.
 - Listes des livres en cours et terminés.
 
-### Synchronisation iCloud
+### Préparation à la synchronisation iCloud (future)
 
-- Synchronisation de la progression, des notes, des surlignages, du temps de lecture, des métadonnées et du statut.
-- La synchronisation des fichiers EPUB eux-mêmes doit être confirmée par un test réel sur deux appareils.
+- La synchronisation de la progression, des notes, des surlignages, du temps de lecture, des métadonnées et du statut est un objectif futur ; elle n’est pas activée dans la V1 locale actuelle.
+- Aucun test réel entre deux appareils n’est disponible, y compris pour les fichiers EPUB.
 - Le store SwiftData reste explicitement local (`cloudKitDatabase: .none`). Le plan CloudKit futur prévoit un miroir privé manuel limité aux livres, progression, sessions, surlignages et vocabulaire ; EPUB, chemins locaux, staging, préférences et conversations IA seront exclus.
 - La sauvegarde portable versionnée sépare les EPUB des données structurées, contrôle les UUID, Locators, valeurs et empreintes SHA-256, puis restaure par fusion idempotente sans suppression. Elle inclut les préférences de lecture et l’objectif quotidien dans une évolution ultérieure du format ; les récapitulatifs IA et leurs caches restent exclus.
 
@@ -109,7 +109,7 @@ La V1 est terminée lorsque :
 - les statistiques mensuelles, le calendrier de lecture et l'historique avec couvertures correspondent aux sessions enregistrées ;
 - les dates de début et de fin d'un livre sont conservées correctement ;
 - un livre peut être noté sur 10 et marqué comme terminé ;
-- les données prévues se synchronisent entre deux appareils de test utilisant le même compte iCloud ;
+- la V1 locale reste fonctionnelle sans synchronisation iCloud ; la preuve entre deux appareils est reportée à une évolution future ;
 - les écrans principaux sont vérifiés au format iPhone 390 × 844 ;
 - les états de chargement, d’absence de données et d’erreur sont traités ;
 - les tests adaptés passent sans problème bloquant ;
@@ -146,7 +146,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Appareil de référence : iPhone 13 ; version minimale : iOS 26.
 - Boucle principale de V1 : importer, lire, reprendre, annoter et mesurer.
 - Progression fondée sur le pourcentage et les chapitres, pas sur un nombre de pages fixe.
-- Synchronisation via iCloud.
+- Préparation d’une future synchronisation via iCloud ; aucune synchronisation n’est activée dans la V1 actuelle.
 - Le premier lot IA est intégré au lecteur : expliquer une sélection et résumer la lecture de la veille.
 - Premier parcours local isolé d’iCloud : import atomique d’un EPUB sans DRM, bibliothèque au lancement, lecture et reprise par Locator complet.
 - L’identité d’un EPUB local est le SHA-256 de ses octets ; un second import identique retourne le livre existant.

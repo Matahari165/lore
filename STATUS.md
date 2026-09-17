@@ -1,6 +1,6 @@
 # État du projet Lore
 
-Dernière mise à jour : 6 septembre 2026
+Dernière mise à jour : 17 septembre 2026
 
 ## Terminé
 
@@ -106,7 +106,7 @@ Dernière mise à jour : 6 septembre 2026
 - Un quatrième onglet Podcasts est ajouté : import local de MP4, lecture audio/vidéo avec `AVPlayer`, détection des doublons par SHA-256 et sauvegarde de la position en secondes pour reprendre plus tard.
 - Le son du lecteur podcast est corrigé : session audio `.playback` (audible même en mode silencieux), volume/`isMuted` imposés, diagnostic de piste audio manquante, pause et sauvegarde sur interruption (appel/Siri). Compilation réussie sur simulateur iPhone 13 ; écoute réelle sur appareil restant à faire.
 - Le lecteur podcast est reprisé : bouton Lecture/Pause/Reprendre de nouveau visible (texte contrasté), titre unique sans doublon, en-tête de sheet propre, curseur de lecture sobre aux couleurs Lore avec boutons −15/+15 s et sheet compacte. Compilation réussie ; vérification visuelle 390 × 844 restant à faire.
-- La version corrigée (son + interface) est installée et lancée sur l’iPhone 13 (iOS 26.6) le 3 septembre 2026. Signature : équipe `4J7BXN697F`, profil du 30 août recopié dans `~/Library/MobileDevice/Provisioning Profiles/` (expire le 6 septembre 2026).
+- La version corrigée (son + interface) a été installée et lancée sur l’iPhone 13 (iOS 26.6) le 3 septembre 2026. Les détails de signature et de provisioning ne sont pas conservés dans ce journal public.
 - La lecture des podcasts continue en arrière-plan et écran verrouillé (mode audio, commandes et titre sur l’écran verrouillé, position toujours sauvegardée). Version installée et lancée sur l’iPhone 13 ; test de verrouillage réel à confirmer par l’utilisateur.
 - Le lecteur reprend la présentation Apple Podcasts : gros bouton rond, vitesse 1 à 2×, ±15 s, temps restant négatif, volume et AirPlay, transport visible dès la demi-fenêtre. L’écran verrouillé affiche la pochette extraite de la vidéo et le nom. Version installée et lancée sur l’iPhone 13 ; vérification visuelle par l’utilisateur en cours.
 - Un plantage systématique à l’ouverture du lecteur (4 rapports `EXC_BREAKPOINT` du 3 septembre, 11 h 42 à 11 h 47) est corrigé : la fourniture de pochette et les 6 commandes d’écran verrouillé ne s’exécutent plus sur le mauvais fil. Version corrigée installée et lancée sur l’iPhone 13 ; nouvel essai par l’utilisateur en cours.
@@ -201,7 +201,7 @@ Dernière mise à jour : 6 septembre 2026
 - L’exécution des tests sur `Lore iPhone 13` reste bloquée avant le lancement du processus de tests (`waiting for workers to materialize`) ; la compilation du code et des tests réussit, mais leur exécution automatique n’est pas encore prouvée.
 - La première tentative de lancement sur l’iPhone a été refusée car l’appareil était verrouillé ; une seconde tentative après déverrouillage a réussi.
 - La version IA du 31 août est bien installée sur l’iPhone, mais sa tentative de lancement automatique a été refusée car l’appareil était verrouillé.
-- La synchronisation iCloud peut produire des conflits si deux appareils modifient la même progression hors ligne.
+- Le futur miroir iCloud devra traiter les conflits si deux appareils modifient la même progression hors ligne ; aucune synchronisation n’est active aujourd’hui.
 - Aucun miroir CloudKit, entitlement ou schéma distant n’est activé et aucune preuve réelle sur deux appareils n’a été obtenue. Le futur contrat devra borner les champs proches de 1 Mo ou employer `CKAsset`.
 - Les numéros de page ne sont pas toujours stables dans un EPUB : ils changent avec la taille du texte et la largeur de l'écran.
 - L’analyse IA d’un livre complet reste bornée : Lore sélectionne des extraits répartis sur l’EPUB local ; le fichier complet n’est jamais envoyé comme un seul bloc.

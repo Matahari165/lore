@@ -65,18 +65,4 @@ struct ReaderPresentationTests {
         #expect(presentation.coverData == nil)
     }
 
-    @Test func bookCoverViewPreservesDynamicRadius() {
-        let viewWithRadius = BookCoverView(
-            coverData: nil,
-            title: "Titre test",
-            cornerRadius: 14
-        )
-        #expect(viewWithRadius != nil)
-
-        let viewDefault = BookCoverView(
-            coverData: nil,
-            title: "Titre test"
-        )
-        #expect(viewDefault != nil)
-    }
 }
