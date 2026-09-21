@@ -4,6 +4,7 @@ import SwiftData
 @MainActor
 final class AIConversationRepository {
     static let sourcesSchemaVersion = 1
+    private static let validFrontierProgressionRange: ClosedRange<Double> = 0.0...1.0
     private let context: ModelContext
     private let saveContext: (ModelContext) throws -> Void
 
@@ -67,7 +68,7 @@ final class AIConversationRepository {
             throw AIConversationRepositoryError.conversationNotFound
         }
         if let maximumFrontierProgression,
-           !(0...1).contains(maximumFrontierProgression)
+           !Self.validFrontierProgressionRange.contains(maximumFrontierProgression)
         {
             throw AIConversationRepositoryError.invalidFrontier
         }
@@ -126,7 +127,7 @@ final class AIConversationRepository {
         guard !question.isEmpty, !answer.isEmpty else {
             throw AIConversationRepositoryError.emptyMessage
         }
-        if let frontierProgression, !(0...1).contains(frontierProgression) {
+        if let frontierProgression, !Self.validFrontierProgressionRange.contains(frontierProgression) {
             throw AIConversationRepositoryError.invalidFrontier
         }
         guard !fullBookAccessGranted || readingStage == .finished else {

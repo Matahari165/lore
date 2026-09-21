@@ -44,7 +44,7 @@ struct BookCompletionView: View {
                             .font(.headline)
                         GeometryReader { geometry in
                             HStack(spacing: 2) {
-                                ForEach(1...10, id: \.self) { star in
+                                ForEach(BookRecord.userRatingRange, id: \.self) { star in
                                     Image(systemName: (rating ?? 0) >= star ? "star.fill" : "star")
                                         .font(.system(size: 22, weight: .medium))
                                         .foregroundStyle((rating ?? 0) >= star ? Color.orange : LoreTheme.secondaryInk)
@@ -54,8 +54,9 @@ struct BookCompletionView: View {
                             }
                             .contentShape(Rectangle())
                             .gesture(SpatialTapGesture().onEnded { value in
-                                let unit = max(1, geometry.size.width / 10)
-                                rating = min(10, max(1, Int(value.location.x / unit) + 1))
+                                let maxStars = CGFloat(BookRecord.userRatingRange.upperBound)
+                                let unit = max(1, geometry.size.width / maxStars)
+                                rating = min(BookRecord.userRatingRange.upperBound, max(BookRecord.userRatingRange.lowerBound, Int(value.location.x / unit) + 1))
                             })
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Note sur 10")
@@ -63,7 +64,7 @@ struct BookCompletionView: View {
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAdjustableAction { direction in
                                 switch direction {
-                                case .increment: rating = min(10, (rating ?? 0) + 1)
+                                case .increment: rating = min(BookRecord.userRatingRange.upperBound, (rating ?? 0) + 1)
                                 case .decrement: rating = max(0, (rating ?? 0) - 1)
                                 @unknown default: break
                                 }

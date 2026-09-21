@@ -1,9 +1,10 @@
 # État du projet Lore
 
-Dernière mise à jour : 17 septembre 2026
+Dernière mise à jour : 21 septembre 2026
 
 ## Terminé
 
+- Nettoyage Clean Code et optimisation de l'espace disque : unification des dossiers `Design` et `DesignSystem` sous `Lore/DesignSystem` (`LoreTheme.swift`), purge des fichiers `.DS_Store` locaux, centralisation des constantes de domaine pour la notation (`BookRecord.validRatingRange`, `BookRecord.userRatingRange`) et de la frontière IA (`validFrontierProgressionRange: ClosedRange<Double> = 0.0...1.0`), aération du `body` de `LibraryView` par extraction des sous-vues de feuilles modales. Purge ciblée de ~1,4 Go de DerivedData obsolètes confirmés (`SomaNative`) avec sanctuarisation totale des projets actifs `Align`, `Eole` et `BigBrother`. Suppression des simulateurs indisponibles et compaction git locale. Compilation `build-for-testing` de l'application et de `LoreTests` réussie.
 - Nouveau lot lecteur et Accueil : le mode sombre global est confirmé par défaut ; le panneau du lecteur est plus aéré et centré, son curseur est un tube de progression, et son panneau inférieur affiche « Page N » quand Readium fournit une position. Les mentions « encore X min » et « Série actuelle » de l’Accueil ont été retirées au profit d’un objectif en cours et de « Flamme N jour(s) ». « Jour suivant » disparaît quand aucun jour plus récent n’existe.
 - Progression de lecture durcie : le dernier Locator complet observé est conservé comme source de vérité, puis écrit immédiatement à l’activation, à l’inactivation, en arrière-plan et à la fermeture. Une position fournisseur plus ancienne ne peut plus remplacer une observation récente ; le retour après un saut réactualise aussi la position sauvegardée.
 - Informations de livre simplifiées : les boutons `i` visibles ont été retirés des bibliothèques, de Reprendre et des pochettes récentes ; les détails restent accessibles par appui long et menu contextuel.

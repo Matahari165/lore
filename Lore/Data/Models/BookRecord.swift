@@ -16,6 +16,9 @@ final class BookRecord {
     var progressUpdatedAt: Date?
     var locatorSchemaVersion: Int?
     var finishedAt: Date?
+    static let validRatingRange: ClosedRange<Int> = 0...10
+    static let userRatingRange: ClosedRange<Int> = 1...10
+
     var rating: Int?
     /// Calendar year in which the user completed the book. Kept separate from
     /// `finishedAt` so imported/restored completion dates do not redefine the

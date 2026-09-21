@@ -31,7 +31,7 @@ final class StatisticsDataAdapter {
         let books = try context.fetch(FetchDescriptor<BookRecord>())
         if let invalidBook = books.first(where: { book in
             guard let rating = book.rating else { return false }
-            return !(0...10).contains(rating)
+            return !BookRecord.validRatingRange.contains(rating)
         }) {
             throw StatisticsDataAdapterError.invalidRating(bookID: invalidBook.id)
         }

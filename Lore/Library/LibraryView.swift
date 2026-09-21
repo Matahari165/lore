@@ -61,13 +61,7 @@ struct LibraryView: View {
             .toolbar(.hidden, for: .navigationBar)
             .overlay {
                 if model.isImporting {
-                    ZStack {
-                        LoreTheme.canvas.opacity(0.88)
-                        ProgressView(model.currentImportProgress ?? "Importation en cours…")
-                            .font(.callout.weight(.medium))
-                    }
-                    .ignoresSafeArea()
-                    .accessibilityElement(children: .combine)
+                    importProgressOverlay
                 }
             }
         }
@@ -77,95 +71,22 @@ struct LibraryView: View {
             discussionHighlight = nil
             discussionDraft = nil
         }) { book in
-            BookDiscussionView(
-                book: book,
-                conversationRepository: model.conversationRepository,
-                onOpenSettings: mode == .home ? onOpenSettings : nil,
-                initialDraft: discussionDraft,
-                initialHighlight: discussionHighlight,
-                onOpenSource: onOpenDiscussionSource.map { route in
-                    { source in
-                        discussionBook = nil
-                        route(book, source)
-                    }
-                }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            discussionSheet(for: book)
         }
         .sheet(item: $detailBook, onDismiss: presentPendingDetailDestination) { book in
-            BookDetailView(
-                book: book,
-                loadDetail: { try model.detailData(for: book.id) },
-                onOpenBook: {
-                    pendingDetailDestination = .reader(book)
-                    detailBook = nil
-                },
-                onOpenHighlights: {
-                    pendingDetailDestination = .highlights(book)
-                    detailBook = nil
-                },
-                onOpenDiscussion: {
-                    pendingDetailDestination = .discussion(book)
-                    detailBook = nil
-                },
-                collections: model.manualCollections,
-                isMember: { model.isMember(book, of: $0) },
-                onToggleCollection: { model.toggleMembership(of: book, in: $0) }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            detailSheet(for: book)
         }
         .sheet(item: $completionBook) { book in
-            BookCompletionView(book: book) { rating, readingYear in
-                model.finish(book, rating: rating, readingYear: readingYear)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            completionSheet(for: book)
         }
         .sheet(item: $highlightsBook, onDismiss: presentPendingHighlightDiscussion) { book in
-            LibraryHighlightsView(
-                book: book,
-                highlights: selectedHighlights,
-                loadError: highlightsLoadError,
-                onOpenHighlight: onOpenHighlight.map { callback in
-                    { highlight in
-                        highlightsBook = nil
-                        callback(book, highlight)
-                    }
-                },
-                onUpdateNote: model.updateNote,
-                onDiscussHighlight: { highlight in
-                    pendingHighlightDiscussion = PendingHighlightDiscussion(
-                        book: book,
-                        highlight: highlight
-                    )
-                    highlightsBook = nil
-                }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            highlightsSheet(for: book)
         }
         .sheet(isPresented: $showsAllHighlights) {
-            AllHighlightsView(
-                groups: allHighlightGroups,
-                loadError: allHighlightsLoadError,
-                onOpenHighlight: onOpenHighlight.map { callback in
-                    { bookID, highlight in
-                        guard let book = model.books.first(where: { $0.id == bookID }) else { return }
-                        showsAllHighlights = false
-                        callback(book, highlight)
-                    }
-                },
-                onUpdateNote: model.updateNote
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            allHighlightsSheet
         }
         .sheet(isPresented: $presentsCollections) {
-            CollectionsView(model: model)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+            collectionsSheet
         }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [.epub, .folder], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
@@ -175,6 +96,117 @@ struct LibraryView: View {
             Task { await model.importURLs(urls) }
             return true
         }
+    }
+
+    private var importProgressOverlay: some View {
+        ZStack {
+            LoreTheme.canvas.opacity(0.88)
+            ProgressView(model.currentImportProgress ?? "Importation en cours…")
+                .font(.callout.weight(.medium))
+        }
+        .ignoresSafeArea()
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func discussionSheet(for book: BookRecord) -> some View {
+        BookDiscussionView(
+            book: book,
+            conversationRepository: model.conversationRepository,
+            onOpenSettings: mode == .home ? onOpenSettings : nil,
+            initialDraft: discussionDraft,
+            initialHighlight: discussionHighlight,
+            onOpenSource: onOpenDiscussionSource.map { route in
+                { source in
+                    discussionBook = nil
+                    route(book, source)
+                }
+            }
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func detailSheet(for book: BookRecord) -> some View {
+        BookDetailView(
+            book: book,
+            loadDetail: { try model.detailData(for: book.id) },
+            onOpenBook: {
+                pendingDetailDestination = .reader(book)
+                detailBook = nil
+            },
+            onOpenHighlights: {
+                pendingDetailDestination = .highlights(book)
+                detailBook = nil
+            },
+            onOpenDiscussion: {
+                pendingDetailDestination = .discussion(book)
+                detailBook = nil
+            },
+            collections: model.manualCollections,
+            isMember: { model.isMember(book, of: $0) },
+            onToggleCollection: { model.toggleMembership(of: book, in: $0) }
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func completionSheet(for book: BookRecord) -> some View {
+        BookCompletionView(book: book) { rating, readingYear in
+            model.finish(book, rating: rating, readingYear: readingYear)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func highlightsSheet(for book: BookRecord) -> some View {
+        LibraryHighlightsView(
+            book: book,
+            highlights: selectedHighlights,
+            loadError: highlightsLoadError,
+            onOpenHighlight: onOpenHighlight.map { callback in
+                { highlight in
+                    highlightsBook = nil
+                    callback(book, highlight)
+                }
+            },
+            onUpdateNote: model.updateNote,
+            onDiscussHighlight: { highlight in
+                pendingHighlightDiscussion = PendingHighlightDiscussion(
+                    book: book,
+                    highlight: highlight
+                )
+                highlightsBook = nil
+            }
+        )
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var allHighlightsSheet: some View {
+        AllHighlightsView(
+            groups: allHighlightGroups,
+            loadError: allHighlightsLoadError,
+            onOpenHighlight: onOpenHighlight.map { callback in
+                { bookID, highlight in
+                    guard let book = model.books.first(where: { $0.id == bookID }) else { return }
+                    showsAllHighlights = false
+                    callback(book, highlight)
+                }
+            },
+            onUpdateNote: model.updateNote
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var collectionsSheet: some View {
+        CollectionsView(model: model)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
     }
 
     private var pageHeader: some View {
