@@ -19,6 +19,7 @@ struct AppRootView: View {
     @State private var goalNotifier = DailyGoalNotifier()
     @State private var showsGoalNotificationPrompt = false
     @State private var didPromptGoalNotifications = false
+    @State private var readerGoalNotice: DailyGoalNotice?
 
     let statisticsAdapter: StatisticsDataAdapter
     let sessionRepository: ReadingSessionRepository
@@ -99,14 +100,19 @@ struct AppRootView: View {
             .accessibilityHidden(libraryModel.readerPresentation != nil)
 
             if let presentation = libraryModel.readerPresentation {
-                ReaderScreen(presentation: presentation) {
-                    await libraryModel.closeReader()
-                    if libraryModel.readerPresentation == nil {
+                ReaderScreen(
+                    presentation: presentation,
+                    goalNotice: $readerGoalNotice,
+                    onRequestClose: {
+                        await libraryModel.closeReader()
+                        if libraryModel.readerPresentation == nil {
+                            reloadDailyGoal()
+                        }
+                    },
+                    onReadingProgress: {
                         reloadDailyGoal()
                     }
-                } onReadingProgress: {
-                    reloadDailyGoal()
-                }
+                )
                 .zIndex(1)
             }
         }
@@ -186,7 +192,21 @@ struct AppRootView: View {
         } catch {
             dailyGoalModel.markProgressUnavailable()
         }
+        checkInReaderGoalReached()
         handleGoalNotifications()
+    }
+
+    private func checkInReaderGoalReached() {
+        guard libraryModel.readerPresentation != nil else { return }
+        guard case .active(let progress) = dailyGoalModel.state else { return }
+        let todayKey = DailyGoalNotifier.dayKey(for: .now)
+        let lastNotified = UserDefaults.standard.string(forKey: DailyGoalNotifier.notifiedDayDefaultsKey)
+        if DailyGoalNotifier.shouldNotify(isReached: progress.isReached, todayDayKey: todayKey, lastNotifiedDayKey: lastNotified) {
+            UserDefaults.standard.set(todayKey, forKey: DailyGoalNotifier.notifiedDayDefaultsKey)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                readerGoalNotice = DailyGoalNotice(targetMinutes: progress.targetMinutes)
+            }
+        }
     }
 
     /// Déclencheur des notifications : appelé au lancement (tâche `scenePhase`),

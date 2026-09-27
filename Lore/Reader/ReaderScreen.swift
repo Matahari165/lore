@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ReaderScreen: View {
     let presentation: LibraryViewModel.ReaderPresentation
+    @Binding var goalNotice: DailyGoalNotice?
     let onRequestClose: @MainActor () async -> Void
     let onReadingProgress: @MainActor () -> Void
 
@@ -13,6 +14,7 @@ struct ReaderScreen: View {
     @State private var preferences: ReaderPreferences
     @State private var progression: Double
     @State private var pageNumber: Int?
+    @State private var totalPageCount: Int?
     @State private var canGoBackAfterJump = false
     @State private var highlights: [ReaderHighlight]
     @State private var vocabulary: [VocabularyItem]
@@ -24,6 +26,8 @@ struct ReaderScreen: View {
     @State private var readerPresentationState: ReaderPresentationState = .appearing
     @State private var coverTransitionOpacity: Double = 1.0
     @State private var goalRefreshTask: Task<Void, Never>?
+    @State private var periodicGoalTask: Task<Void, Never>?
+    @State private var goalNoticeDismissTask: Task<Void, Never>?
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -31,14 +35,17 @@ struct ReaderScreen: View {
 
     init(
         presentation: LibraryViewModel.ReaderPresentation,
+        goalNotice: Binding<DailyGoalNotice?> = .constant(nil),
         onRequestClose: @escaping @MainActor () async -> Void,
         onReadingProgress: @escaping @MainActor () -> Void = {}
     ) {
         self.presentation = presentation
+        self._goalNotice = goalNotice
         self.onRequestClose = onRequestClose
         self.onReadingProgress = onReadingProgress
         _preferences = State(initialValue: presentation.session.preferences)
         _progression = State(initialValue: presentation.session.currentProgression)
+        _totalPageCount = State(initialValue: presentation.session.totalPageCount)
         _highlights = State(initialValue: presentation.session.highlights)
         _vocabulary = State(initialValue: presentation.session.vocabulary)
     }
@@ -88,10 +95,19 @@ struct ReaderScreen: View {
                 }
 
                 if showsControls && isVisible {
-                    controls
-                        .safeAreaPadding(.top, 12)
-                        .safeAreaPadding(.bottom, 12)
+                    controls(in: geometry)
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+                }
+
+                if let notice = goalNotice, isVisible {
+                    VStack {
+                        goalNoticeView(targetMinutes: notice.targetMinutes)
+                            .padding(.top, showsControls ? (max(geometry.safeAreaInsets.top, 54) + 88 + 12) : (max(geometry.safeAreaInsets.top, 54) + 20))
+                            .padding(.horizontal, 20)
+                        Spacer()
+                    }
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    .zIndex(100)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -102,6 +118,21 @@ struct ReaderScreen: View {
         .persistentSystemOverlays(showsControls ? .automatic : .hidden)
         .accessibilityAction(.escape) { closeReader() }
         .interactiveDismissDisabled(true)
+        .onChange(of: goalNotice) { _, newNotice in
+            guard let newNotice else {
+                goalNoticeDismissTask?.cancel()
+                return
+            }
+            AccessibilityNotification.Announcement("Objectif de lecture atteint : \(newNotice.targetMinutes) minutes.").post()
+            goalNoticeDismissTask?.cancel()
+            goalNoticeDismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    goalNotice = nil
+                }
+            }
+        }
         .onAppear {
             ReadingFocusMode.shared.setReaderActive(true)
             presentation.session.setTapHandler {
@@ -117,12 +148,16 @@ struct ReaderScreen: View {
             presentation.session.setLocationHandler { locator in
                 pageNumber = locator?.locations.position
             }
+            presentation.session.setTotalPageCountHandler { count in
+                totalPageCount = count
+            }
             presentation.session.setNavigationHistoryHandler { canGoBackAfterJump = $0 }
             presentation.session.setHighlightChangeHandler { highlights = $0 }
             presentation.session.setVocabularyChangeHandler { vocabulary = $0 }
             presentation.session.setExplanationHandler { aiExplanation = $0 }
             presentation.session.setRecapHandler { aiRecap = $0 }
             presentation.session.requestDailyRecapIfEligible()
+            startPeriodicGoalMonitoring()
             if let initialHighlight = presentation.initialHighlight {
                 Task { _ = await presentation.session.go(to: initialHighlight) }
             }
@@ -132,12 +167,15 @@ struct ReaderScreen: View {
             presentation.session.setTapHandler(nil)
             presentation.session.setProgressionHandler(nil)
             presentation.session.setLocationHandler(nil)
+            presentation.session.setTotalPageCountHandler(nil)
             presentation.session.setNavigationHistoryHandler(nil)
             presentation.session.setHighlightChangeHandler(nil)
             presentation.session.setVocabularyChangeHandler(nil)
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
             goalRefreshTask?.cancel()
+            periodicGoalTask?.cancel()
+            goalNoticeDismissTask?.cancel()
         }
         .onAppear(perform: animateReaderEntrance)
         .sheet(item: $presentedPanel) { panel in
@@ -216,8 +254,11 @@ struct ReaderScreen: View {
         }
     }
 
-    private var controls: some View {
-        VStack {
+    private func controls(in geometry: GeometryProxy) -> some View {
+        let topInset = max(geometry.safeAreaInsets.top, 54)
+        let bottomInset = max(geometry.safeAreaInsets.bottom, 20)
+
+        return VStack {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(presentation.title)
@@ -237,9 +278,10 @@ struct ReaderScreen: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .center)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .center)
             .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency)
             .padding(.horizontal, 16)
+            .padding(.top, topInset + 24)
 
             Spacer()
 
@@ -279,23 +321,99 @@ struct ReaderScreen: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, minHeight: 68, alignment: .center)
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .center)
                     .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency, interactive: true)
                 }
             }
             .padding(.horizontal, 16)
+            .padding(.bottom, bottomInset + 12)
         }
         .foregroundStyle(.primary)
     }
 
     private var pageLabel: some View {
-        Text(pageNumber.map { "Page \($0)" } ?? "Page indisponible")
+        Text(formattedPageText)
             .font(.subheadline.monospacedDigit().weight(.medium))
             .contentTransition(.numericText())
             .lineLimit(1)
             .frame(minWidth: 96, minHeight: 44, alignment: .center)
             .accessibilityLabel("Page")
-            .accessibilityValue(pageNumber.map(String.init) ?? "indisponible")
+            .accessibilityValue(accessibilityPageText)
+    }
+
+    private var formattedPageText: String {
+        if let pageNumber, let totalPageCount, totalPageCount > 0 {
+            return "Page \(pageNumber) / \(totalPageCount)"
+        } else if let pageNumber {
+            return "Page \(pageNumber)"
+        } else {
+            return "Page indisponible"
+        }
+    }
+
+    private var accessibilityPageText: String {
+        if let pageNumber, let totalPageCount, totalPageCount > 0 {
+            return "\(pageNumber) sur \(totalPageCount)"
+        } else if let pageNumber {
+            return "\(pageNumber)"
+        } else {
+            return "indisponible"
+        }
+    }
+
+    private func goalNoticeView(targetMinutes: Int) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.yellow)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Objectif atteint")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text("Objectif de lecture atteint : \(targetMinutes) min")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    goalNotice = nil
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+            }
+            .accessibilityLabel("Fermer l’annonce")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .readerGlass(in: Capsule(), reduceTransparency: reduceTransparency, interactive: true)
+        .shadow(color: Color.black.opacity(0.18), radius: 12, y: 6)
+        .contentShape(Capsule())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.2)) {
+                goalNotice = nil
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Objectif de lecture atteint : \(targetMinutes) minutes")
+    }
+
+    private func startPeriodicGoalMonitoring() {
+        periodicGoalTask?.cancel()
+        periodicGoalTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { break }
+                onReadingProgress()
+            }
+        }
     }
 
     private var navigationProgress: some View {

@@ -93,6 +93,16 @@ enum DailyGoalState: Equatable {
     case failed(message: String)
 }
 
+struct DailyGoalNotice: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let targetMinutes: Int
+
+    init(id: UUID = UUID(), targetMinutes: Int) {
+        self.id = id
+        self.targetMinutes = targetMinutes
+    }
+}
+
 @MainActor
 @Observable
 final class DailyReadingGoalModel {

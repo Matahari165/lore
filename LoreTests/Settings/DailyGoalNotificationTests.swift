@@ -78,4 +78,9 @@ struct DailyGoalNotificationTests {
         #expect(DailyGoalNotifier.displayedRemainingMinutes(todayDuration: 19 * 60 + 31, targetMinutes: 20) == 1)
         #expect(DailyGoalNotifier.displayedRemainingMinutes(todayDuration: 25 * 60, targetMinutes: 20) == 1)
     }
+
+    @Test func dailyGoalNoticeStoresTargetMinutes() {
+        let notice = DailyGoalNotice(targetMinutes: 15)
+        #expect(notice.targetMinutes == 15)
+    }
 }

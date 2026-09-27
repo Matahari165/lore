@@ -41,6 +41,8 @@ final class ReaderSessionController {
     private var isNavigating = false
     private(set) var highlights: [ReaderHighlight] = []
     private(set) var vocabulary: [VocabularyItem] = []
+    private(set) var totalPageCount: Int?
+    private var totalPageCountHandler: (@MainActor (Int?) -> Void)?
 
     static func make(
         bookID: UUID,
@@ -63,12 +65,22 @@ final class ReaderSessionController {
             onError(error)
         }
 
+        let totalPageCount: Int?
+        do {
+            nonisolated(unsafe) let publication = opened.publication
+            let positions = try await publication.positions().get()
+            totalPageCount = positions.isEmpty ? nil : positions.count
+        } catch {
+            totalPageCount = nil
+        }
+
         let restoration = restoreInitialLocation(bookID: bookID, store: progressStore, onError: onError)
 
         let session = try ReaderSessionController(
             bookID: bookID,
             publication: opened.publication,
             initialLocation: restoration.locator,
+            totalPageCount: totalPageCount,
             progressStore: progressStore,
             readingActivity: readingActivity,
             preferences: preferences,
@@ -87,6 +99,7 @@ final class ReaderSessionController {
         bookID: UUID,
         publication: Publication,
         initialLocation: Locator?,
+        totalPageCount: Int? = nil,
         progressStore: any ReaderProgressStore,
         readingActivity: any ReadingActivityManaging,
         preferences: ReaderPreferences,
@@ -97,6 +110,7 @@ final class ReaderSessionController {
     ) throws {
         self.publication = publication
         self.bookID = bookID
+        self.totalPageCount = totalPageCount
         citationReadingOrder = publication.readingOrder
         highlightStore = progressStore as? any HighlightStoring
         vocabularyStore = progressStore as? any VocabularyStoring
@@ -195,11 +209,21 @@ final class ReaderSessionController {
         } catch {
             onError(error)
         }
+
+        if totalPageCount == nil {
+            Task { @MainActor [weak self] in
+                if let positions = try? await publication.positions().get(), !positions.isEmpty {
+                    self?.totalPageCount = positions.count
+                    self?.totalPageCountHandler?(positions.count)
+                }
+            }
+        }
     }
 
     init(
         locationProvider: any ReaderLocationProviding,
         positionController: any ReadingPositionManaging,
+        totalPageCount: Int? = nil,
         readingActivity: any ReadingActivityManaging = NoopReadingActivityManager(),
         preferencesStore: any ReaderPreferencesStoring = UserDefaultsReaderPreferencesStore(),
         chapters: [ReaderChapter] = [],
@@ -210,6 +234,7 @@ final class ReaderSessionController {
     ) {
         publication = nil
         bookID = citationBookID
+        self.totalPageCount = totalPageCount
         self.citationReadingOrder = citationReadingOrder
         highlightStore = nil
         vocabularyStore = nil
@@ -279,6 +304,11 @@ final class ReaderSessionController {
     func setLocationHandler(_ handler: (@MainActor (Locator?) -> Void)?) {
         locationHandler = handler
         handler?(bestKnownLocation)
+    }
+
+    func setTotalPageCountHandler(_ handler: (@MainActor (Int?) -> Void)?) {
+        totalPageCountHandler = handler
+        handler?(totalPageCount)
     }
 
     func setExplanationHandler(_ handler: (@MainActor (ReaderAIExplanationState) -> Void)?) {

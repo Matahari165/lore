@@ -251,6 +251,23 @@ struct ReaderSessionControllerTests {
         #expect(controller.openedLocators.isEmpty)
     }
 
+    @Test func totalPageCountPublishesInitialValueAndUpdatesHandler() {
+        let session = ReaderSessionController(
+            locationProvider: LocationProviderSpy(locator: makeLocator(0.1)),
+            positionController: PositionManagerSpy(),
+            totalPageCount: 342
+        )
+
+        #expect(session.totalPageCount == 342)
+
+        var observedCount: Int?
+        session.setTotalPageCountHandler { count in
+            observedCount = count
+        }
+
+        #expect(observedCount == 342)
+    }
+
     private func makeLocator(_ progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter.xhtml")!, mediaType: .xhtml,
