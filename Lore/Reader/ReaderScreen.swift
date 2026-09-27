@@ -336,6 +336,7 @@ struct ReaderScreen: View {
             .font(.subheadline.monospacedDigit().weight(.medium))
             .contentTransition(.numericText())
             .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .frame(minWidth: 96, minHeight: 44, alignment: .center)
             .accessibilityLabel("Page")
             .accessibilityValue(accessibilityPageText)
