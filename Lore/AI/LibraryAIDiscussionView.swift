@@ -15,6 +15,7 @@ struct LibraryAIDiscussionView: View {
     private let initialSummary: LibraryAISummary
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var inputFocused: Bool
 
     @State private var messages: [LoreAIChatMessage] = []
@@ -73,7 +74,10 @@ struct LibraryAIDiscussionView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         contextHeader
                         if messages.isEmpty { welcome } else { conversation }
-                        if let errorMessage { errorBanner(errorMessage) }
+                        if let errorMessage {
+                            errorBanner(errorMessage)
+                                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, LoreTheme.pageMargin)
@@ -154,46 +158,23 @@ struct LibraryAIDiscussionView: View {
     }
 
     private var conversation: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(messages.enumerated()), id: \.offset) { _, message in
-                HStack(alignment: .top, spacing: 8) {
-                    if message.role == .user { Spacer(minLength: 36) }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(message.role == .user ? "Vous" : "Lore")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(LoreTheme.secondaryInk)
-                            .accessibilityHidden(true)
-                        if message.role == .assistant {
+                Group {
+                    if message.role == .user {
+                        UserChatBubble(text: message.text)
+                    } else {
+                        AssistantChatBubble {
                             LibraryAIMarkdownText(markdown: message.text)
-                        } else {
-                            Text(message.text)
-                                .font(.body)
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, message.role == .user ? 12 : 0)
-                    .padding(.vertical, message.role == .user ? 9 : 2)
-                    .background(
-                        message.role == .user
-                            ? LoreTheme.ink.opacity(0.10)
-                            : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    if message.role == .assistant { Spacer(minLength: 12) }
                 }
+                .transition(DiscussionChatUI.messageTransition(reduceMotion: reduceMotion))
             }
             if isLoading {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("Lore prépare une réponse…")
-                        .font(.subheadline)
-                        .foregroundStyle(LoreTheme.secondaryInk)
-                }
-                .padding(.vertical, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Réponse en cours")
+                AssistantChatBubble { TypingDots() }
+                    .transition(.opacity)
+                    .accessibilityLabel("Lore écrit une réponse")
             }
             Color.clear.frame(height: 1).id("library-ai-end")
         }
@@ -264,7 +245,13 @@ struct LibraryAIDiscussionView: View {
                     .font(.title2)
                     .frame(width: 46, height: 46)
                     .foregroundStyle(LoreTheme.ink)
-                    .disabled(isLoading || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(isSendDisabled ? 0.35 : 1.0)
+                    .scaleEffect(isSendDisabled ? 0.88 : 1.0)
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.75),
+                        value: isSendDisabled
+                    )
+                    .disabled(isSendDisabled)
                     .accessibilityLabel("Envoyer la question")
             }
         }
@@ -298,6 +285,10 @@ struct LibraryAIDiscussionView: View {
         .accessibilityElement(children: .contain)
     }
 
+    private var isSendDisabled: Bool {
+        isLoading || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func send(_ requestedQuestion: String? = nil) {
         guard !isLoading else { return }
         let value = (requestedQuestion ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -316,8 +307,10 @@ struct LibraryAIDiscussionView: View {
             do {
                 let context = try makeContext(previousMessages, value)
                 let answer = try await aiService.libraryChat(context)
-                messages.append(LoreAIChatMessage(role: .user, text: value))
-                messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+                withAnimation(DiscussionChatUI.insertionAnimation(reduceMotion: reduceMotion)) {
+                    messages.append(LoreAIChatMessage(role: .user, text: value))
+                    messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+                }
             } catch is CancellationError {
                 failedQuestion = value
             } catch {

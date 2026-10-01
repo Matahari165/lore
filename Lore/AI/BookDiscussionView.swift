@@ -269,26 +269,20 @@ struct BookDiscussionView: View {
     }
 
     private var conversation: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(messages.enumerated()), id: \.offset) { _, message in
                 messageBubble(message)
             }
 
             if let pendingQuestion {
-                messageBubble(LoreAIChatMessage(role: .user, text: pendingQuestion))
-                    .opacity(0.62)
+                UserChatBubble(text: pendingQuestion, isPending: true)
+                    .transition(.opacity)
             }
 
             if isLoading {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("Lore prépare une réponse…")
-                        .font(.subheadline)
-                        .foregroundStyle(LoreTheme.secondaryInk)
-                }
-                .padding(.vertical, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Réponse en cours")
+                AssistantChatBubble { TypingDots() }
+                    .transition(.opacity)
+                    .accessibilityLabel("Lore écrit une réponse")
             }
 
             Color.clear.frame(height: 1).id("discussion-end")
@@ -296,16 +290,11 @@ struct BookDiscussionView: View {
     }
 
     private func messageBubble(_ message: LoreAIChatMessage) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            if message.role == .user { Spacer(minLength: 36) }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(message.role == .user ? "Vous" : "Lore")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(LoreTheme.secondaryInk)
-                    .accessibilityHidden(true)
-
-                if message.role == .assistant {
+        Group {
+            if message.role == .user {
+                UserChatBubble(text: message.text)
+            } else {
+                AssistantChatBubble {
                     DiscussionMarkdownText(markdown: message.text)
                     if !message.sources.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
@@ -333,25 +322,10 @@ struct BookDiscussionView: View {
                             .font(.caption)
                             .foregroundStyle(LoreTheme.secondaryInk)
                     }
-                } else {
-                    Text(message.text)
-                        .font(.body)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, message.role == .user ? 12 : 0)
-            .padding(.vertical, message.role == .user ? 9 : 2)
-            .background(
-                message.role == .user
-                    ? LoreTheme.ink.opacity(0.10)
-                    : Color.clear,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-            if message.role == .assistant { Spacer(minLength: 12) }
         }
-        .accessibilityElement(children: message.sources.isEmpty ? .combine : .contain)
+        .transition(DiscussionChatUI.messageTransition(reduceMotion: reduceMotion))
     }
 
     private var quickActions: some View {
@@ -425,7 +399,13 @@ struct BookDiscussionView: View {
                     .font(.title2)
                     .frame(width: 46, height: 46)
                     .foregroundStyle(LoreTheme.ink)
-                    .disabled(isLoading || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(isSendDisabled ? 0.35 : 1.0)
+                    .scaleEffect(isSendDisabled ? 0.88 : 1.0)
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.75),
+                        value: isSendDisabled
+                    )
+                    .disabled(isSendDisabled)
                     .accessibilityLabel("Envoyer la question")
             }
         }
@@ -465,6 +445,10 @@ struct BookDiscussionView: View {
 
     private var errorIcon: String {
         isMissingKey ? "key.fill" : (isOffline ? "wifi.exclamationmark" : "exclamationmark.circle")
+    }
+
+    private var isSendDisabled: Bool {
+        isLoading || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var isMissingKey: Bool {
@@ -634,8 +618,10 @@ struct BookDiscussionView: View {
                         activeConversationID = record.id
                         refreshConversations()
                     }
-                    messages.append(LoreAIChatMessage(role: .user, text: value))
-                    messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
+                    withAnimation(DiscussionChatUI.insertionAnimation(reduceMotion: reduceMotion)) {
+                        messages.append(LoreAIChatMessage(role: .user, text: value))
+                        messages.append(LoreAIChatMessage(role: .assistant, text: response.text, sources: response.sources))
+                    }
                 } catch let error as LoreAIError
                     where error == .emptyContext || error == .invalidChatContext || error == .futureReadingContext
                 {
@@ -757,7 +743,9 @@ struct BookDiscussionView: View {
             }
         }
         messages.append(LoreAIChatMessage(role: .user, text: question))
-        messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+        withAnimation(DiscussionChatUI.insertionAnimation(reduceMotion: reduceMotion)) {
+            messages.append(LoreAIChatMessage(role: .assistant, text: answer))
+        }
     }
 
     private func refreshConversations() {
