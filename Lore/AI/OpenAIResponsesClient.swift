@@ -1,6 +1,9 @@
 import Foundation
 
 struct OpenAIResponsesConfiguration: Sendable {
+    /// Modèle unique utilisé par toutes les fonctions IA de Lore
+    /// (explication, récapitulatif, discussion par livre, IA bibliothèque).
+    /// Source unique : Réglages et tests y font référence au lieu de dupliquer la chaîne.
     static let model = "gpt-5.6-luna"
 
     var endpoint = URL(string: "https://api.openai.com/v1/responses")!

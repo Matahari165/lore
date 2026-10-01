@@ -3,7 +3,8 @@ import Foundation
 struct LoreAIChatPromptLimits: Equatable, Sendable {
     /// Maximum amount of book text sent for one turn. The caller may provide
     /// several excerpts, but the prompt always remains bounded.
-    var excerptCharacters = 12_000
+    /// 45 000 caractères ≈ 15 pages lues, contre ~3 pages avant.
+    var excerptCharacters = 45_000
     var historyCharacters = 6_000
     var historyMessages = 12
     var questionCharacters = 1_000

@@ -1,9 +1,9 @@
 import Foundation
 
 struct LoreAIAdvancedPromptLimits: Equatable, Sendable {
-    var chapterCharacters = 18_000
-    var questionCharacters = 12_000
-    var analysisCharacters = 18_000
+    var chapterCharacters = 45_000
+    var questionCharacters = 45_000
+    var analysisCharacters = 45_000
 
     static let production = LoreAIAdvancedPromptLimits()
 }

@@ -28,6 +28,7 @@ struct LibraryView: View {
     @State private var presentsCollections = false
     @State private var detailBook: BookRecord?
     @State private var pendingDetailDestination: PendingDetailDestination?
+    @State private var presentsLibraryAI = false
 
     init(
         mode: Mode = .library,
@@ -87,6 +88,11 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $presentsCollections) {
             collectionsSheet
+        }
+        .sheet(isPresented: $presentsLibraryAI) {
+            LibraryAIDiscussionView(model: model, onOpenSettings: mode == .home ? onOpenSettings : nil)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .fileImporter(isPresented: $presentsImporter, allowedContentTypes: [.epub, .folder], allowsMultipleSelection: true) { result in
             Task { await model.importSelection(result.mapError { $0 as Error }) }
@@ -226,6 +232,11 @@ struct LibraryView: View {
                     .frame(width: 44, height: 44)
                     .accessibilityHint("Configurer l’objectif quotidien")
             }
+
+            Button("IA Bibliothèque", systemImage: "sparkles") { presentsLibraryAI = true }
+                .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .accessibilityHint("Recommandations basées sur vos lectures et notes")
 
             if mode == .library {
                 Button("Toutes les annotations", systemImage: "highlighter") {

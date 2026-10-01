@@ -45,7 +45,7 @@ struct OpenAIResponsesClientTests {
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer secret-test-key")
             let data = try Self.requestBody(of: request)
             let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-            #expect(json["model"] as? String == "gpt-5.6-luna")
+            #expect(json["model"] as? String == OpenAIResponsesConfiguration.model)
             #expect(json["store"] as? Bool == false)
             #expect(json["max_output_tokens"] as? Int == 800)
             #expect((json["reasoning"] as? [String: Any])?["effort"] as? String == "low")
@@ -153,7 +153,7 @@ struct OpenAIResponsesClientTests {
 
     @Test func clippedExcerptReturnsAnEquallyClippedLocator() async throws {
         let bookID = UUID()
-        let text = String(repeating: "a", count: 12_010)
+        let text = String(repeating: "a", count: 45_010)
         let source = try chatSource(bookID: bookID, id: "known", progression: 0.4, text: text)
         let client = makeClient(key: "key") { _ in
             Self.response(status: 200, body: #"{"status":"completed","output_text":"{\"answer\":\"Réponse.\",\"source_ids\":[\"known\"]}"}"#)
@@ -161,7 +161,7 @@ struct OpenAIResponsesClientTests {
         let response = try await client.chat(validContext(bookID: bookID, sources: [source], text: text))
         let returned = try #require(response.sources.first)
         let locator = try Locator(jsonData: returned.locatorJSON)
-        #expect(locator.text.highlight?.count == 12_000)
+        #expect(locator.text.highlight?.count == 45_000)
     }
 
     @Test func duplicateSourceIDsAreRejectedBeforeRequest() async throws {

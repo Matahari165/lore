@@ -3,7 +3,8 @@ import Foundation
 struct LoreAIContextLimits: Equatable, Sendable {
     var selectionCharacters = 4_000
     var surroundingCharacters = 6_000
-    var recapCharacters = 18_000
+    /// 45 000 caractères ≈ 15 pages pour le résumé de veille.
+    var recapCharacters = 45_000
 
     static let production = LoreAIContextLimits()
 }

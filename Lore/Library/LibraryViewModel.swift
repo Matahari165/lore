@@ -781,6 +781,67 @@ final class LibraryViewModel {
         )
     }
 
+    /// Entrées valeur pour l'IA globale : métadonnées, dates, temps de lecture
+    /// et notes personnelles. Aucun texte EPUB complet n'est inclus.
+    func libraryAIBookInputs(now: Date = .now) throws -> [LibraryAIBookInput] {
+        let allSessions = try sessionRepository.sessions()
+        let sessionsByBook = Dictionary(grouping: allSessions, by: \.bookID)
+        let allHighlights = (try? repository.allHighlights()) ?? []
+        let highlightsByBook = Dictionary(grouping: allHighlights, by: \.bookID)
+        return books.map { book in
+            let sessions = (sessionsByBook[book.id] ?? []).sorted { $0.startedAt < $1.startedAt }
+            let firstReadAt = sessions.first?.startedAt
+            let lastReadAt = sessions.map { min(now, $0.endedAt ?? $0.lastActivityAt) }.max()
+            let totalMinutes: Int? = firstReadAt.map { first in
+                let total = ReadingSessionDuration.total(
+                    sessions,
+                    in: DateInterval(start: first, end: max(now, first)),
+                    now: now,
+                    inactivityTimeout: ReadingActivityPolicy.defaultInactivityTimeout
+                )
+                return max(1, Int((total / 60).rounded()))
+            }
+            let status: String = switch book.readingStatus {
+            case .finished: "terminé"
+            case .inProgress: "en cours"
+            case .toRead: "à lire"
+            }
+            let collectionNames = manualCollections
+                .filter { collectionIDsByBookID[book.id, default: []].contains($0.id) }
+                .map(\.name)
+                .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            let highlights = (highlightsByBook[book.id] ?? []).map {
+                LibraryAIHighlightInput(text: $0.text, note: $0.note, createdAt: $0.createdAt)
+            }
+            return LibraryAIBookInput(
+                title: book.title,
+                author: book.author,
+                status: status,
+                progression: book.lastProgression,
+                rating: book.rating,
+                readingYear: book.readingYear,
+                importedAt: book.importedAt,
+                finishedAt: book.finishedAt,
+                firstReadAt: firstReadAt,
+                lastReadAt: lastReadAt,
+                totalReadingMinutes: totalMinutes,
+                collections: collectionNames,
+                highlights: highlights
+            )
+        }
+    }
+
+    func makeLibraryAIContext(
+        question: String,
+        history: [LoreAIChatMessage] = []
+    ) throws -> LoreAILibraryContext {
+        try LibraryAIContextBuilder.build(
+            inputs: libraryAIBookInputs(),
+            question: question,
+            history: history
+        )
+    }
+
     private func present(_ error: Error) {
         errorMessage = (error as? LocalizedError)?.errorDescription ?? "Une erreur inattendue est survenue."
     }

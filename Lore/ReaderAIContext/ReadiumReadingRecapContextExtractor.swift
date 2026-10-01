@@ -24,11 +24,12 @@ enum ReadiumReadingRecapContextError: Error, Equatable {
 
 /// Bornage indépendant de Readium, réutilisable dans les tests.
 /// Politique de troncature : seul le suffixe (le texte le plus récent) est conservé.
-/// Au-delà de la limite validée (18 000 caractères), les pages intermédiaires les plus
-/// anciennes sont donc résumées par la fin, pas par le début ni par échantillonnage.
-/// Ne pas élargir cette limite sans validation (coût, latence, énergie).
+/// Limite validée : 60 000 caractères ≈ 15 pages lues. Au-delà, les pages
+/// intermédiaires les plus anciennes sont résumées par la fin, pas par le début
+/// ni par échantillonnage. Ne pas élargir cette limite sans validation
+/// (coût, latence, énergie).
 struct ReaderAIReadingRecapWindowing: Sendable {
-    static let defaultLimit = 18_000
+    static let defaultLimit = 60_000
 
     static func boundedExcerpt(_ text: String, maximum: Int = defaultLimit) -> String {
         guard maximum > 0 else { return "" }
@@ -129,11 +130,11 @@ final class ReadiumReadingRecapContextExtractor {
 
         // Keep a representative sample of the beginning, middle and end rather
         // than sending only the final pages of a finished book. The prompt has
-        // a 12,000-character budget, so this limit keeps the whole selected
-        // sample available to the prompt builder without a second truncation.
+        // a 45,000-character budget (≈15 pages), so this limit keeps the whole
+        // selected sample available to the prompt builder without a second truncation.
         let sourcedExcerpts = representativePieces(
             pieces,
-            maximum: min(maximumCharacters, 12_000)
+            maximum: min(maximumCharacters, 45_000)
         )
         let excerpt = sourcedExcerpts.map(\.text).joined(separator: "\n")
         guard !excerpt.isEmpty, let firstLocator, let lastLocator else {

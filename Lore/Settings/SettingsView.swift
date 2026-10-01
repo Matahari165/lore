@@ -118,7 +118,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Intelligence artificielle")
                 } footer: {
-                    Text("Pour une explication, Lore envoie le passage et un contexte limité autour. Pour le résumé quotidien, il peut envoyer jusqu’à 18 000 caractères de la portion lue la veille. La clé reste dans le trousseau sécurisé de cet iPhone.")
+                    Text("Pour une explication, Lore envoie le passage et un contexte limité autour. Pour le résumé quotidien et la discussion, il peut envoyer jusqu’à 45 000 caractères (≈15 pages) de la portion lue. La clé reste dans le trousseau sécurisé de cet iPhone.")
                 }
             }
             .navigationTitle("Réglages")

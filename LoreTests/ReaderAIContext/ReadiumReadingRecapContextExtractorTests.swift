@@ -20,16 +20,17 @@ struct ReadiumReadingRecapContextExtractorTests {
     }
 
     @Test func recapBeyondTheValidatedLimitKeepsOnlyTheMostRecentText() {
-        // Politique documentée : au-delà de 18 000 caractères validés, seules les pages
-        // les plus récentes (suffixe) alimentent le résumé. Ne pas élargir sans validation.
-        #expect(ReaderAIReadingRecapWindowing.defaultLimit == 18_000)
-        let text = String(repeating: "a", count: 19_000) + "FIN"
+        // Politique documentée : au-delà de 60 000 caractères validés (≈15 pages),
+        // seules les pages les plus récentes (suffixe) alimentent le résumé.
+        // Ne pas élargir sans validation (coût, latence, énergie).
+        #expect(ReaderAIReadingRecapWindowing.defaultLimit == 60_000)
+        let text = String(repeating: "a", count: 61_000) + "FIN"
 
         let excerpt = ReaderAIReadingRecapWindowing.boundedExcerpt(text)
 
-        #expect(excerpt.count == 18_000)
+        #expect(excerpt.count == 60_000)
         #expect(excerpt.hasSuffix("FIN"))
-        #expect(excerpt == String(text.suffix(18_000)))
+        #expect(excerpt == String(text.suffix(60_000)))
     }
 
     @Test func exactSlicePreservesRawWhitespaceAndRecalculatesLocatorText() throws {

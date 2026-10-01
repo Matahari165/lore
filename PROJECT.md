@@ -122,7 +122,7 @@ La V1 est terminée lorsque :
 - **iCloud :** un miroir privé manuel est prévu pour synchroniser les données entre les appareils personnels ; il n’est pas encore activé.
 - **Moteur EPUB :** Readium Swift Toolkit 3.11 ouvre le livre et fournit le Locator stable utilisé pour reprendre la lecture.
 - **Mesure de lecture :** enregistre des sessions actives, puis calcule les statistiques à partir de ces sessions.
-- **IA :** module séparé utilisant l’API Responses d’OpenAI avec `gpt-5.6-luna`, une clé conservée dans le trousseau de l’iPhone et `store: false`. Les conversations restent locales ; les extraits envoyés sont bornés et validés avant chaque requête.
+- **IA :** module séparé utilisant l’API Responses d’OpenAI avec le modèle unique `gpt-5.6-luna` (source unique `OpenAIResponsesConfiguration.model`), une clé conservée dans le trousseau de l’iPhone et `store: false`. Les conversations restent locales ; les extraits envoyés sont bornés et validés avant chaque requête. La discussion par livre envoie jusqu’à ~45 000 caractères (≈15 pages) ; l’IA bibliothèque globale n’envoie que métadonnées, notes, dates et temps de lecture, jamais le texte complet des EPUB.
 
 Les choix techniques détaillés doivent privilégier les outils natifs Apple, la simplicité et l’absence de serveur quand il n’apporte pas de bénéfice nécessaire.
 
@@ -195,8 +195,9 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 - Les réponses IA sont présentées avec le Markdown natif pour rendre les titres, listes et emphases réellement lisibles.
 - Les collections manuelles conservent uniquement des références vers les livres existants ; elles ne dupliquent ni EPUB, ni couverture, ni progression. Les collections intelligentes sont calculées depuis le statut, l’import récent, l’année de lecture et l’auteur.
 - Les catégories éditoriales EPUB ne sont pas encore conservées et ne sont donc pas proposées comme collections intelligentes.
-- Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères.
+- Le contexte d’explication reste dans le chapitre courant : passage sélectionné, jusqu’à environ 2 500 caractères avant et après, métadonnées du livre et du chapitre, avec une limite globale d’environ 6 000 caractères. Le contexte de discussion et de résumé couvre jusqu’à ~45 000 caractères (≈15 pages) en suffixe récent, ou un échantillon début/milieu/fin borné à ~45 000 caractères pour un livre terminé.
 - La surface IA propose plusieurs conversations locales par livre : amorce avant lecture, questions et résumés pendant la lecture, puis analyse après la fin. Les flashcards et la mémoire structurée des personnages entre chapitres sont exclues.
+- Une IA globale de bibliothèque est accessible depuis l’Accueil et la Bibliothèque (bouton étincelles). Elle assemble localement titres, auteurs, statuts, notes sur 10, années et dates de lecture, temps de lecture, collections et notes personnelles (5 notes max par livre, 300 caractères chacune, total ~30 000 caractères) pour des bilans et recommandations. L’historique global reste en mémoire de l’écran ; aucun texte EPUB complet n’est envoyé.
 - La surface Discussion est accessible depuis le lecteur et les listes de livres. Elle conserve ses messages localement et affiche explicitement la portée du texte envoyé. Le passage sélectionné joint est affiché, et un avertissement explicite signale quand aucun texte n’a été envoyé ou quand le passage dépasse la progression. Une explication sans sélection affiche un message local, sans appel IA.
 - Les réponses de Discussion peuvent citer les seuls blocs EPUB réellement envoyés. Lore attribue des identifiants opaques, conserve localement le Locator Readium exact et versionné, valide chaque citation contre le livre et la frontière lue, puis permet le retour au passage depuis le lecteur, l’Accueil ou la Bibliothèque. Aucun Locator n’est transmis à l’API.
 - Lorsqu’un livre est explicitement terminé, l’utilisateur autorise Lore à sélectionner et envoyer à OpenAI des extraits bornés répartis sur l’ensemble du livre pour l’analyse finale. L’EPUB complet n’est pas envoyé en un seul bloc et aucun envoi ne se déclenche automatiquement.
@@ -212,7 +213,7 @@ Les choix techniques détaillés doivent privilégier les outils natifs Apple, l
 
 ## Décisions nécessitant une consultation
 
-- L’envoi volontaire d’un passage et de son contexte borné à OpenAI est autorisé lorsque la clé est configurée ; après le statut terminé, des extraits répartis sur le livre peuvent aussi être sélectionnés. Aucun texte n’est envoyé sans question ni avant la lecture.
+- L’envoi volontaire d’un passage et de son contexte borné à OpenAI est autorisé lorsque la clé est configurée ; après le statut terminé, des extraits répartis sur le livre peuvent aussi être sélectionnés. L’envoi volontaire du résumé de bibliothèque (métadonnées, notes, dates, temps de lecture) est autorisé après une question explicite dans l’IA bibliothèque. Aucun texte n’est envoyé sans question ni avant la lecture, et le texte complet d’un EPUB n’est jamais envoyé.
 - Budget mensuel maximal éventuel pour l’IA.
 - Synchronisation ou non des fichiers EPUB complets dans iCloud.
 - Ajout, retrait ou changement important d’une fonction de la V1.

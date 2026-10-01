@@ -7,7 +7,7 @@ struct OpenAIResponsesClientAdvancedTests {
         AdvancedMockURLProtocol.handler = { request in
             let body = try Self.requestBody(of: request)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(json["model"] as? String == "gpt-5.6-luna")
+            #expect(json["model"] as? String == OpenAIResponsesConfiguration.model)
             #expect(json["store"] as? Bool == false)
             #expect((json["input"] as? [[String: Any]])?.map { $0["role"] as? String } == ["developer", "user"])
             return (
