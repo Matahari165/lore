@@ -368,6 +368,8 @@ struct BookDiscussionView: View {
         .foregroundStyle(LoreTheme.ink)
         .background(LoreTheme.ink.opacity(0.08), in: Capsule())
         .contentShape(Capsule())
+        .opacity(isLoading ? 0.5 : 1.0)
+        .disabled(isLoading)
         .accessibilityHint(label == "Question libre" ? "Ouvre le champ de question" : "Envoie cette demande à Lore")
     }
 
@@ -636,6 +638,7 @@ struct BookDiscussionView: View {
                 }
             } catch is CancellationError {
                 failedQuestion = value
+                errorMessage = "L’envoi a été interrompu. Vous pouvez réessayer."
             } catch {
                 failedQuestion = value
                 errorMessage = (error as? LocalizedError)?.errorDescription
@@ -742,8 +745,8 @@ struct BookDiscussionView: View {
                 refreshConversations()
             }
         }
-        messages.append(LoreAIChatMessage(role: .user, text: question))
         withAnimation(DiscussionChatUI.insertionAnimation(reduceMotion: reduceMotion)) {
+            messages.append(LoreAIChatMessage(role: .user, text: question))
             messages.append(LoreAIChatMessage(role: .assistant, text: answer))
         }
     }

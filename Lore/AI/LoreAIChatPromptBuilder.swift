@@ -266,9 +266,21 @@ struct LoreAIChatPromptBuilder: Sendable {
             data: source.locatorJSON,
             schemaVersion: source.locatorSchemaVersion
         )),
-        let highlight = decoded.locator.text.highlight,
-        let range = highlight.range(of: clipped)
+        let highlight = decoded.locator.text.highlight
         else { return nil }
+        // Le texte tronqué est un préfixe du texte nettoyé : on l'ancre au
+        // début du surlignage quand c'est possible, pour que le « Passage
+        // cité » revienne au bon endroit même si le texte se répète plus loin.
+        // Repli sur la première occurrence (comportement historique) quand le
+        // nettoyage a décalé le début (espaces, retours ligne).
+        let range: Range<String.Index>
+        if highlight.hasPrefix(clipped) {
+            range = highlight.startIndex..<highlight.index(highlight.startIndex, offsetBy: clipped.count)
+        } else if let found = highlight.range(of: clipped) {
+            range = found
+        } else {
+            return nil
+        }
         let locator = decoded.locator.copy(text: { $0 = $0[range] })
         guard let data = try? locator.jsonData() else { return nil }
         return LoreAIChatSource(

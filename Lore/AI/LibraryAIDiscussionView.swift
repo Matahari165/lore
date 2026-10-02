@@ -21,6 +21,7 @@ struct LibraryAIDiscussionView: View {
     @State private var messages: [LoreAIChatMessage] = []
     @State private var draft = ""
     @State private var isLoading = false
+    @State private var pendingQuestion: String?
     @State private var errorMessage: String?
     @State private var failedQuestion: String?
 
@@ -43,8 +44,9 @@ struct LibraryAIDiscussionView: View {
         self.onOpenSettings = onOpenSettings
     }
 
-    /// Construction depuis le view-model : le résumé affiché vient des mêmes
-    /// entrées valeur que le contexte envoyé.
+    /// Construction depuis le view-model : les entrées sont figées à
+    /// l'ouverture pour que le résumé affiché et le contexte envoyé restent
+    /// strictement cohérents pendant toute la discussion.
     init(
         model: LibraryViewModel,
         aiService: any LoreAILibraryService = OpenAIResponsesClient(),
@@ -60,7 +62,11 @@ struct LibraryAIDiscussionView: View {
         self.init(
             summary: summary,
             makeContext: { history, question in
-                try model.makeLibraryAIContext(question: question, history: history)
+                try LibraryAIContextBuilder.build(
+                    inputs: inputs,
+                    question: question,
+                    history: history
+                )
             },
             aiService: aiService,
             onOpenSettings: onOpenSettings
@@ -88,12 +94,10 @@ struct LibraryAIDiscussionView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
                 .background(LoreTheme.canvas)
                 .onChange(of: messages.count) { _, _ in
-                    Task { @MainActor in
-                        await Task.yield()
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo("library-ai-end", anchor: .bottom)
-                        }
-                    }
+                    scrollToLatest(using: proxy)
+                }
+                .onChange(of: pendingQuestion) { _, _ in
+                    scrollToLatest(using: proxy)
                 }
             }
             .navigationTitle("IA Bibliothèque")
@@ -176,6 +180,10 @@ struct LibraryAIDiscussionView: View {
                     .transition(.opacity)
                     .accessibilityLabel("Lore écrit une réponse")
             }
+            if let pendingQuestion {
+                UserChatBubble(text: pendingQuestion, isPending: true)
+                    .transition(.opacity)
+            }
             Color.clear.frame(height: 1).id("library-ai-end")
         }
     }
@@ -240,6 +248,7 @@ struct LibraryAIDiscussionView: View {
                     .submitLabel(.send)
                     .onSubmit { send() }
                     .accessibilityLabel("Question bibliothèque")
+                    .disabled(initialSummary.totalBooks == 0)
                 Button("Envoyer", systemImage: "arrow.up.circle.fill") { send() }
                     .labelStyle(.iconOnly)
                     .font(.title2)
@@ -286,7 +295,17 @@ struct LibraryAIDiscussionView: View {
     }
 
     private var isSendDisabled: Bool {
-        isLoading || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        isLoading || initialSummary.totalBooks == 0
+            || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func scrollToLatest(using proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                proxy.scrollTo("library-ai-end", anchor: .bottom)
+            }
+        }
     }
 
     private func send(_ requestedQuestion: String? = nil) {
@@ -298,12 +317,16 @@ struct LibraryAIDiscussionView: View {
         }
         draft = ""
         inputFocused = false
+        pendingQuestion = value
         failedQuestion = nil
         errorMessage = nil
         isLoading = true
         let previousMessages = messages
         Task { @MainActor in
-            defer { isLoading = false }
+            defer {
+                isLoading = false
+                pendingQuestion = nil
+            }
             do {
                 let context = try makeContext(previousMessages, value)
                 let answer = try await aiService.libraryChat(context)
@@ -313,6 +336,7 @@ struct LibraryAIDiscussionView: View {
                 }
             } catch is CancellationError {
                 failedQuestion = value
+                errorMessage = "L’envoi a été interrompu. Vous pouvez réessayer."
             } catch {
                 failedQuestion = value
                 errorMessage = (error as? LocalizedError)?.errorDescription

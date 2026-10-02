@@ -36,6 +36,7 @@ enum LibraryAIContextBuilder {
         var notesPerBook = 5
         var passageCharacters = 300
         var noteCharacters = 300
+        /// Budget total du contexte : livres + question + historique.
         var totalCharacters = 30_000
         var questionCharacters = 1_000
         var historyCharacters = 6_000
@@ -58,13 +59,18 @@ enum LibraryAIContextBuilder {
         let boundedQuestion = cleanedQuestion.count <= limits.questionCharacters
             ? cleanedQuestion
             : String(cleanedQuestion.prefix(limits.questionCharacters)) + "\n[…question limitée…]"
+        let bounded = boundedHistory(history, limits: limits)
+
+        // Le budget total couvre livres + question + historique : les livres
+        // se partagent ce qui reste après la question et l'historique.
+        let historyCost = bounded.reduce(0) { $0 + $1.text.count }
 
         // Livres terminés et en cours d'abord : les plus pertinents pour une reco.
         let ranked = inputs.sorted { lhs, rhs in
             rank(lhs.status) < rank(rhs.status)
         }
         var books: [LoreAILibraryBookSummary] = []
-        var remaining = limits.totalCharacters
+        var remaining = max(0, limits.totalCharacters - boundedQuestion.count - historyCost)
         for input in ranked.prefix(limits.maxBooks) {
             guard remaining > 0 else { break }
             let summary = summarize(input, limits: limits, budget: &remaining)
@@ -74,7 +80,7 @@ enum LibraryAIContextBuilder {
         return LoreAILibraryContext(
             books: books,
             question: boundedQuestion,
-            history: boundedHistory(history, limits: limits)
+            history: bounded
         )
     }
 
