@@ -32,9 +32,12 @@ final class LoreChapterTextExtractor: Sendable {
         }
 
         let link = publication.readingOrder[chapterIndex]
-        guard let resource = publication.get(link),
-              let rawString = (try? await resource.readAsString().get()) ?? (try? await resource.read().asString().get())
-        else {
+        guard let resource = publication.get(link) else {
+            return []
+        }
+
+        let readResult = await resource.read()
+        guard let rawString = (try? readResult.asString().get()) ?? (try? readResult.get()).flatMap({ String(data: $0, encoding: .utf8) ?? String(data: $0, encoding: .isoLatin1) }) else {
             return []
         }
 
