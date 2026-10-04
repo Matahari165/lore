@@ -270,6 +270,9 @@ struct ReaderScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer(minLength: 8)
+                controlButton("Écouter la lecture", systemImage: presentation.session.isTTSActive ? "waveform" : "headphones") {
+                    presentation.session.toggleTTS()
+                }
                 controlButton("Discuter avec le livre", systemImage: "sparkles") {
                     discussionExcerpt = presentation.session.currentChatExcerpt()
                     showsDiscussion = true
@@ -286,6 +289,11 @@ struct ReaderScreen: View {
             Spacer()
 
             VStack(spacing: 10) {
+                if let tts = presentation.session.ttsPlaybackController, presentation.session.isTTSActive {
+                    ReaderTTSControlBar(tts: tts, reduceTransparency: reduceTransparency)
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                }
+
                 if showsQuickPreferences {
                     ReaderQuickPreferences(
                         preferences: $preferences,
@@ -1049,7 +1057,7 @@ private struct ReaderPreferencesPage: View {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func readerGlass<S: Shape>(
         in shape: S,

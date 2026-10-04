@@ -43,9 +43,17 @@ final class ReaderSessionController {
     private(set) var vocabulary: [VocabularyItem] = []
     private(set) var totalPageCount: Int?
     private var totalPageCountHandler: (@MainActor (Int?) -> Void)?
+    private(set) var ttsPlaybackController: ReaderTTSPlaybackController?
+
+    var isTTSActive: Bool {
+        ttsPlaybackController?.isPlaying == true || ttsPlaybackController?.isSpeaking == true
+    }
 
     static func make(
         bookID: UUID,
+        bookTitle: String? = nil,
+        bookAuthor: String? = nil,
+        coverData: Data? = nil,
         fileURL: URL,
         publicationService: ReadiumPublicationService,
         progressStore: any ReaderProgressStore,
@@ -78,6 +86,9 @@ final class ReaderSessionController {
 
         let session = try ReaderSessionController(
             bookID: bookID,
+            bookTitle: bookTitle,
+            bookAuthor: bookAuthor,
+            coverData: coverData,
             publication: opened.publication,
             initialLocation: restoration.locator,
             totalPageCount: totalPageCount,
@@ -97,6 +108,9 @@ final class ReaderSessionController {
 
     init(
         bookID: UUID,
+        bookTitle: String? = nil,
+        bookAuthor: String? = nil,
+        coverData: Data? = nil,
         publication: Publication,
         initialLocation: Locator?,
         totalPageCount: Int? = nil,
@@ -218,6 +232,18 @@ final class ReaderSessionController {
                 }
             }
         }
+
+        let authorsJoined = publication.metadata.authors.map(\.name).joined(separator: ", ")
+        let defaultAuthor = authorsJoined.isEmpty ? nil : authorsJoined
+        let tts = ReaderTTSPlaybackController(
+            publication: publication,
+            bookID: bookID,
+            bookTitle: bookTitle ?? publication.metadata.title ?? "Livre",
+            bookAuthor: bookAuthor ?? defaultAuthor,
+            coverData: coverData
+        )
+        self.ttsPlaybackController = tts
+        bindTTS(tts)
     }
 
     init(
@@ -859,12 +885,20 @@ final class ReaderSessionController {
             do {
                 try await positionController.flush(currentLocator: bestKnownLocation)
                 try readingActivity.readerDidBecomeActive()
+                if let tts = ttsPlaybackController, tts.isSpeaking, let loc = tts.currentLocator {
+                    Task { @MainActor in
+                        _ = await self.readerController?.go(to: loc, options: NavigatorGoOptions(animated: false))
+                    }
+                }
             } catch {
                 onError(error)
                 throw error
             }
         case .inactive, .background:
             do {
+                if let tts = ttsPlaybackController, tts.isSpeaking, let loc = tts.currentLocator {
+                    self.observeLocation(loc)
+                }
                 let location = bestKnownLocation
                 var firstError: Error?
                 do { try await positionController.flush(currentLocator: location) } catch { firstError = error }
@@ -880,6 +914,9 @@ final class ReaderSessionController {
     }
 
     func close() async throws {
+        if let tts = ttsPlaybackController, tts.isPlaying {
+            tts.teardown()
+        }
         do {
             let location = bestKnownLocation
             var firstError: Error?
@@ -891,6 +928,66 @@ final class ReaderSessionController {
         } catch {
             onError(error)
             throw error
+        }
+    }
+
+    // MARK: - Synthèse vocale (TTS)
+
+    func startTTS() {
+        guard let tts = ttsPlaybackController else { return }
+        tts.start(from: bestKnownLocation)
+    }
+
+    func toggleTTS() {
+        guard let tts = ttsPlaybackController else { return }
+        if tts.isPlaying {
+            tts.pause()
+        } else if tts.isSpeaking {
+            tts.resume()
+        } else {
+            startTTS()
+        }
+    }
+
+    func stopTTS() {
+        ttsPlaybackController?.stop()
+    }
+
+    private func bindTTS(_ tts: ReaderTTSPlaybackController) {
+        tts.onLocationUpdate = { [weak self] locator in
+            guard let self else { return }
+            self.observeLocation(locator)
+            if let navigator = self.locationProvider as? VisualNavigator,
+               let decorable = navigator as? DecorableNavigator {
+                let decoration = Decoration(
+                    id: "tts-active-utterance",
+                    locator: locator,
+                    style: .highlight(tint: UIColor(red: 0.55, green: 0.92, blue: 1.0, alpha: 0.35))
+                )
+                decorable.apply(decorations: [decoration], in: "tts")
+            }
+        }
+        tts.onProgressRecord = { [weak self] locator in
+            guard let self else { return }
+            self.positionController.record(locator)
+            do {
+                try self.readingActivity.recordReadingInteraction()
+            } catch {
+                self.onError(error)
+            }
+        }
+        tts.onStop = { [weak self] locator in
+            guard let self else { return }
+            if let decorable = self.locationProvider as? DecorableNavigator {
+                decorable.apply(decorations: [], in: "tts")
+            }
+            if let locator {
+                self.observeLocation(locator)
+                self.positionController.record(locator)
+                Task { @MainActor in
+                    _ = await self.readerController?.go(to: locator, options: NavigatorGoOptions(animated: false))
+                }
+            }
         }
     }
 }

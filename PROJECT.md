@@ -56,6 +56,7 @@ Permettre une boucle de lecture et d’écoute complète et simple :
 - Recherche globale dans les passages et notes, filtre des passages avec note et export Markdown groupé par livre.
 - Mesure automatique du temps de lecture actif.
 - Arrêt du compteur lorsque l’application passe en arrière-plan ou après une période d’inactivité.
+- Mode « Continuer la lecture en audio » : synthèse vocale locale native (voix Apple Améliorées/Premium), poursuite de la narration écran verrouillé et en arrière-plan, commandes sur l'écran verrouillé et reprise visuelle exacte à l'endroit atteint par la voix.
 
 ### Historique et statistiques
 

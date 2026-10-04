@@ -497,6 +497,9 @@ final class LibraryViewModel {
             let fileURL = try fileStore.fileURL(for: book.relativeFilePath)
             let session = try await ReaderSessionController.make(
                 bookID: book.id,
+                bookTitle: book.title,
+                bookAuthor: book.author,
+                coverData: book.coverData,
                 fileURL: fileURL,
                 publicationService: publicationService,
                 progressStore: repository,

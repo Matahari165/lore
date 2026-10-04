@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct SettingsView: View {
@@ -10,6 +11,11 @@ struct SettingsView: View {
     @State private var clearTodayError: String?
     @State private var readingFocusEnabled = ReadingFocusMode.shared.isEnabled
     @State private var showsReadingFocusGuide = false
+    @State private var ttsPreferences = ReaderTTSPreferences()
+    @State private var frenchVoices: [AVSpeechSynthesisVoice] = []
+    @State private var englishVoices: [AVSpeechSynthesisVoice] = []
+    @State private var selectedFrenchVoiceID: String = ""
+    @State private var selectedEnglishVoiceID: String = ""
 
     var body: some View {
         NavigationStack {
@@ -55,6 +61,41 @@ struct SettingsView: View {
                     Text("Mode Lecture")
                 } footer: {
                     Text("Facultatif. Lore masque ses propres bannières et sons pendant la lecture. Pour les autres apps, configurez Concentration sur l’iPhone.")
+                }
+
+                Section {
+                    Stepper(value: Binding(
+                        get: { Double(ttsPreferences.speechRate) },
+                        set: { ttsPreferences.speechRate = Float($0) }
+                    ), in: 0.5...2.0, step: 0.25) {
+                        LabeledContent("Vitesse", value: ttsPreferences.speechRateLabel)
+                    }
+
+                    if !frenchVoices.isEmpty {
+                        Picker("Voix française", selection: $selectedFrenchVoiceID) {
+                            ForEach(frenchVoices, id: \.identifier) { voice in
+                                Text(voiceLabel(for: voice)).tag(voice.identifier)
+                            }
+                        }
+                        .onChange(of: selectedFrenchVoiceID) { _, newID in
+                            ttsPreferences.setPreferredVoiceIdentifier(newID, forLanguage: "fr")
+                        }
+                    }
+
+                    if !englishVoices.isEmpty {
+                        Picker("Voix anglaise", selection: $selectedEnglishVoiceID) {
+                            ForEach(englishVoices, id: \.identifier) { voice in
+                                Text(voiceLabel(for: voice)).tag(voice.identifier)
+                            }
+                        }
+                        .onChange(of: selectedEnglishVoiceID) { _, newID in
+                            ttsPreferences.setPreferredVoiceIdentifier(newID, forLanguage: "en")
+                        }
+                    }
+                } header: {
+                    Text("Lecture audio (TTS)")
+                } footer: {
+                    Text("100 % local. Lore privilégie automatiquement les voix Premium et Améliorées. Pour télécharger des voix Apple plus naturelles : Réglages iPhone > Accessibilité > Contenu énoncé > Voix.")
                 }
 
                 Section("Données de lecture") {
@@ -141,7 +182,41 @@ struct SettingsView: View {
             .sheet(isPresented: $showsReadingFocusGuide) {
                 ReadingFocusGuideView()
             }
+            .onAppear {
+                loadTTSVoices()
+            }
         }
+    }
+
+    private func loadTTSVoices() {
+        frenchVoices = ttsPreferences.availableSystemVoices(forLanguage: "fr")
+        englishVoices = ttsPreferences.availableSystemVoices(forLanguage: "en")
+        selectedFrenchVoiceID = ttsPreferences.preferredVoiceIdentifier(forLanguage: "fr")
+            ?? ttsPreferences.bestVoice(forLanguage: "fr")?.identifier
+            ?? ""
+        selectedEnglishVoiceID = ttsPreferences.preferredVoiceIdentifier(forLanguage: "en")
+            ?? ttsPreferences.bestVoice(forLanguage: "en")?.identifier
+            ?? ""
+    }
+
+    private func voiceLabel(for voice: AVSpeechSynthesisVoice) -> String {
+        let quality: String
+        #if swift(>=5.7)
+        if voice.quality == .premium {
+            quality = "Premium"
+        } else if voice.quality == .enhanced {
+            quality = "Améliorée"
+        } else {
+            quality = "Standard"
+        }
+        #else
+        if voice.quality == .enhanced {
+            quality = "Améliorée"
+        } else {
+            quality = "Standard"
+        }
+        #endif
+        return "\(voice.name) (\(quality))"
     }
 
     private func clearToday() {
