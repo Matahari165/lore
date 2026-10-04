@@ -1,6 +1,6 @@
 import Foundation
 import NaturalLanguage
-import ReadiumShared
+@preconcurrency import ReadiumShared
 
 /// Représente une phrase extraite d'un chapitre EPUB prête pour la synthèse vocale locale.
 struct LoreTTSSentence: Equatable, Sendable {
@@ -20,7 +20,8 @@ struct LoreTTSSentence: Equatable, Sendable {
 /// 4. Décode toutes les entités HTML (nommées, décimales et hexadécimales).
 /// 5. Segmente le texte en phrases via Apple `NLTokenizer` avec préservation des incises de dialogue
 ///    et des abréviations courantes (Dr., M., Mme., etc.).
-final class LoreChapterTextExtractor: Sendable {
+@MainActor
+final class LoreChapterTextExtractor {
 
     /// Extrait les phrases du chapitre à l'index donné dans la `publication`.
     func extractSentences(
@@ -135,7 +136,7 @@ final class LoreChapterTextExtractor: Sendable {
         "st.", "gen.", "col.", "capt.", "lt.", "sgt.", "hon.", "gov.", "sen.", "rev.", "prof.", "dr.", "dr", "mr.", "mr", "mrs.", "mrs", "ms.", "ms"
     ]
 
-    static func segmentSentences(from text: String, languageCode: String) -> [RawSentence] {
+    nonisolated static func segmentSentences(from text: String, languageCode: String) -> [RawSentence] {
         guard !text.isEmpty else { return [] }
 
         let tokenizer = NLTokenizer(unit: .sentence)
@@ -212,7 +213,7 @@ final class LoreChapterTextExtractor: Sendable {
         options: []
     )
 
-    static func stripHTML(_ raw: String) -> String {
+    nonisolated static func stripHTML(_ raw: String) -> String {
         guard !raw.isEmpty else { return "" }
 
         // 1. Suppression head, style, script
@@ -270,7 +271,7 @@ final class LoreChapterTextExtractor: Sendable {
         return cleanedLines.joined(separator: "\n")
     }
 
-    private static func decodeHTMLEntities(_ string: String) -> String {
+    nonisolated private static func decodeHTMLEntities(_ string: String) -> String {
         guard string.contains("&") else { return string }
         var result = ""
         result.reserveCapacity(string.count)
@@ -292,7 +293,7 @@ final class LoreChapterTextExtractor: Sendable {
         return result
     }
 
-    private static func decodeSingleEntity(_ entity: Substring) -> String? {
+    nonisolated private static func decodeSingleEntity(_ entity: Substring) -> String? {
         let inner = entity.dropFirst().dropLast()
         if inner.hasPrefix("#") {
             let numStr = inner.dropFirst()

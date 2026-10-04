@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 import MediaPlayer
 import Observation
-import ReadiumShared
+@preconcurrency import ReadiumShared
 import UIKit
 
 /// Contrôleur de lecture audio locale (TTS) natif, robuste et ultra-rapide pour Lore.
@@ -414,10 +414,11 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
+        let epoch = sentenceUtterance.epoch
+        let sentence = sentenceUtterance.sentence
 
         Task { @MainActor [weak self] in
-            guard let self, sentenceUtterance.epoch == self.playbackEpoch else { return }
-            let sentence = sentenceUtterance.sentence
+            guard let self, epoch == self.playbackEpoch else { return }
 
             self.currentSentenceIndex = sentence.sentenceIndex
             self.currentLocator = sentence.locator
@@ -439,12 +440,14 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
+        let epoch = sentenceUtterance.epoch
+        let sentenceIndex = sentenceUtterance.sentence.sentenceIndex
 
         Task { @MainActor [weak self] in
-            guard let self, sentenceUtterance.epoch == self.playbackEpoch else { return }
+            guard let self, epoch == self.playbackEpoch else { return }
 
             // Vérifie si l'énoncé qui vient de se terminer est bien le dernier du chapitre
-            let isLastSentence = sentenceUtterance.sentence.sentenceIndex >= self.sentences.count - 1
+            let isLastSentence = sentenceIndex >= self.sentences.count - 1
             if isLastSentence {
                 if self.currentChapterIndex + 1 < self.publication.readingOrder.count {
                     self.advanceToNextChapter()
@@ -566,7 +569,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
 // MARK: - SentenceUtterance
 
-private final class SentenceUtterance: AVSpeechUtterance {
+private final class SentenceUtterance: AVSpeechUtterance, @unchecked Sendable {
     let sentence: LoreTTSSentence
     let epoch: UInt64
 
