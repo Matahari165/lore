@@ -178,8 +178,18 @@ final class ReadiumReadingRecapContextExtractor {
         var reachedLast = false
         var firstElement = true
 
+        let lastChapterIndex = publication.readingOrder.firstIndex { $0.url().isEquivalentTo(lastLocator.href) }
+
         while let element = try await iterator.next() {
             let elementHref = element.locator.href
+            let currentChapterIndex = publication.readingOrder.firstIndex { $0.url().isEquivalentTo(elementHref) }
+
+            // Si l'itérateur dépasse le chapitre final de destination, arrêt immédiat
+            if let lastChapterIndex, let currentChapterIndex, currentChapterIndex > lastChapterIndex {
+                reachedLast = true
+                break
+            }
+
             let sameResourceAsLast = elementHref.isEquivalentTo(lastLocator.href)
 
             // Intermediate resources are part of the interval. Only the
@@ -269,8 +279,10 @@ final class ReadiumReadingRecapContextExtractor {
     nonisolated private static func isAtOrAfter(_ locator: Locator, target: Locator) -> Bool {
         guard locator.href.isEquivalentTo(target.href) else { return false }
 
-        if let targetSelector = target.locations["cssSelector"]?.string {
-            return locator.locations["cssSelector"]?.string == targetSelector
+        if let targetSelector = target.locations["cssSelector"]?.string,
+           let locatorSelector = locator.locations["cssSelector"]?.string,
+           locatorSelector == targetSelector {
+            return true
         }
         if let targetProgression = target.locations.progression,
            let progression = locator.locations.progression
@@ -290,7 +302,6 @@ final class ReadiumReadingRecapContextExtractor {
 
     nonisolated private static func shouldStopBefore(_ locator: Locator, target: Locator) -> Bool {
         guard locator.href.isEquivalentTo(target.href) else { return false }
-        guard target.locations["cssSelector"]?.string == nil else { return false }
 
         if let targetProgression = target.locations.progression,
            let progression = locator.locations.progression

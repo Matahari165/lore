@@ -62,6 +62,63 @@ struct ReaderTTSPreferencesTests {
 }
 
 @MainActor
+struct LoreChapterTextExtractorTests {
+    @Test func stripHTMLRemovesTagsAndUnescapesEntities() {
+        let html = """
+        <html>
+        <head><title>Test</title><style>p { color: red; }</style></head>
+        <body>
+            <h1>Chapitre Premier</h1>
+            <p>Voici un premier &eacute;l&eacute;ment avec du texte.</p>
+            <p>Deuxi&egrave;me paragraphe &mdash; tr&egrave;s int&eacute;ressant &amp; enrichi.</p>
+        </body>
+        </html>
+        """
+        let cleaned = LoreChapterTextExtractor.stripHTML(html)
+        #expect(!cleaned.contains("<head>"))
+        #expect(!cleaned.contains("<style>"))
+        #expect(!cleaned.contains("<h1>"))
+        #expect(!cleaned.contains("<p>"))
+        #expect(cleaned.contains("Chapitre Premier"))
+        #expect(cleaned.contains("premier élément"))
+        #expect(cleaned.contains("Deuxième paragraphe — très intéressant & enrichi."))
+    }
+
+    @Test func segmentSentencesSplitsTextAccurately() {
+        let text = "Il marchait lentement dans la nuit. Soudain, un bruit retentit ! Que se passait-il donc ? Personne ne répondit."
+        let sentences = LoreChapterTextExtractor.segmentSentences(from: text, languageCode: "fr")
+        #expect(sentences.count == 4)
+        #expect(sentences[0].text == "Il marchait lentement dans la nuit.")
+        #expect(sentences[1].text == "Soudain, un bruit retentit !")
+        #expect(sentences[2].text == "Que se passait-il donc ?")
+        #expect(sentences[3].text == "Personne ne répondit.")
+    }
+
+    @Test func findStartingSentenceIndexByProgression() {
+        let extractor = LoreChapterTextExtractor()
+        let sentences = [
+            LoreTTSSentence(chapterIndex: 0, sentenceIndex: 0, text: "A", locator: makeLocator(progression: 0.1)),
+            LoreTTSSentence(chapterIndex: 0, sentenceIndex: 1, text: "B", locator: makeLocator(progression: 0.4)),
+            LoreTTSSentence(chapterIndex: 0, sentenceIndex: 2, text: "C", locator: makeLocator(progression: 0.8))
+        ]
+
+        let index = extractor.findStartingSentenceIndex(in: sentences, for: makeLocator(progression: 0.42))
+        #expect(index == 1)
+
+        let indexStart = extractor.findStartingSentenceIndex(in: sentences, for: makeLocator(progression: 0.05))
+        #expect(indexStart == 0)
+    }
+
+    private func makeLocator(progression: Double) -> Locator {
+        Locator(
+            href: URL(string: "chapter1.xhtml")!,
+            mediaType: .xhtml,
+            locations: .init(progression: progression, totalProgression: progression)
+        )
+    }
+}
+
+@MainActor
 struct LoreTTSAudioSessionCoordinatorTests {
     @Test func interruptionBeganCallsCallback() {
         let coordinator = LoreTTSAudioSessionCoordinator()

@@ -100,22 +100,17 @@ final class ReaderTTSPreferences {
             return AVSpeechSynthesisVoice(language: defaultCode)
         }
 
+        // 1. Voix explicitement configurée par l'utilisateur
         let targetLang = languageKey(from: languageCode ?? "fr")
         if let preferredID = preferredVoiceIdentifier(forLanguage: targetLang),
            let matching = voices.first(where: { $0.identifier == preferredID }) {
             return matching
         }
 
-        // 1. Recherche Premium
-        #if swift(>=5.7)
-        if let premium = voices.first(where: { $0.quality == .premium }) {
-            return premium
-        }
-        #endif
-
-        // 2. Recherche Enhanced (Améliorée)
-        if let enhanced = voices.first(where: { $0.quality == .enhanced }) {
-            return enhanced
+        // 2. Voix système native par défaut pour la langue (garantie 100 % présente et sans téléchargement)
+        let defaultCode = (targetLang == "en") ? "en-US" : "fr-FR"
+        if let systemDefault = AVSpeechSynthesisVoice(language: defaultCode) {
+            return systemDefault
         }
 
         // 3. Repli première voix disponible
