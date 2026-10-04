@@ -64,7 +64,7 @@ final class ReaderTTSPreferences {
         }
     }
 
-    /// Voix disponibles sur l'iPhone pour la langue donnée (ou français/anglais par défaut).
+    /// Voix disponibles sur l'iPhone pour la langue donnée (sans doublons super-compacts).
     func availableSystemVoices(forLanguage languageCode: String?) -> [AVSpeechSynthesisVoice] {
         let targetLanguage = languageKey(from: languageCode ?? "fr")
         return AVSpeechSynthesisVoice.speechVoices()
@@ -75,6 +75,7 @@ final class ReaderTTSPreferences {
                     }
                 }
                 guard !voice.identifier.contains(".eloquence.") else { return false }
+                guard !voice.identifier.contains(".super-compact.") else { return false }
 
                 let voiceLang = languageKey(from: voice.language)
                 return voiceLang.caseInsensitiveCompare(targetLanguage) == .orderedSame
@@ -90,31 +91,57 @@ final class ReaderTTSPreferences {
 
     /// Choisit intelligemment la meilleure voix pour la langue :
     /// 1. La voix explicitement mémorisée par l'utilisateur si elle est installée.
-    /// 2. La meilleure voix Premium disponible.
-    /// 3. À défaut, la meilleure voix Améliorée (Enhanced).
-    /// 4. À défaut, la voix système par défaut.
+    /// 2. La meilleure voix installée disponible (Premium > Enhanced > Standard).
+    /// 3. À défaut, la voix système native par défaut pour la langue cible.
     func bestVoice(forLanguage languageCode: String?) -> AVSpeechSynthesisVoice? {
-        let voices = availableSystemVoices(forLanguage: languageCode)
-        guard !voices.isEmpty else {
-            let defaultCode = (languageCode?.lowercased().hasPrefix("en") == true) ? "en-US" : "fr-FR"
-            return AVSpeechSynthesisVoice(language: defaultCode)
-        }
+        let targetLang = languageKey(from: languageCode ?? "fr")
+        let voices = availableSystemVoices(forLanguage: targetLang)
 
         // 1. Voix explicitement configurée par l'utilisateur
-        let targetLang = languageKey(from: languageCode ?? "fr")
         if let preferredID = preferredVoiceIdentifier(forLanguage: targetLang),
            let matching = voices.first(where: { $0.identifier == preferredID }) {
             return matching
         }
 
-        // 2. Voix système native par défaut pour la langue (garantie 100 % présente et sans téléchargement)
-        let defaultCode = (targetLang == "en") ? "en-US" : "fr-FR"
-        if let systemDefault = AVSpeechSynthesisVoice(language: defaultCode) {
-            return systemDefault
+        // 2. Meilleure voix système disponible parmi les voix installées
+        if let bestAvailable = voices.first {
+            return bestAvailable
         }
 
-        // 3. Repli première voix disponible
-        return voices.first
+        // 3. Repli système par défaut pour la langue
+        let defaultLocale: String
+        switch targetLang {
+        case "en": defaultLocale = "en-US"
+        case "fr": defaultLocale = "fr-FR"
+        case "es": defaultLocale = "es-ES"
+        case "de": defaultLocale = "de-DE"
+        case "it": defaultLocale = "it-IT"
+        default: defaultLocale = "\(targetLang)-\(targetLang.uppercased())"
+        }
+
+        return AVSpeechSynthesisVoice(language: defaultLocale)
+            ?? AVSpeechSynthesisVoice(language: "fr-FR")
+            ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    /// Formate un libellé clair pour l'affichage de la voix dans l'interface (nom, région et qualité).
+    func displayLabel(for voice: AVSpeechSynthesisVoice) -> String {
+        let isSiri = voice.identifier.contains(".siri.") || voice.identifier.contains(".gryphon-neural_")
+        let quality: String
+        if isSiri {
+            quality = "Siri"
+        } else if voice.quality == .premium {
+            quality = "Premium"
+        } else if voice.quality == .enhanced {
+            quality = "Améliorée"
+        } else {
+            quality = "Standard"
+        }
+
+        let region = Locale.current.localizedString(forRegionCode: String(voice.language.suffix(2)))
+        let regionSuffix = region.map { " — \($0)" } ?? ""
+
+        return "\(voice.name)\(regionSuffix) (\(quality))"
     }
 
     // MARK: - Utilitaires internes

@@ -409,6 +409,13 @@ struct LibraryView: View {
                     }
 
                     resumeActionButton(
+                        title: "Écouter \(book.title)",
+                        systemImage: "headphones"
+                    ) {
+                        Task { await model.open(book, startListening: true) }
+                    }
+
+                    resumeActionButton(
                         title: "Discuter avec \(book.title)",
                         systemImage: "sparkles"
                     ) {

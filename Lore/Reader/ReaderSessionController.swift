@@ -885,10 +885,10 @@ final class ReaderSessionController {
             do {
                 try await positionController.flush(currentLocator: bestKnownLocation)
                 try readingActivity.readerDidBecomeActive()
-                if let tts = ttsPlaybackController, tts.isSpeaking, let loc = tts.currentLocator {
-                    Task { @MainActor in
-                        _ = await self.readerController?.go(to: loc, options: NavigatorGoOptions(animated: false))
-                    }
+                if let target = bestKnownLocation,
+                   let current = locationProvider.currentLocation,
+                   target != current {
+                    _ = await self.readerController?.go(to: target, options: NavigatorGoOptions(animated: false))
                 }
             } catch {
                 onError(error)
@@ -914,9 +914,7 @@ final class ReaderSessionController {
     }
 
     func close() async throws {
-        if let tts = ttsPlaybackController, tts.isPlaying {
-            tts.teardown()
-        }
+        ttsPlaybackController?.teardown()
         do {
             let location = bestKnownLocation
             var firstError: Error?
@@ -929,6 +927,10 @@ final class ReaderSessionController {
             onError(error)
             throw error
         }
+    }
+
+    deinit {
+        ttsPlaybackController?.teardown()
     }
 
     // MARK: - Synthèse vocale (TTS)
@@ -970,6 +972,28 @@ final class ReaderSessionController {
         tts.onLocationUpdate = { [weak self] locator in
             guard let self else { return }
             self.observeLocation(locator)
+
+            // Met à jour la jauge de progression en temps réel pendant l'écoute
+            if let totalProgression = locator.locations.totalProgression {
+                self.navigatorDelegate?.onProgressionChange?(totalProgression)
+            }
+
+            // Tourne la page uniquement si le texte dépasse la vue courante (changement de chapitre ou avancée significative)
+            if let currentLocation = self.locationProvider.currentLocation {
+                let isDifferentResource = !currentLocation.href.isEquivalentTo(locator.href)
+                let hasAdvancedSignificantly: Bool = {
+                    guard let cur = currentLocation.locations.progression,
+                          let target = locator.locations.progression else { return false }
+                    return target > cur + 0.08
+                }()
+
+                if isDifferentResource || hasAdvancedSignificantly {
+                    Task { @MainActor [weak self] in
+                        guard let self, !self.isNavigating else { return }
+                        _ = await self.readerController?.go(to: locator, options: NavigatorGoOptions(animated: true))
+                    }
+                }
+            }
         }
         tts.onProgressRecord = { [weak self] locator in
             guard let self else { return }
@@ -978,6 +1002,12 @@ final class ReaderSessionController {
                 try self.readingActivity.recordReadingInteraction()
             } catch {
                 self.onError(error)
+            }
+        }
+        tts.onPause = { [weak self] locator in
+            guard let self else { return }
+            Task { @MainActor in
+                try? await self.positionController.flush(currentLocator: locator)
             }
         }
         tts.onStop = { [weak self] locator in

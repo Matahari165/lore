@@ -5,18 +5,16 @@ import Observation
 import ReadiumShared
 import UIKit
 
-/// Contrôleur de lecture audio locale (TTS) natif et ultra-rapide pour Lore.
+/// Contrôleur de lecture audio locale (TTS) natif, robuste et ultra-rapide pour Lore.
 ///
-/// Orchestre `AVSpeechSynthesizer` directement avec `LoreChapterTextExtractor`,
-/// sans dépendance au pipeline lourd de Readium (évite le freeze de `positionsByReadingOrder`,
-/// le parsing DOM `SwiftSoup` et les deadlocks de continuation).
-///
+/// Orchestre `AVSpeechSynthesizer` directement avec `LoreChapterTextExtractor`.
 /// Garantit :
-/// - Un démarrage instantané au tap (< 15 millisecondes).
-/// - Une diction continue sans hachage (file d'attente lookahead).
-/// - La lecture en arrière-plan et écran verrouillé (`MPNowPlayingInfoCenter` & `MPRemoteCommandCenter`).
-/// - La mise en pause automatique au retrait des écouteurs / AirPods.
-/// - La synchronisation de la position de lecture (`Locator`) avec le livre.
+/// - Un démarrage instantané et une diction continue sans interruption entre phrases ni chapitres.
+/// - Un mécanisme d'époque (`playbackEpoch`) immunisé contre les race conditions et les clics rapides.
+/// - La transition automatique fluide à travers les chapitres avec cache préchargé (zéro latence inter-chapitres).
+/// - La gestion bidirectionnelle des chapitres sans texte (couvertures, illustrations).
+/// - La persistance immédiate de la position sur pause, interruption ou déconnexion Bluetooth/AirPods.
+/// - L'intégration complète `MPNowPlayingInfoCenter` et `MPRemoteCommandCenter`.
 @MainActor
 @Observable
 final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
@@ -37,6 +35,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     var onLocationUpdate: (@MainActor (Locator) -> Void)?
     var onProgressRecord: (@MainActor (Locator) -> Void)?
+    var onPause: (@MainActor (Locator) -> Void)?
     var onStop: (@MainActor (Locator?) -> Void)?
     var onStateChange: (@MainActor () -> Void)?
 
@@ -48,7 +47,16 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     private var sentences: [LoreTTSSentence] = []
     private var currentSentenceIndex: Int = 0
     private var nextEnqueueIndex: Int = 0
-    private var isTransitioningChapter: Bool = false
+
+    /// Époque de lecture incrémentée à chaque changement de piste/reprise pour invalider les anciens callbacks.
+    private var playbackEpoch: UInt64 = 0
+
+    /// Mémorise si la lecture était active avant une interruption audio système (appel entrant, Siri).
+    private var wasPlayingBeforeInterruption: Bool = false
+
+    /// Cache préchargé du prochain chapitre pour une transition sans blanc sonore.
+    private var preloadedChapter: (index: Int, sentences: [LoreTTSSentence])?
+    private var isPreloadingNextChapter: Bool = false
 
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
     private var currentVoice: AVSpeechSynthesisVoice?
@@ -98,25 +106,37 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func configureCoordinator() {
         audioCoordinator.onInterruptionBegan = { [weak self] in
-            self?.pause()
+            guard let self else { return }
+            self.wasPlayingBeforeInterruption = self.isPlaying
+            self.pause()
         }
         audioCoordinator.onInterruptionEnded = { [weak self] shouldResume in
-            if shouldResume {
-                self?.resume()
+            guard let self else { return }
+            if shouldResume && self.wasPlayingBeforeInterruption {
+                self.resume()
             }
+            self.wasPlayingBeforeInterruption = false
         }
         audioCoordinator.onRouteChangeOldDeviceUnavailable = { [weak self] in
-            self?.pause()
+            guard let self else { return }
+            self.wasPlayingBeforeInterruption = false
+            self.pause()
         }
     }
 
     // MARK: - Commandes de lecture
 
     func start(from locator: Locator?) {
+        playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
+        wasPlayingBeforeInterruption = false
         currentLocator = locator
         audioCoordinator.activateSession()
         setupRemoteCommands()
+
+        // Arrêt propre de tout synthétiseur antérieur
+        synthesizer?.stopSpeaking(at: .immediate)
+        synthesizer?.delegate = nil
 
         let synth = AVSpeechSynthesizer()
         synth.delegate = self
@@ -140,42 +160,43 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
         currentPlaybackTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.loadAndPlayChapter(index: targetChapterIndex, startLocator: locator)
+            await self.findAndPlayFirstNonEmptyChapter(from: targetChapterIndex, startLocator: locator)
         }
     }
 
-    private func loadAndPlayChapter(index: Int, startLocator: Locator?) async {
-        guard !Task.isCancelled else { return }
-        let extracted = await textExtractor.extractSentences(forChapterIndex: index, in: publication)
-        guard !Task.isCancelled else { return }
+    private func findAndPlayFirstNonEmptyChapter(from startIndex: Int, startLocator: Locator?) async {
+        var index = startIndex
+        while index < publication.readingOrder.count {
+            guard !Task.isCancelled, isPlaying else { return }
+            let extracted = await textExtractor.extractSentences(forChapterIndex: index, in: publication)
+            guard !Task.isCancelled, isPlaying else { return }
 
-        guard !extracted.isEmpty else {
-            // Chapitre vide ou non textuel, tente le suivant
-            if index + 1 < publication.readingOrder.count {
-                self.currentChapterIndex = index + 1
-                await loadAndPlayChapter(index: index + 1, startLocator: nil)
-            } else {
-                stop()
+            if !extracted.isEmpty {
+                self.currentChapterIndex = index
+                self.sentences = extracted
+                let targetSentenceIndex = textExtractor.findStartingSentenceIndex(in: extracted, for: startLocator)
+                self.currentSentenceIndex = targetSentenceIndex
+                self.nextEnqueueIndex = targetSentenceIndex
+                self.preloadedChapter = nil
+
+                if targetSentenceIndex < extracted.count {
+                    let activeLoc = extracted[targetSentenceIndex].locator
+                    self.currentLocator = activeLoc
+                    self.onLocationUpdate?(activeLoc)
+                    self.onProgressRecord?(activeLoc)
+                    self.updateNowPlaying()
+                }
+
+                self.enqueueNextSentence()
+                self.enqueueNextSentence()
+                return
             }
-            return
+            index += 1
         }
 
-        self.sentences = extracted
-        let startIndex = textExtractor.findStartingSentenceIndex(in: extracted, for: startLocator)
-        self.currentSentenceIndex = startIndex
-        self.nextEnqueueIndex = startIndex
-
-        if startIndex < extracted.count {
-            let activeLoc = extracted[startIndex].locator
-            self.currentLocator = activeLoc
-            self.onLocationUpdate?(activeLoc)
-            self.onProgressRecord?(activeLoc)
-            self.updateNowPlaying()
-        }
-
-        // Enfile les 2 premières phrases pour amorcer la file sans latence
-        enqueueNextSentence()
-        enqueueNextSentence()
+        // Aucun texte dans les chapitres restants
+        self.errorMessage = "Aucun texte lisible dans ce livre."
+        self.stop()
     }
 
     private func enqueueNextSentence() {
@@ -183,7 +204,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         let sentence = sentences[nextEnqueueIndex]
         nextEnqueueIndex += 1
 
-        let utterance = SentenceUtterance(sentence: sentence)
+        let utterance = SentenceUtterance(sentence: sentence, epoch: playbackEpoch)
         let baseRate = AVSpeechUtteranceDefaultSpeechRate
         let targetRate = baseRate * playbackRate
         utterance.rate = min(max(targetRate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
@@ -203,6 +224,8 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func pause() {
+        wasPlayingBeforeInterruption = false
+        currentPlaybackTask?.cancel()
         synthesizer?.pauseSpeaking(at: .immediate)
         isPlaying = false
         isSpeaking = false
@@ -210,25 +233,36 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         onStateChange?()
         if let currentLocator {
             onProgressRecord?(currentLocator)
+            onPause?(currentLocator)
         }
     }
 
     func resume() {
+        guard !sentences.isEmpty else {
+            start(from: currentLocator)
+            return
+        }
+
         audioCoordinator.activateSession()
         if let synth = synthesizer, synth.isPaused {
-            synth.continueSpeaking()
-            isPlaying = true
-            isSpeaking = true
-            updateNowPlaying()
-            onStateChange?()
-        } else {
-            // Relance propre depuis la phrase courante
-            restartFromCurrentSentence()
+            if synth.continueSpeaking() {
+                isPlaying = true
+                isSpeaking = true
+                updateNowPlaying()
+                onStateChange?()
+                return
+            }
         }
+
+        // Si continueSpeaking échoue ou si le synthétiseur n'est pas en pause valide,
+        // reprise propre à partir de la phrase active.
+        restartFromCurrentSentence()
     }
 
     func stop() {
+        playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
+        wasPlayingBeforeInterruption = false
         synthesizer?.stopSpeaking(at: .immediate)
         isPlaying = false
         isSpeaking = false
@@ -245,14 +279,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
             currentSentenceIndex += 1
             restartFromCurrentSentence()
         } else if currentChapterIndex + 1 < publication.readingOrder.count {
-            // Passe au chapitre suivant
-            currentChapterIndex += 1
-            synthesizer?.stopSpeaking(at: .immediate)
-            currentPlaybackTask?.cancel()
-            currentPlaybackTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.loadAndPlayChapter(index: self.currentChapterIndex, startLocator: nil)
-            }
+            advanceToNextChapter()
         }
     }
 
@@ -262,18 +289,13 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
             currentSentenceIndex -= 1
             restartFromCurrentSentence()
         } else if currentChapterIndex > 0 {
-            // Recule au chapitre précédent
-            currentChapterIndex -= 1
-            synthesizer?.stopSpeaking(at: .immediate)
-            currentPlaybackTask?.cancel()
-            currentPlaybackTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.loadAndPlayChapter(index: self.currentChapterIndex, startLocator: nil)
-            }
+            goToPreviousChapter()
         }
     }
 
     private func restartFromCurrentSentence() {
+        playbackEpoch &+= 1
+        audioCoordinator.activateSession()
         synthesizer?.stopSpeaking(at: .immediate)
         nextEnqueueIndex = currentSentenceIndex
         isPlaying = true
@@ -290,6 +312,84 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
         enqueueNextSentence()
         enqueueNextSentence()
+    }
+
+    private func advanceToNextChapter() {
+        playbackEpoch &+= 1
+        synthesizer?.stopSpeaking(at: .immediate)
+        currentPlaybackTask?.cancel()
+
+        currentPlaybackTask = Task { @MainActor [weak self] in
+            guard let self, self.isPlaying else { return }
+            var targetIndex = self.currentChapterIndex + 1
+
+            while targetIndex < self.publication.readingOrder.count {
+                let extracted: [LoreTTSSentence]
+                if let preloaded = self.preloadedChapter, preloaded.index == targetIndex {
+                    extracted = preloaded.sentences
+                } else {
+                    extracted = await self.textExtractor.extractSentences(forChapterIndex: targetIndex, in: self.publication)
+                }
+                guard !Task.isCancelled, self.isPlaying else { return }
+
+                if !extracted.isEmpty {
+                    self.currentChapterIndex = targetIndex
+                    self.sentences = extracted
+                    self.currentSentenceIndex = 0
+                    self.nextEnqueueIndex = 0
+                    self.preloadedChapter = nil
+
+                    let activeLoc = extracted[0].locator
+                    self.currentLocator = activeLoc
+                    self.onLocationUpdate?(activeLoc)
+                    self.onProgressRecord?(activeLoc)
+                    self.updateNowPlaying()
+
+                    self.enqueueNextSentence()
+                    self.enqueueNextSentence()
+                    return
+                }
+                targetIndex += 1
+            }
+
+            // Fin du livre atteinte
+            self.stop()
+        }
+    }
+
+    private func goToPreviousChapter() {
+        playbackEpoch &+= 1
+        synthesizer?.stopSpeaking(at: .immediate)
+        currentPlaybackTask?.cancel()
+
+        currentPlaybackTask = Task { @MainActor [weak self] in
+            guard let self, self.isPlaying else { return }
+            var targetIndex = self.currentChapterIndex - 1
+
+            while targetIndex >= 0 {
+                let extracted = await self.textExtractor.extractSentences(forChapterIndex: targetIndex, in: self.publication)
+                guard !Task.isCancelled, self.isPlaying else { return }
+
+                if !extracted.isEmpty {
+                    self.currentChapterIndex = targetIndex
+                    self.sentences = extracted
+                    let lastSentenceIndex = max(0, extracted.count - 1)
+                    self.currentSentenceIndex = lastSentenceIndex
+                    self.nextEnqueueIndex = lastSentenceIndex
+                    self.preloadedChapter = nil
+
+                    let activeLoc = extracted[lastSentenceIndex].locator
+                    self.currentLocator = activeLoc
+                    self.onLocationUpdate?(activeLoc)
+                    self.onProgressRecord?(activeLoc)
+                    self.updateNowPlaying()
+
+                    self.restartFromCurrentSentence()
+                    return
+                }
+                targetIndex -= 1
+            }
+        }
     }
 
     func cyclePlaybackRate() {
@@ -314,10 +414,11 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
-        let sentence = sentenceUtterance.sentence
 
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, sentenceUtterance.epoch == self.playbackEpoch else { return }
+            let sentence = sentenceUtterance.sentence
+
             self.currentSentenceIndex = sentence.sentenceIndex
             self.currentLocator = sentence.locator
             self.isPlaying = true
@@ -330,42 +431,47 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
             // Lookahead : prépare la phrase suivante dans la file d'attente
             if self.nextEnqueueIndex < self.sentences.count {
                 self.enqueueNextSentence()
-            } else if !self.isTransitioningChapter && self.currentChapterIndex + 1 < self.publication.readingOrder.count {
-                // Proche de la fin du chapitre : précharge le chapitre suivant
+            } else if !self.isPreloadingNextChapter && self.currentChapterIndex + 1 < self.publication.readingOrder.count {
                 self.preloadNextChapter()
             }
         }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
+
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            // Si la synthèse est terminée et qu'aucune autre phrase n'est en cours
-            if !(self.synthesizer?.isSpeaking ?? false) {
-                if self.nextEnqueueIndex >= self.sentences.count {
-                    if self.currentChapterIndex + 1 < self.publication.readingOrder.count {
-                        self.currentChapterIndex += 1
-                        await self.loadAndPlayChapter(index: self.currentChapterIndex, startLocator: nil)
-                    } else {
-                        self.stop()
-                    }
+            guard let self, sentenceUtterance.epoch == self.playbackEpoch else { return }
+
+            // Vérifie si l'énoncé qui vient de se terminer est bien le dernier du chapitre
+            let isLastSentence = sentenceUtterance.sentence.sentenceIndex >= self.sentences.count - 1
+            if isLastSentence {
+                if self.currentChapterIndex + 1 < self.publication.readingOrder.count {
+                    self.advanceToNextChapter()
+                } else {
+                    self.stop()
                 }
             }
         }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        // Annulation attendue lors d'un stop/pause ou saut de phrase
+        // Annulation propre ignorée grâce au filtrage par playbackEpoch
     }
 
     private func preloadNextChapter() {
-        guard !isTransitioningChapter else { return }
-        isTransitioningChapter = true
+        guard !isPreloadingNextChapter else { return }
         let nextIndex = currentChapterIndex + 1
+        guard nextIndex < publication.readingOrder.count else { return }
+        isPreloadingNextChapter = true
+
         Task { @MainActor [weak self] in
             guard let self else { return }
-            _ = await self.textExtractor.extractSentences(forChapterIndex: nextIndex, in: self.publication)
-            self.isTransitioningChapter = false
+            let extracted = await self.textExtractor.extractSentences(forChapterIndex: nextIndex, in: self.publication)
+            if self.currentChapterIndex + 1 == nextIndex {
+                self.preloadedChapter = (nextIndex, extracted)
+            }
+            self.isPreloadingNextChapter = false
         }
     }
 
@@ -439,14 +545,19 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func teardown() {
+        playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
+        wasPlayingBeforeInterruption = false
         synthesizer?.stopSpeaking(at: .immediate)
+        synthesizer?.delegate = nil
         synthesizer = nil
         isPlaying = false
         isSpeaking = false
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+
         for (command, token) in remoteTargets {
             command.removeTarget(token)
+            command.isEnabled = false
         }
         remoteTargets = []
         audioCoordinator.deactivateSession()
@@ -457,9 +568,11 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
 private final class SentenceUtterance: AVSpeechUtterance {
     let sentence: LoreTTSSentence
+    let epoch: UInt64
 
-    init(sentence: LoreTTSSentence) {
+    init(sentence: LoreTTSSentence, epoch: UInt64) {
         self.sentence = sentence
+        self.epoch = epoch
         super.init(string: sentence.text)
     }
 

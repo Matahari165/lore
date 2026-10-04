@@ -147,7 +147,11 @@ struct ReaderScreen: View {
                 scheduleGoalRefresh()
             }
             presentation.session.setLocationHandler { locator in
-                pageNumber = locator?.locations.position
+                if let pos = locator?.locations.position {
+                    pageNumber = pos
+                } else if let total = totalPageCount, let prog = locator?.locations.totalProgression {
+                    pageNumber = max(1, Int((prog * Double(total)).rounded()))
+                }
             }
             presentation.session.setTotalPageCountHandler { count in
                 totalPageCount = count

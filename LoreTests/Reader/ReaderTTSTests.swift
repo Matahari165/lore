@@ -94,6 +94,23 @@ struct LoreChapterTextExtractorTests {
         #expect(sentences[3].text == "Personne ne répondit.")
     }
 
+    @Test func segmentSentencesMergesDialogueIncisesAndPreservesAbbreviations() {
+        let dialogue = "« Bonjour ! » dit-il en souriant. Le Dr. Martin entra alors dans la pièce."
+        let sentences = LoreChapterTextExtractor.segmentSentences(from: dialogue, languageCode: "fr")
+        #expect(sentences.count == 2)
+        #expect(sentences[0].text.contains("dit-il en souriant"))
+        #expect(sentences[1].text.contains("Dr. Martin entra"))
+    }
+
+    @Test func stripHTMLDecodesHexadecimalEntitiesAndAdjacentTags() {
+        let html = "<p><span>Premier</span><span>mot</span> &#x2014; test&#x27;s &laquo;valid&raquo;.</p>"
+        let cleaned = LoreChapterTextExtractor.stripHTML(html)
+        #expect(cleaned.contains("Premier mot"))
+        #expect(cleaned.contains("—"))
+        #expect(cleaned.contains("test's"))
+        #expect(cleaned.contains("«valid»"))
+    }
+
     @Test func findStartingSentenceIndexByProgression() {
         let extractor = LoreChapterTextExtractor()
         let sentences = [

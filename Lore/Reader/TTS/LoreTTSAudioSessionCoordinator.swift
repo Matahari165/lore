@@ -4,16 +4,15 @@ import ReadiumShared
 
 /// Coordinateur audio dédié à la synthèse vocale locale dans Lore.
 ///
-/// Implémente `AudioSessionManaging` pour s'interfacer avec `PublicationSpeechSynthesizer`
+/// Implémente `AudioSessionManaging` pour s'interfacer avec le lecteur
 /// tout en garantissant :
 /// 1. La poursuite de l'audio écran verrouillé et en arrière-plan (catégorie `.playback`, mode `.spokenAudio`).
 /// 2. La préservation de la session active en pause pour maintenir la réactivité de `MPRemoteCommandCenter`.
-/// 3. La mise en pause automatique au retrait des écouteurs/AirPods (`.oldDeviceUnavailable`).
-/// 4. La gestion des interruptions système (appels, alarmes).
+/// 3. La mise en pause synchrone et sans fuite au retrait des écouteurs/AirPods (`.oldDeviceUnavailable`).
+/// 4. La gestion robuste et typée des interruptions système (appels, alarmes).
 @MainActor
 final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
     private var isSessionActive = false
-    private var isCurrentlyPlaying = false
     private nonisolated(unsafe) var interruptionObserver: NSObjectProtocol?
     private nonisolated(unsafe) var routeChangeObserver: NSObjectProtocol?
 
@@ -88,10 +87,13 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
             queue: .main
         ) { [weak self] notification in
             let info = notification.userInfo
-            let rawType = info?[AVAudioSessionInterruptionTypeKey] as? UInt
-            let optionsRaw = info?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let rawType = (info?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
+                ?? (info?[AVAudioSessionInterruptionTypeKey] as? UInt)
+            let optionsRaw = (info?[AVAudioSessionInterruptionOptionKey] as? NSNumber)?.uintValue
+                ?? (info?[AVAudioSessionInterruptionOptionKey] as? UInt)
+                ?? 0
 
-            Task { @MainActor [weak self, rawType, optionsRaw] in
+            MainActor.assumeIsolated {
                 guard let self, let rawType, let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
                 switch type {
                 case .began:
@@ -115,9 +117,10 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
             queue: .main
         ) { [weak self] notification in
             let info = notification.userInfo
-            let reasonRaw = info?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            let reasonRaw = (info?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue
+                ?? (info?[AVAudioSessionRouteChangeReasonKey] as? UInt)
 
-            Task { @MainActor [weak self, reasonRaw] in
+            MainActor.assumeIsolated {
                 guard let self, let reasonRaw, let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
                 if reason == .oldDeviceUnavailable {
                     self.onRouteChangeOldDeviceUnavailable?()
