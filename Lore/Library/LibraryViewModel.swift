@@ -94,6 +94,7 @@ final class LibraryViewModel {
         let sourceFrame: CGRect?
         let initialHighlight: ReaderHighlight?
         let coverData: Data?
+        let startListening: Bool
 
         init(
             id: UUID,
@@ -104,7 +105,8 @@ final class LibraryViewModel {
             sourceFrame: CGRect? = nil,
             initialHighlight: ReaderHighlight? = nil,
             session: ReaderSessionController,
-            coverData: Data? = nil
+            coverData: Data? = nil,
+            startListening: Bool = false
         ) {
             self.id = id
             self.title = title
@@ -115,6 +117,7 @@ final class LibraryViewModel {
             self.initialHighlight = initialHighlight
             self.session = session
             self.coverData = coverData
+            self.startListening = startListening
         }
     }
 
@@ -488,7 +491,7 @@ final class LibraryViewModel {
         }
     }
 
-    func open(_ book: BookRecord, at highlight: ReaderHighlight? = nil) async {
+    func open(_ book: BookRecord, at highlight: ReaderHighlight? = nil, startListening: Bool = false) async {
         guard openingBookID == nil, readerPresentation == nil else { return }
         openingBookID = book.id
         defer { openingBookID = nil }
@@ -520,7 +523,8 @@ final class LibraryViewModel {
                 sourceFrame: coverFramesByBookID[book.id],
                 initialHighlight: highlight,
                 session: session,
-                coverData: book.coverData
+                coverData: book.coverData,
+                startListening: startListening
             )
         } catch {
             present(error)

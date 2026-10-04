@@ -933,9 +933,17 @@ final class ReaderSessionController {
 
     // MARK: - Synthèse vocale (TTS)
 
+    private var ttsActiveChangeHandler: (@MainActor (Bool) -> Void)?
+
+    func setTTSActiveHandler(_ handler: (@MainActor (Bool) -> Void)?) {
+        ttsActiveChangeHandler = handler
+        handler?(isTTSActive)
+    }
+
     func startTTS() {
         guard let tts = ttsPlaybackController else { return }
         tts.start(from: bestKnownLocation)
+        ttsActiveChangeHandler?(true)
     }
 
     func toggleTTS() {
@@ -951,21 +959,17 @@ final class ReaderSessionController {
 
     func stopTTS() {
         ttsPlaybackController?.stop()
+        ttsActiveChangeHandler?(false)
     }
 
     private func bindTTS(_ tts: ReaderTTSPlaybackController) {
+        tts.onStateChange = { [weak self] in
+            guard let self else { return }
+            self.ttsActiveChangeHandler?(self.isTTSActive)
+        }
         tts.onLocationUpdate = { [weak self] locator in
             guard let self else { return }
             self.observeLocation(locator)
-            if let navigator = self.locationProvider as? VisualNavigator,
-               let decorable = navigator as? DecorableNavigator {
-                let decoration = Decoration(
-                    id: "tts-active-utterance",
-                    locator: locator,
-                    style: .highlight(tint: UIColor(red: 0.55, green: 0.92, blue: 1.0, alpha: 0.35))
-                )
-                decorable.apply(decorations: [decoration], in: "tts")
-            }
         }
         tts.onProgressRecord = { [weak self] locator in
             guard let self else { return }
@@ -978,9 +982,7 @@ final class ReaderSessionController {
         }
         tts.onStop = { [weak self] locator in
             guard let self else { return }
-            if let decorable = self.locationProvider as? DecorableNavigator {
-                decorable.apply(decorations: [], in: "tts")
-            }
+            self.ttsActiveChangeHandler?(false)
             if let locator {
                 self.observeLocation(locator)
                 self.positionController.record(locator)

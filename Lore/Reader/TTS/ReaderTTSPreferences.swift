@@ -75,7 +75,6 @@ final class ReaderTTSPreferences {
                     }
                 }
                 guard !voice.identifier.contains(".eloquence.") else { return false }
-                guard !voice.identifier.starts(with: "com.apple.speech.synthesis.voice.") else { return false }
 
                 let voiceLang = languageKey(from: voice.language)
                 return voiceLang.caseInsensitiveCompare(targetLanguage) == .orderedSame

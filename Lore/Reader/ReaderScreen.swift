@@ -28,6 +28,7 @@ struct ReaderScreen: View {
     @State private var goalRefreshTask: Task<Void, Never>?
     @State private var periodicGoalTask: Task<Void, Never>?
     @State private var goalNoticeDismissTask: Task<Void, Never>?
+    @State private var isTTSActive = false
     @Namespace private var glassNamespace
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -156,10 +157,18 @@ struct ReaderScreen: View {
             presentation.session.setVocabularyChangeHandler { vocabulary = $0 }
             presentation.session.setExplanationHandler { aiExplanation = $0 }
             presentation.session.setRecapHandler { aiRecap = $0 }
+            presentation.session.setTTSActiveHandler { active in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    isTTSActive = active
+                }
+            }
             presentation.session.requestDailyRecapIfEligible()
             startPeriodicGoalMonitoring()
             if let initialHighlight = presentation.initialHighlight {
                 Task { _ = await presentation.session.go(to: initialHighlight) }
+            }
+            if presentation.startListening {
+                presentation.session.startTTS()
             }
         }
         .onDisappear {
@@ -173,6 +182,7 @@ struct ReaderScreen: View {
             presentation.session.setVocabularyChangeHandler(nil)
             presentation.session.setExplanationHandler(nil)
             presentation.session.setRecapHandler(nil)
+            presentation.session.setTTSActiveHandler(nil)
             goalRefreshTask?.cancel()
             periodicGoalTask?.cancel()
             goalNoticeDismissTask?.cancel()
@@ -270,7 +280,7 @@ struct ReaderScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer(minLength: 8)
-                controlButton("Écouter la lecture", systemImage: presentation.session.isTTSActive ? "waveform" : "headphones") {
+                controlButton("Écouter la lecture", systemImage: isTTSActive ? "waveform" : "headphones") {
                     presentation.session.toggleTTS()
                 }
                 controlButton("Discuter avec le livre", systemImage: "sparkles") {
@@ -289,7 +299,7 @@ struct ReaderScreen: View {
             Spacer()
 
             VStack(spacing: 10) {
-                if let tts = presentation.session.ttsPlaybackController, presentation.session.isTTSActive {
+                if let tts = presentation.session.ttsPlaybackController, isTTSActive {
                     ReaderTTSControlBar(tts: tts, reduceTransparency: reduceTransparency)
                         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }

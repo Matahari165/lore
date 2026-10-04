@@ -61,7 +61,7 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
     func activateSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio, options: [])
+            try session.setCategory(.playback, mode: .spokenAudio)
             try session.setActive(true)
             isSessionActive = true
         } catch {

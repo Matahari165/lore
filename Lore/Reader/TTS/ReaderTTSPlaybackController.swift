@@ -34,6 +34,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
     var onLocationUpdate: (@MainActor (Locator) -> Void)?
     var onProgressRecord: (@MainActor (Locator) -> Void)?
     var onStop: (@MainActor (Locator?) -> Void)?
+    var onStateChange: (@MainActor () -> Void)?
 
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
     private nonisolated(unsafe) var currentVoice: AVSpeechSynthesisVoice?
@@ -112,10 +113,11 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         currentLocator = locator
         audioCoordinator.activateSession()
         setupRemoteCommands()
-        synthesizer.start(from: locator)
         isPlaying = true
         isSpeaking = true
         updateNowPlaying()
+        onStateChange?()
+        synthesizer.start(from: locator)
     }
 
     func togglePlayback() {
@@ -131,6 +133,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         isPlaying = false
         isSpeaking = false
         updateNowPlaying()
+        onStateChange?()
         if let currentLocator {
             onProgressRecord?(currentLocator)
         }
@@ -138,10 +141,11 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
 
     func resume() {
         audioCoordinator.activateSession()
-        synthesizer?.resume()
         isPlaying = true
         isSpeaking = true
         updateNowPlaying()
+        onStateChange?()
+        synthesizer?.resume()
     }
 
     func stop() {
@@ -149,6 +153,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         isPlaying = false
         isSpeaking = false
         updateNowPlaying()
+        onStateChange?()
         if let currentLocator {
             onStop?(currentLocator)
         }
@@ -190,6 +195,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
             isPlaying = false
             isSpeaking = false
             updateNowPlaying()
+            onStateChange?()
             if let currentLocator {
                 onStop?(currentLocator)
             }
@@ -202,6 +208,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
             onLocationUpdate?(activeLoc)
             onProgressRecord?(activeLoc)
             updateNowPlaying()
+            onStateChange?()
         case let .paused(utterance):
             isPlaying = false
             isSpeaking = false
@@ -210,6 +217,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
             onLocationUpdate?(utterance.locator)
             onProgressRecord?(utterance.locator)
             updateNowPlaying()
+            onStateChange?()
         }
     }
 
@@ -222,6 +230,7 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         isPlaying = false
         isSpeaking = false
         updateNowPlaying()
+        onStateChange?()
     }
 
     // MARK: - AVTTSEngineDelegate
@@ -245,10 +254,16 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         if let bookAuthor, !bookAuthor.isEmpty {
             info[MPMediaItemPropertyArtist] = bookAuthor
         }
-        if let coverData, let image = UIImage(data: coverData) {
+        if let coverData,
+           let image = UIImage(data: coverData),
+           image.size.width > 0,
+           image.size.height > 0 {
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
         }
-        if let totalProgression = currentLocator?.locations.totalProgression {
+        if let totalProgression = currentLocator?.locations.totalProgression,
+           !totalProgression.isNaN,
+           !totalProgression.isInfinite,
+           totalProgression >= 0 {
             // Représentation de progression relative de 0 à 1000
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = totalProgression * 1000.0
             info[MPMediaItemPropertyPlaybackDuration] = 1000.0
@@ -263,10 +278,12 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
         center.playCommand.isEnabled = true
         center.pauseCommand.isEnabled = true
         center.togglePlayPauseCommand.isEnabled = true
+        center.previousTrackCommand.isEnabled = true
+        center.nextTrackCommand.isEnabled = true
         center.skipBackwardCommand.isEnabled = true
-        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: 15)]
         center.skipForwardCommand.isEnabled = true
-        center.skipForwardCommand.preferredIntervals = [15]
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: 15)]
 
         remoteTargets = [
             (center.playCommand, center.playCommand.addTarget { @Sendable [weak self] _ in
@@ -279,6 +296,14 @@ final class ReaderTTSPlaybackController: NSObject, PublicationSpeechSynthesizerD
             }),
             (center.togglePlayPauseCommand, center.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
                 Task { @MainActor in self?.togglePlayback() }
+                return .success
+            }),
+            (center.previousTrackCommand, center.previousTrackCommand.addTarget { @Sendable [weak self] _ in
+                Task { @MainActor in self?.previous() }
+                return .success
+            }),
+            (center.nextTrackCommand, center.nextTrackCommand.addTarget { @Sendable [weak self] _ in
+                Task { @MainActor in self?.next() }
                 return .success
             }),
             (center.skipBackwardCommand, center.skipBackwardCommand.addTarget { @Sendable [weak self] _ in

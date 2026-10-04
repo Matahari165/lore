@@ -54,6 +54,10 @@ struct ReaderTTSPreferencesTests {
 
         let enVoice = prefs.bestVoice(forLanguage: "en")
         #expect(enVoice != nil)
+
+        // Les voix système françaises et anglaises ne sont plus filtrées à tort
+        let systemFrVoices = prefs.availableSystemVoices(forLanguage: "fr")
+        #expect(!systemFrVoices.isEmpty || frVoice != nil)
     }
 }
 

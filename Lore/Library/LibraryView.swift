@@ -529,6 +529,10 @@ struct LibraryView: View {
 
     @ViewBuilder
     private func bookContextMenu(for book: BookRecord) -> some View {
+        Button("Écouter le livre", systemImage: "headphones") {
+            Task { await model.open(book, startListening: true) }
+        }
+
         Button("Détails du livre", systemImage: "info.circle") {
             presentDetails(for: book)
         }
