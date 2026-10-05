@@ -124,15 +124,15 @@ final class LoreChapterTextExtractor {
 
     // MARK: - Découpage en phrases avec NLTokenizer enrichi
 
-    struct RawSentence {
+    struct RawSentence: Sendable {
         let text: String
         let range: Range<String.Index>
     }
 
-    private static let frAbbreviations: Set<String> = [
+    nonisolated(unsafe) private static let frAbbreviations: Set<String> = [
         "dr.", "dr", "m.", "mme.", "mme", "mlle.", "mlle", "me.", "mgr.", "col.", "cap.", "gen.", "st.", "ste.", "av.", "prof.", "cf.", "vol.", "fasc."
     ]
-    private static let enAbbreviations: Set<String> = [
+    nonisolated(unsafe) private static let enAbbreviations: Set<String> = [
         "st.", "gen.", "col.", "capt.", "lt.", "sgt.", "hon.", "gov.", "sen.", "rev.", "prof.", "dr.", "dr", "mr.", "mr", "mrs.", "mrs", "ms.", "ms"
     ]
 
@@ -200,15 +200,15 @@ final class LoreChapterTextExtractor {
 
     // MARK: - Nettoyage HTML ultra-rapide
 
-    private static let headStyleScriptRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let headStyleScriptRegex = try! NSRegularExpression(
         pattern: "<(head|style|script)[^>]*>[\\s\\S]*?</\\1>",
         options: [.caseInsensitive]
     )
-    private static let blockTagRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let blockTagRegex = try! NSRegularExpression(
         pattern: "</?(?:p|div|h[1-6]|br|hr|li|blockquote|tr|td|th|table|tbody|thead|tfoot|section|article|aside|header|footer|nav|main|figure|figcaption|dd|dt|dl|pre)(?:[\\s/][^>]*)?>",
         options: [.caseInsensitive]
     )
-    private static let adjacentTagsRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let adjacentTagsRegex = try! NSRegularExpression(
         pattern: "(</[a-zA-Z0-9]+>)(<[a-zA-Z0-9]+)",
         options: []
     )
