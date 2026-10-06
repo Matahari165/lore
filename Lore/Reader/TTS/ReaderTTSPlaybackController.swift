@@ -572,17 +572,32 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         remoteTargets = []
     }
 
-    /// Nettoyage système appelable depuis `deinit` (contexte non isolé).
-    /// Ne touche à aucun état `@MainActor` : efface uniquement le
-    /// `Now Playing` et désactive la session audio partagée.
+    /// Nettoyage système sur le MainActor uniquement : `MPNowPlayingInfoCenter`
+    /// affirme la main queue sur appareil (`_dispatch_assert_queue_fail`).
     /// Le nettoyage complet reste dans `teardown()` via `close()`.
-    nonisolated static func clearSystemAudio() {
+    @MainActor
+    static func clearSystemAudio() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
+    /// Filet de sécurité appelable depuis `deinit` (contexte non isolé,
+    /// thread quelconque) : bascule sur le main thread de façon synchrone.
+    /// Ne jamais appeler `clearSystemAudio()` directement depuis `deinit`.
+    nonisolated static func clearSystemAudioFromDeinit() {
+        let cleanup = {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+        if Thread.isMainThread {
+            cleanup()
+        } else {
+            DispatchQueue.main.sync(execute: cleanup)
+        }
+    }
+
     deinit {
-        Self.clearSystemAudio()
+        Self.clearSystemAudioFromDeinit()
     }
 }
 

@@ -200,7 +200,7 @@ Dernière mise à jour : 4 octobre 2026
 
 ## Problèmes et risques connus
 
-- Écoute à voix haute : fermeture immédiate signalée sur iPhone au tap « Écouter » (version e52e71e). Durcissement appliqué : extraction hors MainActor, énoncés bornés à 1 200 caractères, rotation de page seulement au changement de chapitre, `assumeIsolated` remplacé par `Task @MainActor` sur les notifications audio. Preuve sur appareil restant à faire ; rapport de crash `.ips` demandé pour confirmation.
+- Écoute à voix haute : fermeture immédiate signalée sur iPhone au tap « Écouter » (version e52e71e), puis `_dispatch_assert_queue_fail` (EXC_BREAKPOINT) constaté dans Xcode : une API confinée est touchée hors de sa queue. Contrat imposé : tout contact Readium (`get`/`read`) sur MainActor, calcul (HTML, `NLTokenizer`, découpage ≤ 1 200 car.) en `Task.detached`, nettoyage MediaPlayer toujours sur main thread (même depuis `deinit`), rotation de page seulement au changement de chapitre. `build-for-testing` réussi ; preuve sur appareil et file de queue exacte restant à confirmer.
 - Le format EPUB varie selon les éditeurs ; certains fichiers peuvent être mal structurés ou protégés.
 - L’application normale a déjà été vérifiée sur `Lore iPhone 13`, mais le lanceur XCTest reste bloqué sur `waiting for workers to materialize` ; un premier clone a ensuite échoué avec `Invalid device state` et `server died`. Les tests compilent, mais leur exécution automatique n’est pas encore prouvée.
 - Pour cette tranche, `simctl install` n’a pas créé le conteneur de l’application après le redémarrage du simulateur ; aucune capture des nouveaux réglages ou du sommaire n’est donc disponible.

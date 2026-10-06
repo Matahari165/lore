@@ -20,12 +20,16 @@ struct LoreTTSSentence: Equatable, Sendable {
 /// 4. Décode toutes les entités HTML (nommées, décimales et hexadécimales).
 /// 5. Segmente le texte en phrases via Apple `NLTokenizer` avec préservation des incises de dialogue
 ///    et des abréviations courantes (Dr., M., Mme., etc.).
-/// Stateless et thread-safe : toute l'extraction tourne hors MainActor
-/// pour ne jamais bloquer l'interface pendant la lecture à voix haute.
-/// Un chapitre volumineux ou une phrase géante ne doivent jamais tuer l'app.
+/// Contrat de threading (une violation tue l'app via `_dispatch_assert_queue_fail`) :
+/// - Tout contact Readium (`Publication`, `Resource`, `Link`) a lieu sur le
+///   MainActor, dans `extractSentences` / `fetchChapterString`.
+/// - Tout le calcul lourd (HTML, entités, `NLTokenizer`, découpage) tourne
+///   hors MainActor, dans `buildSentences` via `Task.detached`.
+/// Ne jamais appeler `publication.get` ou `resource.read` depuis un fond.
 final class LoreChapterTextExtractor: Sendable {
 
     /// Extrait les phrases du chapitre à l'index donné dans la `publication`.
+    @MainActor
     func extractSentences(
         forChapterIndex chapterIndex: Int,
         in publication: Publication
@@ -35,24 +39,61 @@ final class LoreChapterTextExtractor: Sendable {
         }
 
         let link = publication.readingOrder[chapterIndex]
-        guard let resource = publication.get(link) else {
+        guard let rawString = await Self.fetchChapterString(for: link, in: publication) else {
             return []
+        }
+
+        // Valeurs copiées sur le MainActor : le fond ne touche plus Readium.
+        let languageCode = publication.metadata.language?.code.bcp47 ?? "fr"
+        let totalChapters = max(1, publication.readingOrder.count)
+        let href = link.url()
+        let mediaType = link.mediaType ?? .html
+        let title = link.title
+
+        return await Task.detached(priority: .userInitiated) {
+            Self.buildSentences(
+                from: rawString,
+                chapterIndex: chapterIndex,
+                totalChapters: totalChapters,
+                href: href,
+                mediaType: mediaType,
+                title: title,
+                languageCode: languageCode
+            )
+        }.value
+    }
+
+    /// Lit la ressource XHTML brute. MainActor uniquement (confinement Readium).
+    @MainActor
+    private static func fetchChapterString(for link: Link, in publication: Publication) async -> String? {
+        guard let resource = publication.get(link) else {
+            return nil
         }
 
         let readResult = await resource.read()
-        guard let rawString = (try? readResult.asString().get()) ?? (try? readResult.get()).flatMap({ String(data: $0, encoding: .utf8) ?? String(data: $0, encoding: .isoLatin1) }) else {
-            return []
-        }
+        return (try? readResult.asString().get())
+            ?? (try? readResult.get()).flatMap({ String(data: $0, encoding: .utf8) ?? String(data: $0, encoding: .isoLatin1) })
+    }
 
+    /// Parse et segmente hors MainActor : aucune API confinée ici,
+    /// uniquement des valeurs (`String`, compteurs) copiées par l'appelant.
+    nonisolated static func buildSentences(
+        from rawString: String,
+        chapterIndex: Int,
+        totalChapters: Int,
+        href: AnyURL,
+        mediaType: MediaType,
+        title: String?,
+        languageCode: String
+    ) -> [LoreTTSSentence] {
         let plainText = Self.stripHTML(rawString)
         guard !plainText.isEmpty else { return [] }
 
-        let languageCode = publication.metadata.language?.code.bcp47 ?? "fr"
         let rawSentences = Self.segmentSentences(from: plainText, languageCode: languageCode)
         guard !rawSentences.isEmpty else { return [] }
 
         let totalUTF16Length = max(1, plainText.utf16.count)
-        let totalChapters = max(1, publication.readingOrder.count)
+        let safeTotalChapters = max(1, totalChapters)
 
         var result: [LoreTTSSentence] = []
         result.reserveCapacity(rawSentences.count)
@@ -60,12 +101,12 @@ final class LoreChapterTextExtractor: Sendable {
         for (index, raw) in rawSentences.enumerated() {
             let offset = raw.range.lowerBound.utf16Offset(in: plainText)
             let chapterProgression = min(1.0, max(0.0, Double(offset) / Double(totalUTF16Length)))
-            let totalProgression = min(1.0, max(0.0, (Double(chapterIndex) + chapterProgression) / Double(totalChapters)))
+            let totalProgression = min(1.0, max(0.0, (Double(chapterIndex) + chapterProgression) / Double(safeTotalChapters)))
 
             let locator = Locator(
-                href: link.url(),
-                mediaType: link.mediaType ?? .html,
-                title: link.title,
+                href: href,
+                mediaType: mediaType,
+                title: title,
                 locations: Locator.Locations(
                     progression: chapterProgression,
                     totalProgression: totalProgression
@@ -135,10 +176,10 @@ final class LoreChapterTextExtractor: Sendable {
     /// peut bloquer ou faire tuer l'app (mémoire) : on découpe en morceaux.
     nonisolated static let maxUtteranceLength = 1200
 
-    nonisolated(unsafe) private static let frAbbreviations: Set<String> = [
+    private static let frAbbreviations: Set<String> = [
         "dr.", "dr", "m.", "mme.", "mme", "mlle.", "mlle", "me.", "mgr.", "col.", "cap.", "gen.", "st.", "ste.", "av.", "prof.", "cf.", "vol.", "fasc."
     ]
-    nonisolated(unsafe) private static let enAbbreviations: Set<String> = [
+    private static let enAbbreviations: Set<String> = [
         "st.", "gen.", "col.", "capt.", "lt.", "sgt.", "hon.", "gov.", "sen.", "rev.", "prof.", "dr.", "dr", "mr.", "mr", "mrs.", "mrs", "ms.", "ms"
     ]
 
@@ -257,15 +298,15 @@ final class LoreChapterTextExtractor: Sendable {
 
     // MARK: - Nettoyage HTML ultra-rapide
 
-    nonisolated(unsafe) private static let headStyleScriptRegex: NSRegularExpression? = try? NSRegularExpression(
+    private static let headStyleScriptRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "<(head|style|script)[^>]*>[\\s\\S]*?</\\1>",
         options: [.caseInsensitive]
     )
-    nonisolated(unsafe) private static let blockTagRegex: NSRegularExpression? = try? NSRegularExpression(
+    private static let blockTagRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "</?(?:p|div|h[1-6]|br|hr|li|blockquote|tr|td|th|table|tbody|thead|tfoot|section|article|aside|header|footer|nav|main|figure|figcaption|dd|dt|dl|pre)(?:[\\s/][^>]*)?>",
         options: [.caseInsensitive]
     )
-    nonisolated(unsafe) private static let adjacentTagsRegex: NSRegularExpression? = try? NSRegularExpression(
+    private static let adjacentTagsRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "(</[a-zA-Z0-9]+>)(<[a-zA-Z0-9]+)",
         options: []
     )

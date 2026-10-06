@@ -241,13 +241,13 @@ final class DailyGoalForegroundDelegate: NSObject, UNUserNotificationCenterDeleg
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        let isReaderActive = await MainActor.run { ReadingFocusMode.shared.isReaderActive }
         if notification.request.identifier == DailyGoalNotifier.reachedIdentifier,
-           await MainActor.run(body: { ReadingFocusMode.shared.isReaderActive }) {
+           isReaderActive {
             return []
         }
-        return await Self.presentationOptions(
-            silencesLoreInterruptions: ReadingFocusMode.shared.silencesLoreInterruptions
-        )
+        let silences = await MainActor.run { ReadingFocusMode.shared.silencesLoreInterruptions }
+        return Self.presentationOptions(silencesLoreInterruptions: silences)
     }
 
     nonisolated static func presentationOptions(
