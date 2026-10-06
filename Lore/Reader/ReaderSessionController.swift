@@ -930,7 +930,11 @@ final class ReaderSessionController {
     }
 
     deinit {
-        ttsPlaybackController?.teardown()
+        // `deinit` est non isolé : aucun accès à l'état `@MainActor`
+        // (`ttsPlaybackController`, `teardown()`). Le nettoyage complet
+        // passe par `close()` (MainActor). Ici, simple filet de sécurité
+        // système : efface le Now Playing et libère la session audio.
+        ReaderTTSPlaybackController.clearSystemAudio()
     }
 
     // MARK: - Synthèse vocale (TTS)
