@@ -20,8 +20,10 @@ struct LoreTTSSentence: Equatable, Sendable {
 /// 4. Décode toutes les entités HTML (nommées, décimales et hexadécimales).
 /// 5. Segmente le texte en phrases via Apple `NLTokenizer` avec préservation des incises de dialogue
 ///    et des abréviations courantes (Dr., M., Mme., etc.).
-@MainActor
-final class LoreChapterTextExtractor {
+/// Stateless et thread-safe : toute l'extraction tourne hors MainActor
+/// pour ne jamais bloquer l'interface pendant la lecture à voix haute.
+/// Un chapitre volumineux ou une phrase géante ne doivent jamais tuer l'app.
+final class LoreChapterTextExtractor: Sendable {
 
     /// Extrait les phrases du chapitre à l'index donné dans la `publication`.
     func extractSentences(
@@ -129,6 +131,10 @@ final class LoreChapterTextExtractor {
         let range: Range<String.Index>
     }
 
+    /// Longueur maximale d'un énoncé parlé. Au-delà, `AVSpeechSynthesizer`
+    /// peut bloquer ou faire tuer l'app (mémoire) : on découpe en morceaux.
+    nonisolated static let maxUtteranceLength = 1200
+
     nonisolated(unsafe) private static let frAbbreviations: Set<String> = [
         "dr.", "dr", "m.", "mme.", "mme", "mlle.", "mlle", "me.", "mgr.", "col.", "cap.", "gen.", "st.", "ste.", "av.", "prof.", "cf.", "vol.", "fasc."
     ]
@@ -195,20 +201,71 @@ final class LoreChapterTextExtractor {
             }
         }
 
-        return merged.map { RawSentence(text: $0.text, range: $0.range) }
+        return merged
+            .flatMap { splitOversized($0, limit: maxUtteranceLength) }
+            .map { RawSentence(text: $0.text, range: $0.range) }
+    }
+
+    /// Découpe un token trop long pour `AVSpeechSynthesizer` en morceaux
+    /// bornés, de préférence sur une ponctuation, sinon sur une espace,
+    /// sinon en coupe dure. Les plages réutilisent celle du token d'origine
+    /// (progression approximative mais toujours valide).
+    nonisolated private static func splitOversized(
+        _ token: (text: String, range: Range<String.Index>),
+        limit: Int
+    ) -> [(text: String, range: Range<String.Index>)] {
+        guard token.text.count > limit else { return [(token.text, token.range)] }
+        var out: [(text: String, range: Range<String.Index>)] = []
+        var start = token.text.startIndex
+        let end = token.text.endIndex
+        while start < end {
+            let hardEnd = token.text.index(start, offsetBy: limit, limitedBy: end) ?? end
+            if hardEnd == end {
+                let part = String(token.text[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !part.isEmpty { out.append((part, token.range)) }
+                break
+            }
+            let lookStart = token.text.index(hardEnd, offsetBy: -(limit / 4), limitedBy: start) ?? start
+            var cut: String.Index? = nil
+            var cursor = hardEnd
+            while cursor > lookStart {
+                let prev = token.text.index(before: cursor)
+                let ch = token.text[prev]
+                if ch == "." || ch == "!" || ch == "?" || ch == "…" || ch == ";" || ch == ":" || ch == "\n" {
+                    cut = cursor
+                    break
+                }
+                cursor = prev
+            }
+            if cut == nil {
+                var probe = hardEnd
+                while probe > lookStart {
+                    let prev = token.text.index(before: probe)
+                    if token.text[prev] == " " { cut = prev; break }
+                    probe = prev
+                }
+            }
+            let cutIndex = cut ?? hardEnd
+            let part = String(token.text[start..<cutIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !part.isEmpty { out.append((part, token.range)) }
+            var next = cutIndex > start ? cutIndex : hardEnd
+            while next < end && token.text[next] == " " { next = token.text.index(after: next) }
+            start = next
+        }
+        return out.isEmpty ? [(token.text, token.range)] : out
     }
 
     // MARK: - Nettoyage HTML ultra-rapide
 
-    nonisolated(unsafe) private static let headStyleScriptRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let headStyleScriptRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "<(head|style|script)[^>]*>[\\s\\S]*?</\\1>",
         options: [.caseInsensitive]
     )
-    nonisolated(unsafe) private static let blockTagRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let blockTagRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "</?(?:p|div|h[1-6]|br|hr|li|blockquote|tr|td|th|table|tbody|thead|tfoot|section|article|aside|header|footer|nav|main|figure|figcaption|dd|dt|dl|pre)(?:[\\s/][^>]*)?>",
         options: [.caseInsensitive]
     )
-    nonisolated(unsafe) private static let adjacentTagsRegex = try! NSRegularExpression(
+    nonisolated(unsafe) private static let adjacentTagsRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: "(</[a-zA-Z0-9]+>)(<[a-zA-Z0-9]+)",
         options: []
     )
@@ -216,32 +273,41 @@ final class LoreChapterTextExtractor {
     nonisolated static func stripHTML(_ raw: String) -> String {
         guard !raw.isEmpty else { return "" }
 
-        // 1. Suppression head, style, script
-        let nsRaw = raw as NSString
-        let noHead = headStyleScriptRegex.stringByReplacingMatches(
-            in: raw,
-            options: [],
-            range: NSRange(location: 0, length: nsRaw.length),
-            withTemplate: " "
-        )
+        // 1. Suppression head, style, script (étape ignorée si la regex est indisponible)
+        var noHead = raw
+        if let headStyleScriptRegex {
+            let nsRaw = raw as NSString
+            noHead = headStyleScriptRegex.stringByReplacingMatches(
+                in: raw,
+                options: [],
+                range: NSRange(location: 0, length: nsRaw.length),
+                withTemplate: " "
+            )
+        }
 
         // 2. Retours à la ligne pour toutes les balises de bloc
-        let nsNoHead = noHead as NSString
-        let blockSeparated = blockTagRegex.stringByReplacingMatches(
-            in: noHead,
-            options: [],
-            range: NSRange(location: 0, length: nsNoHead.length),
-            withTemplate: "\n"
-        )
+        var blockSeparated = noHead
+        if let blockTagRegex {
+            let nsNoHead = noHead as NSString
+            blockSeparated = blockTagRegex.stringByReplacingMatches(
+                in: noHead,
+                options: [],
+                range: NSRange(location: 0, length: nsNoHead.length),
+                withTemplate: "\n"
+            )
+        }
 
         // 3. Espace de sécurité entre balises imbriquées collées (ex: </span><span>)
-        let nsBlocks = blockSeparated as NSString
-        let tagsSpaced = adjacentTagsRegex.stringByReplacingMatches(
-            in: blockSeparated,
-            options: [],
-            range: NSRange(location: 0, length: nsBlocks.length),
-            withTemplate: "$1 $2"
-        )
+        var tagsSpaced = blockSeparated
+        if let adjacentTagsRegex {
+            let nsBlocks = blockSeparated as NSString
+            tagsSpaced = adjacentTagsRegex.stringByReplacingMatches(
+                in: blockSeparated,
+                options: [],
+                range: NSRange(location: 0, length: nsBlocks.length),
+                withTemplate: "$1 $2"
+            )
+        }
 
         // 4. Suppression des balises inline restantes
         var result = ""

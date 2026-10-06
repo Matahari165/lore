@@ -93,7 +93,10 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
                 ?? (info?[AVAudioSessionInterruptionOptionKey] as? UInt)
                 ?? 0
 
-            MainActor.assumeIsolated {
+            // `Task` plutôt que `MainActor.assumeIsolated` : ce bloc s'exécute
+            // sur le main thread mais hors contexte MainActor, où
+            // `assumeIsolated` piège et tue l'app (appel entrant, Siri…).
+            Task { @MainActor [weak self] in
                 guard let self, let rawType, let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
                 switch type {
                 case .began:
@@ -120,7 +123,8 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
             let reasonRaw = (info?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue
                 ?? (info?[AVAudioSessionRouteChangeReasonKey] as? UInt)
 
-            MainActor.assumeIsolated {
+            // Même raison que ci-dessus : `Task` au lieu d'`assumeIsolated`.
+            Task { @MainActor [weak self] in
                 guard let self, let reasonRaw, let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
                 if reason == .oldDeviceUnavailable {
                     self.onRouteChangeOldDeviceUnavailable?()

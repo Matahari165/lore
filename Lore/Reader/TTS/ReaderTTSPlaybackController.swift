@@ -200,19 +200,25 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func enqueueNextSentence() {
-        guard let synthesizer, nextEnqueueIndex < sentences.count else { return }
-        let sentence = sentences[nextEnqueueIndex]
-        nextEnqueueIndex += 1
+        // Boucle (pas de récursion) : saute les phrases vides éventuelles
+        // sans risquer d'empiler les appels. Un énoncé vide peut bloquer
+        // le service vocal système ; l'extracteur borne déjà la taille.
+        while let synthesizer, nextEnqueueIndex < sentences.count {
+            let sentence = sentences[nextEnqueueIndex]
+            nextEnqueueIndex += 1
+            guard !sentence.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
-        let utterance = SentenceUtterance(sentence: sentence, epoch: playbackEpoch)
-        let baseRate = AVSpeechUtteranceDefaultSpeechRate
-        let targetRate = baseRate * playbackRate
-        utterance.rate = min(max(targetRate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
-        if let voice = currentVoice {
-            utterance.voice = voice
+            let utterance = SentenceUtterance(sentence: sentence, epoch: playbackEpoch)
+            let baseRate = AVSpeechUtteranceDefaultSpeechRate
+            let targetRate = baseRate * playbackRate
+            utterance.rate = min(max(targetRate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
+            if let voice = currentVoice {
+                utterance.voice = voice
+            }
+
+            synthesizer.speak(utterance)
+            return
         }
-
-        synthesizer.speak(utterance)
     }
 
     func togglePlayback() {

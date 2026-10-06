@@ -111,6 +111,17 @@ struct LoreChapterTextExtractorTests {
         #expect(cleaned.contains("«valid»"))
     }
 
+    @Test func oversizedSentencesAreChunkedForSpeech() {
+        // Texte sans ponctuation : le tokenizer + la fusion des incises
+        // produiraient un seul énoncé géant, capable de bloquer le service
+        // vocal et de faire tuer l'app. Le découpeur doit borner chaque morceau.
+        let longText = String(repeating: "mot ", count: 2000)
+        let sentences = LoreChapterTextExtractor.segmentSentences(from: longText, languageCode: "fr")
+        #expect(!sentences.isEmpty)
+        #expect(sentences.allSatisfy { !$0.text.isEmpty })
+        #expect(sentences.allSatisfy { $0.text.count <= LoreChapterTextExtractor.maxUtteranceLength })
+    }
+
     @Test func findStartingSentenceIndexByProgression() {
         let extractor = LoreChapterTextExtractor()
         let sentences = [

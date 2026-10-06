@@ -940,6 +940,9 @@ final class ReaderSessionController {
     // MARK: - Synthèse vocale (TTS)
 
     private var ttsActiveChangeHandler: (@MainActor (Bool) -> Void)?
+    /// Dernière ressource vers laquelle la voix a tourné la page.
+    /// Évite de renvoyer un `go(to:)` à chaque phrase du même chapitre.
+    private var lastTTSNavigatedHREF: String?
 
     func setTTSActiveHandler(_ handler: (@MainActor (Bool) -> Void)?) {
         ttsActiveChangeHandler = handler
@@ -982,20 +985,21 @@ final class ReaderSessionController {
                 self.navigatorDelegate?.onProgressionChange?(totalProgression)
             }
 
-            // Tourne la page uniquement si le texte dépasse la vue courante (changement de chapitre ou avancée significative)
-            if let currentLocation = self.locationProvider.currentLocation {
-                let isDifferentResource = !currentLocation.href.isEquivalentTo(locator.href)
-                let hasAdvancedSignificantly: Bool = {
-                    guard let cur = currentLocation.locations.progression,
-                          let target = locator.locations.progression else { return false }
-                    return target > cur + 0.08
-                }()
-
-                if isDifferentResource || hasAdvancedSignificantly {
-                    Task { @MainActor [weak self] in
-                        guard let self, !self.isNavigating else { return }
-                        _ = await self.readerController?.go(to: locator, options: NavigatorGoOptions(animated: true))
-                    }
+            // Tourne la page uniquement lors d'un changement de ressource
+            // (nouveau chapitre). Tourner à chaque phrase déstabilise la
+            // WebView Readium et peut faire tuer l'app : la position exacte
+            // reste suivie via observeLocation sans navigation visuelle.
+            if let currentLocation = self.locationProvider.currentLocation,
+               !currentLocation.href.isEquivalentTo(locator.href) {
+                let hrefKey = "\(locator.href)"
+                guard self.lastTTSNavigatedHREF != hrefKey else { return }
+                self.lastTTSNavigatedHREF = hrefKey
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    // Si l'utilisateur pagine au même moment, on annule ce tour
+                    // mais on autorise un nouvel essai à la phrase suivante.
+                    guard !self.isNavigating else { self.lastTTSNavigatedHREF = nil; return }
+                    _ = await self.readerController?.go(to: locator, options: NavigatorGoOptions(animated: true))
                 }
             }
         }
