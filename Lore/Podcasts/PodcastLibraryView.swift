@@ -320,7 +320,7 @@ struct PodcastPlayerView: View {
                 Text(playerModel.playbackRateLabel)
                     .font(.subheadline.monospacedDigit())
                     .frame(width: 48, height: 48)
-                    .glassEffect(.regular, in: .circle)
+                    .loreGlass(in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
@@ -337,7 +337,7 @@ struct PodcastPlayerView: View {
                 Image(systemName: "gobackward.15")
                     .font(.title3)
                     .frame(width: 48, height: 48)
-                    .glassEffect(.regular, in: .circle)
+                    .loreGlass(in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
@@ -366,7 +366,7 @@ struct PodcastPlayerView: View {
                 Image(systemName: "goforward.15")
                     .font(.title3)
                     .frame(width: 48, height: 48)
-                    .glassEffect(.regular, in: .circle)
+                    .loreGlass(in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(!playerModel.isReady)
@@ -377,7 +377,7 @@ struct PodcastPlayerView: View {
 
             PodcastRouteButton()
                 .frame(width: 48, height: 48)
-                .glassEffect(.regular, in: .circle)
+                .loreGlass(in: Circle())
                 .accessibilityLabel("Sortie audio")
                 .accessibilityHint("Choisir un appareil de diffusion, par exemple AirPlay")
         }
@@ -397,7 +397,7 @@ struct PodcastPlayerView: View {
         .font(.callout)
         .padding(.horizontal, 18)
         .frame(height: 56)
-        .glassEffect(.regular, in: Capsule())
+        .loreGlass(in: Capsule())
     }
 
     private func loadPlayer() async {
@@ -443,7 +443,7 @@ private struct PodcastScrubber: View {
                 Capsule()
                     .fill(.clear)
                     .frame(height: trackHeight)
-                    .glassEffect(.regular, in: Capsule())
+                    .loreGlass(in: Capsule())
                     .opacity(isEnabled ? 1 : 0.5)
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(isEnabled ? LoreTheme.ink : LoreTheme.secondaryInk)

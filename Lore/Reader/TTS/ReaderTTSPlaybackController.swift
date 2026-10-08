@@ -39,6 +39,12 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     var onStop: (@MainActor (Locator?) -> Void)?
     var onStateChange: (@MainActor () -> Void)?
 
+    private struct QueuedSentence {
+        let utterance: AVSpeechUtterance
+        let sentence: LoreTTSSentence
+        let epoch: UInt64
+    }
+
     private let publication: Publication
     private let textExtractor = LoreChapterTextExtractor()
     private var synthesizer: AVSpeechSynthesizer?
@@ -47,6 +53,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     private var sentences: [LoreTTSSentence] = []
     private var currentSentenceIndex: Int = 0
     private var nextEnqueueIndex: Int = 0
+    private var enqueuedSentences: [QueuedSentence] = []
 
     /// Époque de lecture incrémentée à chaque changement de piste/reprise pour invalider les anciens callbacks.
     private var playbackEpoch: UInt64 = 0
@@ -93,6 +100,13 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
         super.init()
 
+        let synth = AVSpeechSynthesizer()
+        synth.delegate = self
+        if #available(iOS 16.0, *) {
+            synth.usesApplicationAudioSession = true
+        }
+        self.synthesizer = synth
+
         configureCoordinator()
         setupVoice()
     }
@@ -130,20 +144,13 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
         wasPlayingBeforeInterruption = false
+        enqueuedSentences.removeAll()
         currentLocator = locator
         audioCoordinator.activateSession()
         setupRemoteCommands()
 
-        // Arrêt propre de tout synthétiseur antérieur
+        // Arrêt propre de tout énoncé en cours sans réinstancier le synthétiseur
         synthesizer?.stopSpeaking(at: .immediate)
-        synthesizer?.delegate = nil
-
-        let synth = AVSpeechSynthesizer()
-        synth.delegate = self
-        if #available(iOS 16.0, *) {
-            synth.usesApplicationAudioSession = true
-        }
-        self.synthesizer = synth
 
         let targetChapterIndex: Int
         if let locator {
@@ -201,14 +208,15 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func enqueueNextSentence() {
         // Boucle (pas de récursion) : saute les phrases vides éventuelles
-        // sans risquer d'empiler les appels. Un énoncé vide peut bloquer
-        // le service vocal système ; l'extracteur borne déjà la taille.
-        while let synthesizer, nextEnqueueIndex < sentences.count {
+        // sans risquer d'empiler les appels.
+        guard let synth = synthesizer else { return }
+        while nextEnqueueIndex < sentences.count {
             let sentence = sentences[nextEnqueueIndex]
             nextEnqueueIndex += 1
-            guard !sentence.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let trimmed = sentence.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
 
-            let utterance = SentenceUtterance(sentence: sentence, epoch: playbackEpoch)
+            let utterance = AVSpeechUtterance(string: trimmed)
             let baseRate = AVSpeechUtteranceDefaultSpeechRate
             let targetRate = baseRate * playbackRate
             utterance.rate = min(max(targetRate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
@@ -216,7 +224,8 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
                 utterance.voice = voice
             }
 
-            synthesizer.speak(utterance)
+            enqueuedSentences.append(QueuedSentence(utterance: utterance, sentence: sentence, epoch: playbackEpoch))
+            synth.speak(utterance)
             return
         }
     }
@@ -269,6 +278,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
         wasPlayingBeforeInterruption = false
+        enqueuedSentences.removeAll()
         synthesizer?.stopSpeaking(at: .immediate)
         isPlaying = false
         isSpeaking = false
@@ -302,6 +312,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     private func restartFromCurrentSentence() {
         playbackEpoch &+= 1
         audioCoordinator.activateSession()
+        enqueuedSentences.removeAll()
         synthesizer?.stopSpeaking(at: .immediate)
         nextEnqueueIndex = currentSentenceIndex
         isPlaying = true
@@ -322,6 +333,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func advanceToNextChapter() {
         playbackEpoch &+= 1
+        enqueuedSentences.removeAll()
         synthesizer?.stopSpeaking(at: .immediate)
         currentPlaybackTask?.cancel()
 
@@ -365,6 +377,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
 
     private func goToPreviousChapter() {
         playbackEpoch &+= 1
+        enqueuedSentences.removeAll()
         synthesizer?.stopSpeaking(at: .immediate)
         currentPlaybackTask?.cancel()
 
@@ -419,13 +432,15 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     // MARK: - AVSpeechSynthesizerDelegate
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
-        let epoch = sentenceUtterance.epoch
-        let sentence = sentenceUtterance.sentence
-
+        let utteranceID = ObjectIdentifier(utterance)
         Task { @MainActor [weak self] in
-            guard let self, epoch == self.playbackEpoch else { return }
+            guard let self else { return }
+            guard let matchIndex = self.enqueuedSentences.firstIndex(where: { ObjectIdentifier($0.utterance) == utteranceID })
+                ?? (self.enqueuedSentences.first.map { _ in 0 }) else { return }
+            let item = self.enqueuedSentences[matchIndex]
+            guard item.epoch == self.playbackEpoch else { return }
 
+            let sentence = item.sentence
             self.currentSentenceIndex = sentence.sentenceIndex
             self.currentLocator = sentence.locator
             self.isPlaying = true
@@ -445,15 +460,16 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        guard let sentenceUtterance = utterance as? SentenceUtterance else { return }
-        let epoch = sentenceUtterance.epoch
-        let sentenceIndex = sentenceUtterance.sentence.sentenceIndex
-
+        let utteranceID = ObjectIdentifier(utterance)
         Task { @MainActor [weak self] in
-            guard let self, epoch == self.playbackEpoch else { return }
+            guard let self else { return }
+            let matchIndex = self.enqueuedSentences.firstIndex(where: { ObjectIdentifier($0.utterance) == utteranceID })
+            let item = matchIndex.map { self.enqueuedSentences.remove(at: $0) }
+                ?? (self.enqueuedSentences.isEmpty ? nil : self.enqueuedSentences.removeFirst())
 
-            // Vérifie si l'énoncé qui vient de se terminer est bien le dernier du chapitre
-            let isLastSentence = sentenceIndex >= self.sentences.count - 1
+            guard let item, item.epoch == self.playbackEpoch else { return }
+
+            let isLastSentence = item.sentence.sentenceIndex >= self.sentences.count - 1
             if isLastSentence {
                 if self.currentChapterIndex + 1 < self.publication.readingOrder.count {
                     self.advanceToNextChapter()
@@ -465,7 +481,13 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        // Annulation propre ignorée grâce au filtrage par playbackEpoch
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let index = self.enqueuedSentences.firstIndex(where: { ObjectIdentifier($0.utterance) == utteranceID }) {
+                self.enqueuedSentences.remove(at: index)
+            }
+        }
     }
 
     private func preloadNextChapter() {
@@ -489,6 +511,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
     private func updateNowPlaying() {
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: bookTitle,
+            MPNowPlayingInfoPropertyIsLiveStream: false,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0.0,
         ]
         if let bookAuthor, !bookAuthor.isEmpty {
@@ -557,6 +580,7 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         playbackEpoch &+= 1
         currentPlaybackTask?.cancel()
         wasPlayingBeforeInterruption = false
+        enqueuedSentences.removeAll()
         synthesizer?.stopSpeaking(at: .immediate)
         synthesizer?.delegate = nil
         synthesizer = nil
@@ -572,49 +596,16 @@ final class ReaderTTSPlaybackController: NSObject, AVSpeechSynthesizerDelegate {
         remoteTargets = []
     }
 
-    /// Nettoyage système sur le MainActor uniquement : `MPNowPlayingInfoCenter`
-    /// affirme la main queue sur appareil (`_dispatch_assert_queue_fail`).
-    /// Le nettoyage complet reste dans `teardown()` via `close()`.
+    /// Nettoyage système asynchrone sécurisé sur MainActor sans risque de deadlock.
     @MainActor
     static func clearSystemAudio() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// Filet de sécurité appelable depuis `deinit` (contexte non isolé,
-    /// thread quelconque) : bascule sur le main thread de façon synchrone.
-    /// Ne jamais appeler `clearSystemAudio()` directement depuis `deinit`.
-    nonisolated static func clearSystemAudioFromDeinit() {
-        let cleanup = {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        }
-        if Thread.isMainThread {
-            cleanup()
-        } else {
-            DispatchQueue.main.sync(execute: cleanup)
-        }
-    }
-
     deinit {
-        Self.clearSystemAudioFromDeinit()
-    }
-}
-
-// MARK: - SentenceUtterance
-
-private final class SentenceUtterance: AVSpeechUtterance, @unchecked Sendable {
-    let sentence: LoreTTSSentence
-    let epoch: UInt64
-
-    init(sentence: LoreTTSSentence, epoch: UInt64) {
-        self.sentence = sentence
-        self.epoch = epoch
-        super.init(string: sentence.text)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        Task { @MainActor in
+            Self.clearSystemAudio()
+        }
     }
 }

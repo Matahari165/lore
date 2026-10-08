@@ -94,7 +94,7 @@ struct AppRootView: View {
                     .tabItem { Label("Podcasts", systemImage: "waveform") }
                     .tag(Tab.podcasts)
             }
-            .tabBarMinimizeBehavior(.onScrollDown)
+            .loreTabBarMinimizeBehavior()
             .loreCanvas()
             .allowsHitTesting(libraryModel.readerPresentation == nil)
             .accessibilityHidden(libraryModel.readerPresentation != nil)

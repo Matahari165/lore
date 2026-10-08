@@ -318,11 +318,11 @@ struct ReaderScreen: View {
                             showsAllPreferences = true
                         }
                     )
-                    .glassEffectID("reader-quick-preferences", in: glassNamespace)
+                    .loreGlassEffectID("reader-quick-preferences", in: glassNamespace)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
 
-                GlassEffectContainer(spacing: 12) {
+                LoreGlassContainer(spacing: 12) {
                     HStack(spacing: 4) {
                         if canGoBackAfterJump {
                             controlButton("Retour à la position précédente", systemImage: "arrow.uturn.backward") {
@@ -1082,7 +1082,7 @@ extension View {
             background(Color(uiColor: .systemBackground).opacity(0.96), in: shape)
                 .overlay(shape.stroke(Color.primary.opacity(0.16), lineWidth: 0.5))
         } else {
-            glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+            loreGlass(in: shape, interactive: interactive)
         }
     }
 }

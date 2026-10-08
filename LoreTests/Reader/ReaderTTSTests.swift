@@ -137,6 +137,12 @@ struct LoreChapterTextExtractorTests {
         #expect(indexStart == 0)
     }
 
+    @Test func emptyOrWhitespaceHTMLYieldsNoSentences() {
+        let empty = "   \n\t  "
+        let sentences = LoreChapterTextExtractor.segmentSentences(from: empty, languageCode: "fr")
+        #expect(sentences.isEmpty)
+    }
+
     private func makeLocator(progression: Double) -> Locator {
         Locator(
             href: URL(string: "chapter1.xhtml")!,
@@ -164,7 +170,7 @@ struct LoreTTSAudioSessionCoordinatorTests {
         )
 
         // Les notifications sont traitées sur la file principale
-        #expect(coordinator.onInterruptionBegan != nil)
+        #expect(beganCalled)
     }
 
     @Test func routeChangeOldDeviceUnavailableTriggersPause() {
@@ -182,7 +188,7 @@ struct LoreTTSAudioSessionCoordinatorTests {
             ]
         )
 
-        #expect(coordinator.onRouteChangeOldDeviceUnavailable != nil)
+        #expect(pauseTriggered)
     }
 }
 
