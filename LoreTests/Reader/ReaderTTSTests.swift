@@ -154,7 +154,7 @@ struct LoreChapterTextExtractorTests {
 
 @MainActor
 struct LoreTTSAudioSessionCoordinatorTests {
-    @Test func interruptionBeganCallsCallback() {
+    @Test func interruptionBeganCallsCallback() async {
         let coordinator = LoreTTSAudioSessionCoordinator()
         var beganCalled = false
         coordinator.onInterruptionBegan = {
@@ -169,11 +169,13 @@ struct LoreTTSAudioSessionCoordinatorTests {
             ]
         )
 
+        await Task.yield()
+
         // Les notifications sont traitées sur la file principale
         #expect(beganCalled)
     }
 
-    @Test func routeChangeOldDeviceUnavailableTriggersPause() {
+    @Test func routeChangeOldDeviceUnavailableTriggersPause() async {
         let coordinator = LoreTTSAudioSessionCoordinator()
         var pauseTriggered = false
         coordinator.onRouteChangeOldDeviceUnavailable = {
@@ -187,6 +189,8 @@ struct LoreTTSAudioSessionCoordinatorTests {
                 AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue
             ]
         )
+
+        await Task.yield()
 
         #expect(pauseTriggered)
     }

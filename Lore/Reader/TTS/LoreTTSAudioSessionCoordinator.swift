@@ -1,17 +1,14 @@
 import AVFoundation
 import Foundation
-import ReadiumShared
-
 /// Coordinateur audio dédié à la synthèse vocale locale dans Lore.
 ///
-/// Implémente `AudioSessionManaging` pour s'interfacer avec le lecteur
-/// tout en garantissant :
-/// 1. La poursuite de l'audio écran verrouillé et en arrière-plan (catégorie `.playback`, mode `.spokenAudio`).
+/// Garantit :
+/// 1. La poursuite de l'audio écran verrouillé et en arrière-plan (catégorie `.playback`, mode `.default`).
 /// 2. La préservation de la session active en pause pour maintenir la réactivité de `MPRemoteCommandCenter`.
 /// 3. La mise en pause synchrone et sans fuite au retrait des écouteurs/AirPods (`.oldDeviceUnavailable`).
 /// 4. La gestion robuste et typée des interruptions système (appels, alarmes).
 @MainActor
-final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
+final class LoreTTSAudioSessionCoordinator {
     private var isSessionActive = false
     private nonisolated(unsafe) var interruptionObserver: NSObjectProtocol?
     private nonisolated(unsafe) var routeChangeObserver: NSObjectProtocol?
@@ -33,34 +30,12 @@ final class LoreTTSAudioSessionCoordinator: AudioSessionManaging {
         }
     }
 
-    // MARK: - AudioSessionManaging
-
-    nonisolated func start(with user: AudioSessionUser, isPlaying: Bool) {
-        Task { @MainActor in
-            self.activateSession()
-        }
-    }
-
-    nonisolated func end(for user: AudioSessionUser) {
-        Task { @MainActor in
-            self.deactivateSession()
-        }
-    }
-
-    nonisolated func user(_ user: AudioSessionUser, didChangePlaying isPlaying: Bool) {
-        Task { @MainActor in
-            if isPlaying {
-                self.activateSession()
-            }
-        }
-    }
-
     // MARK: - Gestion de session
 
     func activateSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio)
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
             isSessionActive = true
         } catch {
