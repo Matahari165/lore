@@ -1,10 +1,12 @@
 # État du projet Lore
 
-Dernière mise à jour : 8 octobre 2026
+Dernière mise à jour : 9 octobre 2026
 
 ## Terminé
 
-- Résolution complète des crashs TTS et restauration du déploiement physique :
+- Résolution complète des crashs et blocages TTS (`_dispatch_assert_queue_fail`) et restauration du déploiement physique :
+  - **Élimination de l'assertion de file `_dispatch_assert_queue_fail` (`EXC_BREAKPOINT`)** : extraction du pont `LoreTTSDelegateBridge: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable` au niveau fichier (hors de l'isolation implicite `@MainActor` de `ReaderTTSPlaybackController`). Les thunks d'entrée Objective-C générés par le compilateur Swift pour les callbacks de fond (`com.apple.speech.synthesizerQueue`) ne contiennent plus d'assertion de dispatch queue, validé par inspection binaire désassemblée (`otool`).
+  - **Suppression des verrous et conflits audio** : passage de `synth.usesApplicationAudioSession = false` pour isoler `AVSpeechSynthesizer` des files de coordination système bloquantes (`AudioSession - RootQueue`).
   - **Correction du déploiement iPhone réel** : `IPHONEOS_DEPLOYMENT_TARGET` rétabli à `17.0` (au lieu de `26.0` introduit accidentellement). Ajout de `LoreGlass.swift` garantissant la rétrocompatibilité des effets Liquid Glass (`loreGlass`, `loreGlassEffectID`, `LoreGlassContainer`, `loreTabBarMinimizeBehavior`) avec un rendu matériel ultra-fin soigné sous iOS 17.
   - **Éradication de la fermeture immédiate de l'app au lancement audio** : suppression totale du sous-classement illégal `SentenceUtterance: AVSpeechUtterance` qui déclenchait un `fatalError("init(coder:) has not been implemented")` lors de la sérialisation XPC vers le démon audio système iOS `voiced`. Remplacement par des instances standard `AVSpeechUtterance` et une file d'attente FIFO `QueuedSentence` sécurisée sur `@MainActor`.
   - **Isolation et concurrence Swift 6 durcies** : corrélation des énoncés de synthèse via `ObjectIdentifier(utterance)` (conforme `Sendable` et `Hashable`), éliminant tout transfert non sécurisé d'instances `NSObject` à travers les frontières d'isolation et toutes les erreurs de Region Isolation.
