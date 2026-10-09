@@ -15,39 +15,59 @@ import UIKit
 /// - La gestion bidirectionnelle des chapitres sans texte (couvertures, illustrations).
 /// - La persistance immédiate de la position sur pause, interruption ou déconnexion Bluetooth/AirPods.
 /// - L'intégration complète `MPNowPlayingInfoCenter` et `MPRemoteCommandCenter`.
-@MainActor
-@Observable
-final class ReaderTTSPlaybackController: NSObject {
-    
-    private final class TTSDelegateBridge: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
-        private weak var controller: ReaderTTSPlaybackController?
+/// Pont de délégation non isolé pour `AVSpeechSynthesizerDelegate`.
+///
+/// Déclaré au niveau fichier, en dehors de tout contexte `@MainActor`,
+/// pour garantir qu'aucune assertion de file de dispatch (`_dispatch_assert_queue_fail`)
+/// ne soit injectée dans les thunks `@objc` appelés depuis la file d'arrière-plan
+/// `com.apple.speech.synthesizerQueue`.
+private final class LoreTTSDelegateBridge: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
+    private weak var controller: ReaderTTSPlaybackController?
 
-        init(controller: ReaderTTSPlaybackController) {
-            self.controller = controller
-            super.init()
-        }
+    init(controller: ReaderTTSPlaybackController) {
+        self.controller = controller
+        super.init()
+    }
 
-        func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-            let utteranceID = ObjectIdentifier(utterance)
-            Task { @MainActor [weak controller] in
-                controller?.handleSpeechDidStart(utteranceID: utteranceID)
-            }
-        }
-
-        func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-            let utteranceID = ObjectIdentifier(utterance)
-            Task { @MainActor [weak controller] in
-                controller?.handleSpeechDidFinish(utteranceID: utteranceID)
-            }
-        }
-
-        func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-            let utteranceID = ObjectIdentifier(utterance)
-            Task { @MainActor [weak controller] in
-                controller?.handleSpeechDidCancel(utteranceID: utteranceID)
-            }
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak controller] in
+            controller?.handleSpeechDidStart(utteranceID: utteranceID)
         }
     }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak controller] in
+            controller?.handleSpeechDidFinish(utteranceID: utteranceID)
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak controller] in
+            controller?.handleSpeechDidCancel(utteranceID: utteranceID)
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak controller] in
+            controller?.handleSpeechDidPause(utteranceID: utteranceID)
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didContinue utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
+        Task { @MainActor [weak controller] in
+            controller?.handleSpeechDidContinue(utteranceID: utteranceID)
+        }
+    }
+}
+
+@MainActor
+@Observable
+final class ReaderTTSPlaybackController {
     let bookID: UUID
     let bookTitle: String
     let bookAuthor: String?
@@ -78,7 +98,7 @@ final class ReaderTTSPlaybackController: NSObject {
     private let publication: Publication
     private let textExtractor = LoreChapterTextExtractor()
     private var synthesizer: AVSpeechSynthesizer?
-    private var delegateBridge: TTSDelegateBridge?
+    private var delegateBridge: LoreTTSDelegateBridge?
 
     private var currentChapterIndex: Int = 0
     private var sentences: [LoreTTSSentence] = []
@@ -129,14 +149,12 @@ final class ReaderTTSPlaybackController: NSObject {
             self.cachedArtwork = nil
         }
 
-        super.init()
-
-        let bridge = TTSDelegateBridge(controller: self)
+        let bridge = LoreTTSDelegateBridge(controller: self)
         self.delegateBridge = bridge
         let synth = AVSpeechSynthesizer()
         synth.delegate = bridge
         if #available(iOS 16.0, *) {
-            synth.usesApplicationAudioSession = true
+            synth.usesApplicationAudioSession = false
         }
         self.synthesizer = synth
 
@@ -508,6 +526,20 @@ final class ReaderTTSPlaybackController: NSObject {
         if let index = self.enqueuedSentences.firstIndex(where: { ObjectIdentifier($0.utterance) == utteranceID }) {
             self.enqueuedSentences.remove(at: index)
         }
+    }
+
+    func handleSpeechDidPause(utteranceID: ObjectIdentifier) {
+        self.isPlaying = false
+        self.isSpeaking = true
+        self.updateNowPlaying()
+        self.onStateChange?()
+    }
+
+    func handleSpeechDidContinue(utteranceID: ObjectIdentifier) {
+        self.isPlaying = true
+        self.isSpeaking = true
+        self.updateNowPlaying()
+        self.onStateChange?()
     }
 
     private func preloadNextChapter() {
